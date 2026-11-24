@@ -71,6 +71,9 @@ struct Options {
     bool race = false;   // démarre directement en course, sans menu
     std::string screen;  // mode sans fenêtre : écran de menu à capturer
     int ship = 0;
+    int hostAuto = 0;    // essais réseau sans interface, voir App
+    bool joinAuto = false;
+    bool realtime = false; // mode sans fenêtre : cadence réelle, nécessaire au réseau
     bool audio = true;
     std::string wav;     // mode sans fenêtre : écrit le son de la course dans ce fichier
     int gridStart = -1;  // -1 : selon le mode, 0 : départ lancé, 1 : grille
@@ -103,6 +106,9 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
         else if (!std::strcmp(a, "--ship")) o.ship = std::atoi(value());
         else if (!std::strcmp(a, "--race")) o.race = true;
+        else if (!std::strcmp(a, "--host-auto")) o.hostAuto = std::atoi(value());
+        else if (!std::strcmp(a, "--join-auto")) o.joinAuto = true;
+        else if (!std::strcmp(a, "--realtime")) o.realtime = true;
         else if (!std::strcmp(a, "--screen")) o.screen = value();
         else if (!std::strcmp(a, "--no-audio")) o.audio = false;
         else if (!std::strcmp(a, "--wav")) o.wav = value();
@@ -231,11 +237,14 @@ int runHeadless(const Options& opt) {
         else if (opt.screen == "multi") app.screen = game::Screen::Multi;
         else if (opt.screen == "adresse") app.screen = game::Screen::Address;
         else if (opt.screen == "salon") {
-            app.net.host(app.playerName, app.ship, 47950);
+            // Port à part pour une simple capture, port normal pour un essai réseau.
+            app.net.host(app.playerName, app.ship, opt.hostAuto > 0 ? net::kPort : 47950);
             app.net.lobby.track = opt.track;
             app.screen = game::Screen::Lobby;
         }
         if (opt.screen == "multi") app.net.client(app.playerName, app.ship);
+        app.autoHostPlayers = opt.hostAuto;
+        app.autoJoin = opt.joinAuto;
         for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
             race.update(sim::kFixedDt, game::Controls{});
         race.orbitAngle = opt.startTime * 0.35f;
@@ -262,6 +271,13 @@ int runHeadless(const Options& opt) {
         gfx::FrameTarget ft{target.view, extent, extent, 0};
         gfx::FrameParams params;
         params.slot = i % kFramesInFlight;
+        if (opt.realtime) {
+            Uint64 due = start + static_cast<Uint64>(static_cast<double>(i) / opt.fps * 1e9);
+            Uint64 nowNs = SDL_GetTicksNS();
+            if (due > nowNs) SDL_DelayNS(due - nowNs);
+        }
+        if (race.config.track != renderer.loadedTrack)
+            renderer.loadTrack(race.track, race.config.track);
         glm::vec2 screenSize{static_cast<float>(extent.width), static_cast<float>(extent.height)};
         app.update(static_cast<double>(i) / opt.fps, 1.0f / opt.fps, game::Controls{},
                    game::UiInput{}, screenSize, renderer.fonts);

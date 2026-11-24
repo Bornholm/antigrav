@@ -33,6 +33,10 @@ struct App {
     double lastDiscover = -10.0;
     uint32_t lastSnapshotTick = 0;
     bool inRace = false; // une vraie course est en cours, pas la démonstration
+    // Automatismes pour les essais sans interface : l'hôte lance dès que ce
+    // nombre de joueurs est atteint, le client rejoint la première partie vue.
+    int autoHostPlayers = 0;
+    bool autoJoin = false;
 
     void init(int startTrack);
     // Lance directement une course, sans passer par les menus.

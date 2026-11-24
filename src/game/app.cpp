@@ -185,6 +185,14 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
         }
     }
 
+    if (autoHostPlayers > 0 && net.role == net::Role::Host && screen == Screen::Lobby &&
+        net.lobby.racerCount >= autoHostPlayers)
+        startHosted();
+    if (autoJoin && screen == Screen::Multi && net.foundCount > 0) {
+        net.join(net.found[0].ip, net.found[0].port);
+        go(Screen::Lobby);
+    }
+
     race.update(dt, controls);
 
     if (net.role == net::Role::Host && inRace) {

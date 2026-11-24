@@ -107,6 +107,22 @@ foreach(font Orbitron-Medium.ttf Orbitron-Bold.ttf)
 endforeach()
 add_custom_target(shaders DEPENDS ${SHADER_OUTPUTS})
 
+# La simulation ne dépend ni de Vulkan ni de SDL : elle se compile et se teste
+# seule.
+add_library(sim STATIC src/sim/track.cpp src/sim/world.cpp)
+target_include_directories(sim PUBLIC src)
+target_include_directories(sim SYSTEM PUBLIC ${glm_SOURCE_DIR})
+target_compile_definitions(sim PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_RADIANS GLM_ENABLE_EXPERIMENTAL)
+target_compile_options(sim PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
+set_target_properties(sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+if(NOT ANDROID)
+  enable_testing()
+  add_executable(sim_tests tests/sim_tests.cpp)
+  target_link_libraries(sim_tests PRIVATE sim)
+  add_test(NAME sim COMMAND sim_tests)
+endif()
+
 set(GAME_SOURCES
   src/main.cpp
   src/core/log.cpp
@@ -119,8 +135,6 @@ set(GAME_SOURCES
   src/gfx/geometry.cpp
   src/gfx/hud.cpp
   src/game/hud.cpp
-  src/sim/track.cpp
-  src/sim/world.cpp
   src/game/input.cpp
   src/game/race.cpp)
 
@@ -135,6 +149,6 @@ endif()
 
 add_dependencies(${GAME_TARGET} shaders)
 target_include_directories(${GAME_TARGET} PRIVATE src ${SHADER_OUT_DIR})
-target_link_libraries(${GAME_TARGET} PRIVATE third_party SDL3::SDL3)
+target_link_libraries(${GAME_TARGET} PRIVATE sim third_party SDL3::SDL3)
 target_compile_options(${GAME_TARGET} PRIVATE
   -Wall -Wextra -Wno-missing-field-initializers -fno-exceptions -fno-rtti)

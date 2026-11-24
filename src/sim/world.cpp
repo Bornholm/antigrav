@@ -78,6 +78,10 @@ void step(World& world, const Track& track, const Input* inputs) {
             (along > 0.0f ? a : b).speed *= 0.992f;
         }
     }
+    // Un contact ne doit pousser personne à travers un muret.
+    const float limit = track.halfWidth - kShipHalfWidth;
+    for (int i = 0; i < world.count; i++)
+        world.vehicles[i].lateral = std::clamp(world.vehicles[i].lateral, -limit, limit);
     world.time += kFixedDt;
 }
 

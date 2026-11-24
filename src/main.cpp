@@ -75,6 +75,7 @@ struct Options {
     bool joinAuto = false;
     bool realtime = false; // mode sans fenêtre : cadence réelle, nécessaire au réseau
     bool audio = true;
+    bool music = true;
     std::string wav;     // mode sans fenêtre : écrit le son de la course dans ce fichier
     int gridStart = -1;  // -1 : selon le mode, 0 : départ lancé, 1 : grille
     gfx::RenderSettings render;
@@ -111,6 +112,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--realtime")) o.realtime = true;
         else if (!std::strcmp(a, "--screen")) o.screen = value();
         else if (!std::strcmp(a, "--no-audio")) o.audio = false;
+        else if (!std::strcmp(a, "--no-music")) o.music = false;
         else if (!std::strcmp(a, "--wav")) o.wav = value();
         else if (!std::strcmp(a, "--grid-start")) o.gridStart = 1;
         else if (!std::strcmp(a, "--rolling-start")) o.gridStart = 0;
@@ -377,7 +379,10 @@ int runWindowed(const Options& opt) {
     game::InputReader input;
     game::Audio audio;
     game::App app;
-    if (opt.audio && audio.init()) app.synth = &audio.synth;
+    if (opt.audio && audio.init()) {
+        app.synth = &audio.synth;
+        if (opt.music) app.music = &audio.music;
+    }
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
     app.init(opt.track);
     if (opt.race || opt.autopilot) {

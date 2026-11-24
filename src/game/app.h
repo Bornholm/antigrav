@@ -1,5 +1,6 @@
 #pragma once
 
+#include "game/music.h"
 #include "game/race.h"
 #include "game/ui.h"
 #include "net/net.h"
@@ -16,6 +17,7 @@ struct App {
     Ui ui;
     gfx::HudBatch menuHud;
     Synth* synth = nullptr;
+    Music* music = nullptr;
     bool quit = false;
     const char* statsLine = "";
 

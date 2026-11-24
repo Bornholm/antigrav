@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(antigrav LANGUAGES C CXX)
+project(antigrav LANGUAGES C CXX ASM)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,7 +52,8 @@ endif()
 add_library(third_party STATIC
   ${volk_SOURCE_DIR}/volk.c
   src/third_party/vma.cpp
-  src/third_party/stb.cpp)
+  src/third_party/stb.cpp
+  src/third_party/stb_vorbis.cpp)
 target_include_directories(third_party SYSTEM PUBLIC
   ${vulkan_headers_SOURCE_DIR}/include
   ${volk_SOURCE_DIR}
@@ -111,6 +112,14 @@ foreach(font Orbitron-Medium.ttf Orbitron-Bold.ttf)
 endforeach()
 add_custom_target(shaders DEPENDS ${SHADER_OUTPUTS})
 
+# Musique : les fichiers Ogg entrent dans le binaire par une directive
+# d'assembleur, sans conversion en texte.
+set(MUSIC_DIR ${CMAKE_SOURCE_DIR}/assets/music)
+set(MUSIC_ASM ${CMAKE_BINARY_DIR}/generated/music.S)
+configure_file(cmake/music.S.in ${MUSIC_ASM} @ONLY)
+set_source_files_properties(${MUSIC_ASM} PROPERTIES OBJECT_DEPENDS
+  "${MUSIC_DIR}/theme.ogg;${MUSIC_DIR}/neon.ogg;${MUSIC_DIR}/canyon.ogg;${MUSIC_DIR}/station.ogg")
+
 # La simulation ne dépend ni de Vulkan ni de SDL : elle se compile et se teste
 # seule.
 add_library(sim STATIC src/sim/track.cpp src/sim/world.cpp src/sim/content.cpp src/sim/session.cpp)
@@ -154,6 +163,8 @@ set(GAME_SOURCES
   src/game/input.cpp
   src/game/synth.cpp
   src/game/audio.cpp
+  src/game/music.cpp
+  ${MUSIC_ASM}
   src/game/race.cpp
   src/game/ui.cpp
   src/game/app.cpp)

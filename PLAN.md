@@ -38,6 +38,15 @@ Jamais exécuté à ce jour : tout ce qui est propre à Android, soit la rotatio
 | Canyon Solaire | Sinueux et vallonné, piste de 26 m | Défilé de pitons au crépuscule, ambre et rouge |
 | Station Orbitale | Huit dont une branche enjambe l'autre, piste de 34 m | Vide spatial, anneaux à traverser, vert et bleu |
 
+| Musique | Style | Tempo demandé |
+|---|---|---|
+| Thème des menus | Électro synthwave, 1 min | 118 |
+| Néon City | Outrun synthwave, 2 min | 132 |
+| Canyon Solaire | Big beat et breakbeat, basse acide, 2 min | 136 |
+| Station Orbitale | Drum and bass froide, 2 min | 172 |
+
+Les morceaux sont générés par le modèle Lyria via l'outil `mgen`, convertis en Ogg Vorbis 48 kHz dans `assets/music` et inclus dans le binaire. Ils tournent en boucle, avec un fondu au changement d'écran. Les droits d'usage d'une musique générée dépendent des conditions du fournisseur : à vérifier avant toute publication.
+
 | Élément de piste | Effet | Parade |
 |---|---|---|
 | Plaque de boost, chevrons jaunes | Porte le vaisseau au-delà de la vitesse de boost, sans coût | Aucune, mais la vitesse gagnée fait dériver en virage |

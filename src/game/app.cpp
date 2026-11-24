@@ -145,6 +145,10 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                  glm::vec2 screenSize, const gfx::FontAtlas& fonts) {
     now = time;
     race.statsLine = statsLine;
+    // Thème dans les menus, morceau du circuit en course.
+    if (music)
+        music->play(screen == Screen::Race ? Music::kFirstTrack + race.config.track
+                                           : Music::kTheme);
 
     // Réseau : lit les paquets, puis réagit aux changements d'état.
     net.poll(now, inRace ? &race : nullptr);

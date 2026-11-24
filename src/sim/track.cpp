@@ -62,11 +62,12 @@ std::vector<Phrase> makePhrases(const music::Partition& p, const std::vector<mus
         const float length = (250.0f + 110.0f * energy) * (end - start);
         const int slot = static_cast<int>(i);
         // Un passage intense tourne serré, un passage calme file presque droit.
-        float amplitude = (0.0005f + 0.0016f * energy) * (0.6f + 0.4f * featureRoll(seed, slot, 11u));
+        float amplitude = (0.0008f + 0.0024f * energy) * (0.6f + 0.4f * featureRoll(seed, slot, 11u));
         if (energy < 0.25f && featureRoll(seed, slot, 12u) < 0.5f) amplitude *= 0.3f;
-        // Le virage tourne de amplitude * longueur / 2 : au plus 0,9 radian.
-        amplitude = std::min(amplitude, 1.8f / std::max(1.0f, length));
-        const float turn = 0.5f * amplitude * length;
+        // Le virage occupe les six dixièmes du milieu de la phrase et tourne de
+        // amplitude * longueur * 0,3 : au plus 0,9 radian.
+        amplitude = std::min(amplitude, 3.0f / std::max(1.0f, length));
+        const float turn = 0.3f * amplitude * length;
         float sign = -lastSign;
         if (std::abs(heading) > 0.5f) sign = heading > 0.0f ? -1.0f : 1.0f;
         else if (featureRoll(seed, slot, 13u) < 0.25f && std::abs(heading + lastSign * turn) < 1.2f) sign = lastSign;
@@ -249,7 +250,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         while (phrase + 1 < phrases.size() && time >= phrases[phrase].end) phrase++;
         const Phrase& ph = phrases[phrase];
         const float u = std::clamp((time - ph.start) / std::max(0.01f, ph.end - ph.start), 0.0f, 1.0f);
-        const float s = std::sin(kPi * u);
+        const float s = std::sin(kPi * std::clamp((u - 0.2f) / 0.6f, 0.0f, 1.0f));
         const float moved = pace * dt;
         heading += ph.amplitude * s * s * moved;
         // La piste plonge quand le morceau monte en intensité.
@@ -292,6 +293,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     }
     finishFrames(track);
     placeFeatures(track, p, beats, seed);
+    for (const music::Beat& b : beats) track.beats.push_back(b.time);
     return track;
 }
 
@@ -358,6 +360,12 @@ glm::vec3 Track::point(float distance, float lateral, float height) const {
 }
 
 float Track::ahead(float from, float to) const { return to >= from ? to - from : 1e9f; }
+
+bool Track::onBeat(float time, float tolerance) const {
+    auto next = std::lower_bound(beats.begin(), beats.end(), time);
+    if (next != beats.end() && *next - time <= tolerance) return true;
+    return next != beats.begin() && time - *(next - 1) <= tolerance;
+}
 
 float Track::distAt(float time) const {
     const int count = static_cast<int>(frames.size());

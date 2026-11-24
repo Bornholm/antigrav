@@ -23,7 +23,6 @@ struct TrackInfo {
     const char* name;
     const char* tagline;
     float halfWidth;
-    int laps;
 };
 const TrackInfo& trackInfo(int track);
 
@@ -42,6 +41,7 @@ struct AiProfile {
     float erratic;     // part de décisions prises au hasard
     float nerve;       // part de son braquage qu'il accepte de consacrer à tenir une plaque en virage
     float foresight;   // secondes d'avance avec lesquelles il lit les éléments de piste
+    float rhythm;      // part des occasions où il joue en rythme, de 0 à 1
 };
 const AiProfile& aiProfile(int profile);
 

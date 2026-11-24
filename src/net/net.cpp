@@ -42,7 +42,7 @@ struct WireRacer {
 };
 struct WireConfig {
     int8_t track;
-    int8_t laps;
+    int8_t ownClock;
     int8_t racerCount;
     uint8_t gridStart;
     WireRacer racers[sim::kMaxVehicles];
@@ -81,7 +81,8 @@ struct InputPacket {
 };
 struct WireVehicle {
     float dist, lateral, lateralVel, speed, energy, roll, finishTime, shieldTime, stunTime;
-    uint8_t flags; // bit 0 boost, 1 frottement, 2 arrivé, 3 tir tenu, 4 bouclier tenu
+    float accord, accordCooldown;
+    uint8_t flags; // bit 0 boost, 1 frottement, 2 arrivé, 3 tir tenu, 4 bouclier tenu, 5 boost tenu
 };
 struct WireMissile {
     uint8_t active;
@@ -121,7 +122,7 @@ sim::Input unpackInput(const WireInput& w) {
 WireConfig packConfig(const sim::RaceConfig& c) {
     WireConfig w{};
     w.track = static_cast<int8_t>(c.track);
-    w.laps = static_cast<int8_t>(c.laps);
+    w.ownClock = c.ownClock ? 1 : 0;
     w.racerCount = static_cast<int8_t>(c.racerCount);
     w.gridStart = c.gridStart;
     for (int i = 0; i < sim::kMaxVehicles; i++) {
@@ -136,7 +137,7 @@ WireConfig packConfig(const sim::RaceConfig& c) {
 sim::RaceConfig unpackConfig(const WireConfig& w) {
     sim::RaceConfig c;
     c.track = std::clamp<int>(w.track, 0, sim::kTrackCount - 1);
-    c.laps = std::clamp<int>(w.laps, 1, 9);
+    c.ownClock = w.ownClock != 0;
     c.racerCount = std::clamp<int>(w.racerCount, 0, sim::kMaxVehicles);
     c.gridStart = w.gridStart != 0;
     for (int i = 0; i < sim::kMaxVehicles; i++) {
@@ -354,11 +355,13 @@ void Net::hostSendSnapshot(const sim::Session& session) {
         o.energy = v.energy;
         o.roll = v.roll;
         o.finishTime = v.finishTime;
+        o.accord = v.accord;
+        o.accordCooldown = v.accordCooldown;
         o.shieldTime = v.shieldTime;
         o.stunTime = v.stunTime;
         o.flags = static_cast<uint8_t>((v.boosting ? 1 : 0) | (v.scraping ? 2 : 0) |
                                        (v.finished ? 4 : 0) | (v.fireHeld ? 8 : 0) |
-                                       (v.shieldHeld ? 16 : 0));
+                                       (v.shieldHeld ? 16 : 0) | (v.boostHeld ? 32 : 0));
         packet.inputs[i] = packInput(session.lastInputs[i]);
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {
@@ -393,6 +396,8 @@ void Net::reconcile(sim::Session& session, const void* data) {
         v.energy = o.energy;
         v.roll = o.roll;
         v.finishTime = o.finishTime;
+        v.accord = o.accord;
+        v.accordCooldown = o.accordCooldown;
         v.shieldTime = o.shieldTime;
         v.stunTime = o.stunTime;
         v.boosting = o.flags & 1;
@@ -400,6 +405,7 @@ void Net::reconcile(sim::Session& session, const void* data) {
         v.finished = o.flags & 4;
         v.fireHeld = o.flags & 8;
         v.shieldHeld = o.flags & 16;
+        v.boostHeld = o.flags & 32;
         if (i != session.localIndex) session.remoteInputs[i] = unpackInput(s.inputs[i]);
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {

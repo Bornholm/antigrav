@@ -2,6 +2,19 @@
 
 Chaque piste est générée à partir d'un morceau de musique. La course va de sa première note à sa dernière : pas de tours, et le classement se joue à l'arrivée. Les plaques de boost tombent sur le premier temps de chaque mesure, les obstacles sur les temps accentués, et les néons battent avec la musique.
 
+## Jouer en rythme
+
+- **Accord.** Lancer le boost pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. « EN RYTHME » s'affiche. Un accord est possible toutes les deux secondes environ.
+- **Plaques.** Chaque plaque de boost prise rend aussi un peu d'énergie.
+- **Jauge.** Elle ne se recharge presque plus seule. Boost, missile et bouclier se paient surtout en jouant en rythme.
+
+Deux horloges sont à l'essai, au choix dans le menu Solo :
+
+- **Commune.** Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'avance du vaisseau sur la musique. Un élastique freine qui prend de l'avance et aspire qui traîne, donc le peloton reste groupé.
+- **Par joueur.** Chacun entend le morceau là où se trouve son vaisseau : la musique accélère avec lui et ralentit quand il percute. Pas d'élastique, la course est libre.
+
+## Menus et commandes
+
 Le jeu s'ouvre sur le menu. **Solo** règle le morceau, le vaisseau, le nombre d'IA de 0 à 7 et leur caractère. **Multijoueur** héberge une partie ou rejoint celles trouvées sur le réseau local.
 
 La piste porte trois sortes d'éléments. Les plaques à chevrons jaunes accélèrent, les champs hachurés rouges freinent et vident la jauge, les barrières rouges arrêtent net. Le bouclier protège des champs et encaisse une barrière.

@@ -26,7 +26,7 @@ struct App {
     int ship = 0;
     int opponents = 3;
     int personality = 0; // 0 : variées, sinon personnalité + 1
-    int laps = 3;
+    bool ownClock = false; // horloge musicale par joueur
     char playerName[20] = "Pilote";
     char address[20] = "";
     const char* notice = ""; // message d'état affiché dans les menus
@@ -34,7 +34,7 @@ struct App {
     double now = 0.0;
     double lastDiscover = -10.0;
     uint32_t lastSnapshotTick = 0;
-    double lastSongTime = -1.0;
+    float lastRaceTime = -1.0f;
     bool confirmQuit = false; // demande de confirmation avant d'abandonner une course
     bool inRace = false; // une vraie course est en cours, pas la démonstration
     // Automatismes pour les essais sans interface : l'hôte lance dès que ce

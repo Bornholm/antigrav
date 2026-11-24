@@ -22,6 +22,9 @@ struct HudState {
     int position = 1;
     int racers = 1;
     float remaining = 0.0f; // secondes de morceau restantes
+    bool showGap = false;   // horloge commune : affiche l'avance sur la musique
+    float gap = 0.0f;       // secondes d'avance, négatif en retard
+    float accord = 0.0f;    // 1 juste après un boost lancé en rythme, puis retombe
     float speedKmh = 0.0f;
     int tagCount = 0;
     NameTag tags[8];

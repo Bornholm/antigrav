@@ -52,7 +52,6 @@ void acquireMulticastLock() {
 
 void App::init(int startTrack) {
     track = std::clamp(startTrack, 0, sim::kTrackCount - 1);
-    laps = sim::trackInfo(track).laps;
     std::snprintf(playerName, sizeof(playerName), "Pilote %02d",
                   static_cast<int>(SDL_GetTicksNS() / 1000 % 90) + 10);
     startAttract();
@@ -69,7 +68,6 @@ void App::go(Screen next) {
 void App::startAttract() {
     RaceConfig config;
     config.track = track;
-    config.laps = 99;
     config.gridStart = false;
     config.racerCount = 1;
     std::snprintf(config.racers[0].name, sizeof(config.racers[0].name), "%s", playerName);
@@ -115,7 +113,7 @@ void App::startQuickRace(const RaceConfig& config, bool autopilot) {
 void App::startSolo() {
     RaceConfig config;
     config.track = track;
-    config.laps = laps;
+    config.ownClock = ownClock;
     config.gridStart = true;
     config.racerCount = 1;
     std::snprintf(config.racers[0].name, sizeof(config.racers[0].name), "%s", playerName);
@@ -127,7 +125,7 @@ void App::startSolo() {
 void App::startHosted() {
     RaceConfig config = net.lobby;
     config.track = track;
-    config.laps = laps;
+    config.ownClock = ownClock;
     config.gridStart = true;
     int room = sim::kMaxVehicles - config.racerCount;
     config = withOpponents(config, std::min(opponents, room));
@@ -149,9 +147,22 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     // temps de course : il démarre au signal du départ.
     if (music) {
         if (screen == Screen::Race) {
-            const double songTime = race.world.countdown > 0.0f ? -1.0 : race.world.raceTime;
-            music->sync(Music::kFirstTrack + race.config.track, songTime, songTime != lastSongTime);
-            lastSongTime = songTime;
+            // Horloge par joueur : le morceau avance avec le vaisseau, plus
+            // vite quand il va vite, au ralenti quand il percute.
+            const sim::Vehicle& player = race.world.vehicles[race.localIndex];
+            const double songTime = race.world.countdown > 0.0f
+                                        ? -1.0
+                                        : sim::songTime(race.world, race.track, player);
+            const bool moving = race.world.raceTime != lastRaceTime;
+            lastRaceTime = race.world.raceTime;
+            // Vitesse du morceau : 1 avec l'horloge commune, celle du vaisseau
+            // rapportée à celle de la musique avec l'horloge par joueur.
+            double speed = 1.0;
+            if (race.world.ownClock) {
+                const sim::TrackFrame f = race.track.at(player.dist);
+                speed = player.speed / std::max(1.0f, f.pace) / std::max(0.5f, 1.0f - f.curvature * player.lateral);
+            }
+            music->sync(Music::kFirstTrack + race.config.track, songTime, moving, speed);
         } else {
             music->play(Music::kTheme);
         }
@@ -331,8 +342,7 @@ void App::drawMenus(glm::vec2) {
         if (hostControls) {
             if ((d = ui.selector({x, y}, 330.0f, "MORCEAU", sim::trackInfo(track).name)) != 0) {
                 track = (track + d + sim::kTrackCount) % sim::kTrackCount;
-                laps = sim::trackInfo(track).laps;
-                if (net.role == net::Role::Host) net.lobby.track = track;
+                            if (net.role == net::Role::Host) net.lobby.track = track;
                 startAttract();
             }
             y += 72.0f;
@@ -350,6 +360,9 @@ void App::drawMenus(glm::vec2) {
         y += 72.0f;
         if ((d = ui.selector({x, y}, 330.0f, "CARACTÈRES", kPersonalityLabels[personality])) != 0)
             personality = (personality + d + 5) % 5;
+        y += 72.0f;
+        // Réglage provisoire, le temps de choisir entre les deux modèles.
+        if (ui.selector({x, y}, 330.0f, "HORLOGE", ownClock ? "Par joueur" : "Commune") != 0) ownClock = !ownClock;
         return y + 72.0f;
     };
 

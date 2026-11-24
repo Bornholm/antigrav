@@ -107,7 +107,10 @@ void Music::mix(float* out, int frames) {
         // Morceau précédent éteint : on passe au suivant, depuis son début.
         if (current_ != wanted && gain_ <= 0.0f) {
             current_ = wanted;
-            position_ = 0;
+            readPosition_ = 0.0;
+            fraction_ = 0.0;
+            have_ = false;
+            ended_ = false;
             if (current_ >= 0) stb_vorbis_seek_start(decoders_[current_]);
         }
         int chunk = std::min(frames, 512);
@@ -120,36 +123,67 @@ void Music::mix(float* out, int frames) {
         const bool synced = synced_.load() && current_ == wanted;
         if (synced) {
             // Lecture calée : silence tant que la course n'a pas démarré, puis
-            // le morceau suit l'instant du jeu. Un écart de plus d'un dixième
-            // de seconde se rattrape d'un saut.
+            // le morceau suit l'instant du jeu.
             const double target = syncTime_.load();
             if (!syncRunning_.load() || target < 0.0) {
                 out += chunk * 2;
                 frames -= chunk;
                 continue;
             }
-            const long long wantedSample = static_cast<long long>(target * Synth::kSampleRate);
-            if (std::llabs(position_ - wantedSample) > Synth::kSampleRate / 10) {
-                stb_vorbis_seek(decoders_[current_], static_cast<unsigned>(wantedSample));
-                position_ = wantedSample;
+            const double rate = Synth::kSampleRate;
+            // Un écart de plus d'un quart de seconde se rattrape d'un saut,
+            // un écart plus petit en jouant un rien plus vite ou plus lentement.
+            const double error = target - readPosition_ / rate;
+            if (std::abs(error) > 0.25) {
+                stb_vorbis_seek(decoders_[current_], static_cast<unsigned>(std::max(0.0, target * rate)));
+                readPosition_ = std::max(0.0, target * rate);
+                fraction_ = 0.0;
+                have_ = false;
+                ended_ = false;
             }
+            const double play = std::clamp(syncSpeed_.load() + std::clamp(error, -0.25, 0.25) * 0.4, 0.2, 1.9);
             gain_ = 1.0f; // pas de fondu : le premier temps doit claquer
+
+            // Rééchantillonnage linéaire entre deux échantillons décodés.
+            const float g = volume;
+            for (int i = 0; i < chunk; i++) {
+                while (!have_ || fraction_ >= 1.0) {
+                    if (have_) fraction_ -= 1.0;
+                    previous_[0] = next_[0];
+                    previous_[1] = next_[1];
+                    float sample[2] = {0.0f, 0.0f};
+                    if (!ended_ && stb_vorbis_get_samples_float_interleaved(decoders_[current_], 2, sample, 2) == 0)
+                        ended_ = true;
+                    next_[0] = sample[0];
+                    next_[1] = sample[1];
+                    if (!have_) {
+                        previous_[0] = next_[0];
+                        previous_[1] = next_[1];
+                        have_ = true;
+                        break;
+                    }
+                }
+                const float t = static_cast<float>(fraction_);
+                out[i * 2] += (previous_[0] + (next_[0] - previous_[0]) * t) * g;
+                out[i * 2 + 1] += (previous_[1] + (next_[1] - previous_[1]) * t) * g;
+                fraction_ += play;
+                readPosition_ += play;
+            }
+            out += chunk * 2;
+            frames -= chunk;
+            continue;
         }
 
-        // Fin du fichier : en boucle on repart du début, calé on se tait.
+        // Fin du fichier : retour au début, la boucle continue dans le même bloc.
         int got = 0;
         for (int tries = 0; got < chunk && tries < 3; tries++) {
             int n = stb_vorbis_get_samples_float_interleaved(decoders_[current_], 2,
                                                              buffer + got * 2, (chunk - got) * 2);
-            if (n == 0) {
-                if (synced) break;
-                stb_vorbis_seek_start(decoders_[current_]);
-            }
+            if (n == 0) stb_vorbis_seek_start(decoders_[current_]);
             got += n;
         }
-        position_ += got;
 
-        float direction = synced ? 0.0f : current_ == wanted ? step : -step;
+        float direction = current_ == wanted ? step : -step;
         for (int i = 0; i < got; i++) {
             gain_ = std::clamp(gain_ + direction, 0.0f, 1.0f);
             float g = gain_ * gain_ * volume;

@@ -28,11 +28,14 @@ struct Tally {
 constexpr int kRacers = 4;
 
 // Joue une course et renvoie le rang final de chaque emplacement de grille.
-void runRace(const sim::Track& track, const int* ships, const int* profiles, int laps,
+// Horloge musicale mesurée : commune par défaut, par joueur avec l'option --own.
+bool ownClock = false;
+
+void runRace(const sim::Track& track, const int* ships, const int* profiles, int /*laps*/,
              int* ranks) {
     sim::World world;
     world.count = kRacers;
-    world.laps = laps;
+    world.ownClock = ownClock;
     world.countdown = 3.0f;
     const float side = track.halfWidth * 0.42f;
     for (int i = 0; i < kRacers; i++) {
@@ -103,7 +106,9 @@ int judge(const char* what, const char* const* names, int count,
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    ownClock = argc > 1 && std::string(argv[1]) == "--own";
+    std::printf("Horloge %s\n", ownClock ? "par joueur" : "commune");
     // Les pistes mesurées sont celles des morceaux livrés avec le jeu.
     static const char* const files[sim::kTrackCount] = {"neon.ogg", "canyon.ogg", "station.ogg"};
     for (int t = 0; t < sim::kTrackCount; t++) {

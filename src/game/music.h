@@ -28,10 +28,12 @@ class Music {
         wanted_.store(piece);
     }
     // Lecture calée sur la course : le morceau se joue une fois, à l'instant
-    // donné par le jeu à chaque image. Un instant négatif, ou `running` à
-    // faux, donne le silence.
-    void sync(int piece, double time, bool running) {
+    // donné par le jeu à chaque image, et à la vitesse `speed` : 1 pour la
+    // vitesse normale. Un instant négatif, ou `running` à faux, donne le
+    // silence.
+    void sync(int piece, double time, bool running, double speed = 1.0) {
         syncTime_.store(time);
+        syncSpeed_.store(speed);
         syncRunning_.store(running);
         synced_.store(true);
         wanted_.store(piece);
@@ -50,8 +52,14 @@ class Music {
     std::atomic<bool> synced_{false};
     std::atomic<bool> syncRunning_{false};
     std::atomic<double> syncTime_{0.0};
+    std::atomic<double> syncSpeed_{1.0};
     int current_ = -1;
-    long long position_ = 0; // échantillons lus dans le morceau courant
+    // Lecture calée, à vitesse variable.
+    double readPosition_ = 0.0; // position dans le morceau, en échantillons
+    double fraction_ = 0.0;     // avance entre previous_ et next_
+    float previous_[2] = {}, next_[2] = {};
+    bool have_ = false;
+    bool ended_ = false;
     float gain_ = 0.0f;
 };
 

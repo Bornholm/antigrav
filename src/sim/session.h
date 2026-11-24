@@ -16,7 +16,7 @@ struct RacerSetup {
 // Tout ce qui définit une course. C'est aussi ce que l'hôte envoie aux clients.
 struct RaceConfig {
     int track = 0;
-    int laps = 3;
+    bool ownClock = false; // horloge musicale par joueur, voir sim::World
     int racerCount = 0;
     RacerSetup racers[kMaxVehicles];
     bool gridStart = true; // départ arrêté avec compte à rebours

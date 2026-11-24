@@ -66,6 +66,7 @@ struct Options {
     float startTime = 0.0f;
     bool hud = true;
     bool autopilot = false;
+    bool ownClock = false; // horloge musicale par joueur plutôt que commune
     bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
     int track = 0;
@@ -105,6 +106,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--no-hud")) o.hud = false;
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
         else if (!std::strcmp(a, "--sync")) o.sync = true;
+        else if (!std::strcmp(a, "--clock")) o.ownClock = !std::strcmp(value(), "own");
         else if (!std::strcmp(a, "--stats")) o.stats = true;
         else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
         else if (!std::strcmp(a, "--ship")) o.ship = std::atoi(value());
@@ -220,11 +222,13 @@ int runHeadless(const Options& opt) {
     std::vector<float> wavSamples;
     game::App app;
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
+    app.ownClock = opt.ownClock;
     app.init(opt.track);
     game::Race& race = app.race;
     if (opt.screen.empty()) {
         // Course jouée par l'ordinateur, pour les captures.
         game::RaceConfig config = game::defaultConfig(opt.track, opt.gridStart == 1);
+        config.ownClock = opt.ownClock;
         config.racers[0].ship = app.ship;
         if (!opt.wav.empty()) app.synth = &synth;
         if (!opt.wav.empty() && opt.music && wavMusic.init()) app.music = &wavMusic;
@@ -390,9 +394,11 @@ int runWindowed(const Options& opt) {
         if (opt.music) app.music = &audio.music;
     }
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
+    app.ownClock = opt.ownClock;
     app.init(opt.track);
     if (opt.race || opt.autopilot) {
         game::RaceConfig config = game::defaultConfig(opt.track, opt.gridStart != 0);
+        config.ownClock = opt.ownClock;
         config.racers[0].ship = app.ship;
         app.startQuickRace(config, opt.autopilot);
     }

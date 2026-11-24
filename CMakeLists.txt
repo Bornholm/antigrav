@@ -172,10 +172,9 @@ if(NOT ANDROID)
   add_executable(balance tools/balance.cpp)
   target_link_libraries(balance PRIVATE sim music_decode)
   target_compile_definitions(balance PRIVATE ANTIGRAV_MUSIC_DIR="${CMAKE_SOURCE_DIR}/assets/music")
-  # La mesure d'équilibre n'est plus un test tant que les règles de la course
-  # calée ne sont pas posées : les vaisseaux et les IA sont encore réglés pour
-  # les anciens circuits. À rétablir avec ces règles.
-  # add_test(NAME balance COMMAND balance)
+  # L'équilibre est mesuré dans les deux modes d'horloge musicale.
+  add_test(NAME balance COMMAND balance)
+  add_test(NAME balance_own_clock COMMAND balance --own)
 endif()
 
 set(GAME_SOURCES

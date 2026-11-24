@@ -61,7 +61,6 @@ void playRace(float dropRate, int latencyTicks) {
     // L'hôte complète avec deux IA et lance.
     sim::RaceConfig config = host.lobby;
     config.track = 0;
-    config.laps = 1;
     config.gridStart = true;
     for (int profile : {0, 2}) {
         sim::RacerSetup& ai = config.racers[config.racerCount++];

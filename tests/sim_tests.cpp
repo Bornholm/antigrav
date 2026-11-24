@@ -111,6 +111,7 @@ void testTrackEnds() {
 
 sim::World makeGrid() {
     sim::World world;
+    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
     world.count = 4;
     for (int i = 0; i < world.count; i++) {
         world.vehicles[i].dist = 150.0f + 20.0f * static_cast<float>(i);
@@ -181,6 +182,7 @@ void testWallAndBoost() {
     sim::Track track = flatTrack();
     track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
     sim::World world;
+    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
     world.count = 1;
     world.vehicles[0].dist = 200.0f;
     world.vehicles[0].speed = sim::kCruiseSpeed;
@@ -198,7 +200,7 @@ void testWallAndBoost() {
     world.vehicles[0].speed = sim::kCruiseSpeed;
     sim::Input boost;
     boost.boost = true;
-    for (int s = 0; s < 60; s++) sim::step(world, track, &boost);
+    for (int s = 0; s < 90; s++) sim::step(world, track, &boost);
     CHECK(world.vehicles[0].speed > sim::kCruiseSpeed + 20.0f);
     CHECK(world.vehicles[0].energy < 0.9f);
     for (int s = 0; s < 60 * 8; s++) sim::step(world, track, &boost);
@@ -208,7 +210,7 @@ void testWallAndBoost() {
 void testCountdownAndFinish() {
     sim::Track track = sim::Track::make(0);
     sim::World world = makeGrid();
-    world.laps = 1;
+    world.ownClock = false; // horloge commune : l'élastique tient le peloton
     world.countdown = 3.0f;
     float startDist = world.vehicles[0].dist;
 
@@ -221,9 +223,9 @@ void testCountdownAndFinish() {
     for (int i = 0; i < world.count; i++) {
         const sim::Vehicle& v = world.vehicles[i];
         CHECK(v.finished);
-        // La course dure le morceau, à quelques secondes près.
-        CHECK(v.finishTime > track.duration - 15.0f && v.finishTime < track.duration + 15.0f);
-        CHECK(sim::lapOf(world, track, v) == 1);
+        // Sans piloter, on frotte les murets : l'élastique ramène quand même
+        // tout le monde à quelques secondes de la dernière note.
+        CHECK(v.finishTime > track.duration - 8.0f && v.finishTime < track.duration + 8.0f);
     }
     // Le classement final suit les temps d'arrivée.
     for (int i = 0; i < world.count; i++)
@@ -264,6 +266,8 @@ void testMissileAndShield() {
     track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
     auto setup = [&](bool shielded) {
         sim::World world;
+        world.ownClock = true;
+    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
         world.count = 2;
         for (int i = 0; i < 2; i++) {
             world.vehicles[i].dist = 300.0f + 80.0f * static_cast<float>(i);
@@ -294,6 +298,7 @@ void testMissileAndShield() {
 
     // Sans énergie, ni missile ni bouclier.
     sim::World world;
+    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
     world.count = 1;
     world.vehicles[0].speed = sim::kCruiseSpeed;
     world.vehicles[0].energy = 0.05f;
@@ -308,6 +313,7 @@ void testMissileAndShield() {
 // Avance un vaisseau seul, en ligne droite, jusqu'à la distance donnée.
 sim::Vehicle driveTo(const sim::Track& track, sim::Vehicle v, float until) {
     sim::World world;
+    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
     world.count = 1;
     world.vehicles[0] = v;
     sim::Input none;
@@ -356,6 +362,8 @@ void testFeatures() {
     // Une barrière arrête un missile.
     {
         sim::World world;
+        world.ownClock = true;
+    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
         world.count = 2;
         world.vehicles[0].dist = 100.0f;
         world.vehicles[1].dist = 320.0f;
@@ -400,9 +408,10 @@ void testFeatures() {
     for (int id = 0; id < sim::kTrackCount; id++) {
         sim::Track t = sim::Track::make(id);
         sim::World world;
+        world.ownClock = true;
+    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
         world.count = 1;
-        world.laps = 1;
-        world.vehicles[0].speed = sim::kCruiseSpeed;
+            world.vehicles[0].speed = sim::kCruiseSpeed;
         int stuns = 0;
         world.vehicles[0].speed = sim::cruiseSpeed(world.vehicles[0], t);
         for (int s = 0; s < 60 * 140 && !world.vehicles[0].finished; s++) {
@@ -416,8 +425,92 @@ void testFeatures() {
     }
 }
 
+// Règles de la course calée sur la musique.
+void testRhythm() {
+    sim::Track track = flatTrack();
+    track.features.clear();
+    const float beat = track.beats[20], next = track.beats[21];
+
+    // Un boost lancé sur un temps est un accord : gratuit un instant, plus
+    // vif, et il rend de l'énergie. Lancé entre deux temps, c'est un boost
+    // ordinaire.
+    auto boostAt = [&](float time) {
+        sim::World world;
+        world.ownClock = true;
+        world.count = 1;
+        sim::Vehicle& v = world.vehicles[0];
+        v.dist = track.distAt(time) - sim::kCruiseSpeed * sim::kFixedDt;
+        v.speed = sim::kCruiseSpeed;
+        v.energy = 0.5f;
+        sim::Input boost;
+        boost.boost = true;
+        for (int s = 0; s < 24; s++) sim::step(world, track, &boost);
+        return v;
+    };
+    sim::Vehicle onBeat = boostAt(beat), offBeat = boostAt(0.5f * (beat + next));
+    CHECK(onBeat.accord > 0.0f && offBeat.accord == 0.0f);
+    CHECK(onBeat.energy > 0.5f);
+    CHECK(offBeat.energy < 0.5f);
+    CHECK(onBeat.speed > offBeat.speed + 5.0f);
+    CHECK(onBeat.accordCooldown > 1.0f);
+
+    // Marteler le boost ne donne pas un accord à chaque temps.
+    {
+        sim::World world;
+        world.ownClock = true;
+        world.count = 1;
+        sim::Vehicle& v = world.vehicles[0];
+        v.dist = track.distAt(beat) - 400.0f;
+        v.speed = sim::kCruiseSpeed;
+        v.energy = 0.5f;
+        int accords = 0;
+        for (int s = 0; s < 60 * 6; s++) {
+            sim::Input in;
+            in.boost = s % 4 < 2;
+            bool before = v.accord > 0.0f;
+            sim::step(world, track, &in);
+            if (!before && v.accord > 0.0f) accords++;
+        }
+        CHECK(accords >= 2 && accords <= 4);
+    }
+
+    // Horloge commune : l'élastique freine qui devance la musique et aspire
+    // qui traîne. Horloge par joueur : pas d'élastique.
+    auto cruiseWithGap = [&](float gap, bool own) {
+        sim::World world;
+        world.ownClock = own;
+        world.count = 1;
+        world.raceTime = 30.0f;
+        sim::Vehicle& v = world.vehicles[0];
+        v.dist = track.distAt(30.0f + gap);
+        v.speed = sim::kCruiseSpeed;
+        sim::Input none;
+        for (int s = 0; s < 120; s++) sim::step(world, track, &none);
+        return v.speed;
+    };
+    CHECK(cruiseWithGap(2.0f, false) < sim::kCruiseSpeed * 0.96f);
+    CHECK(cruiseWithGap(-2.0f, false) > sim::kCruiseSpeed * 1.06f);
+    const float level = cruiseWithGap(0.0f, false);
+    CHECK(level > cruiseWithGap(2.0f, false) + 5.0f && level < cruiseWithGap(-2.0f, false) - 5.0f);
+    CHECK(std::abs(cruiseWithGap(2.0f, true) - cruiseWithGap(-2.0f, true)) < 6.0f);
+
+    // Une plaque rend de l'énergie, une fois.
+    track.features = {{sim::FeatureType::BoostPad, 1000.0f, 36.0f, 0.0f, 3.6f}};
+    sim::World world;
+    world.ownClock = true;
+    world.count = 1;
+    world.vehicles[0].dist = 900.0f;
+    world.vehicles[0].speed = sim::kCruiseSpeed;
+    world.vehicles[0].energy = 0.5f;
+    sim::Input none;
+    for (int s = 0; s < 40; s++) sim::step(world, track, &none);
+    float gained = world.vehicles[0].energy - 0.5f;
+    CHECK(gained > sim::kPadEnergy * 0.9f && gained < sim::kPadEnergy + 0.03f);
+}
+
 void testRanking() {
     sim::World world;
+    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
     world.count = 3;
     world.vehicles[0].dist = 100.0f;
     world.vehicles[1].dist = 300.0f;
@@ -436,6 +529,7 @@ int main() {
     testAutopilotRuns();
     testWallAndBoost();
     testFeatures();
+    testRhythm();
     testRanking();
     testCountdownAndFinish();
     testSynth();

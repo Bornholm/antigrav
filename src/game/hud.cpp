@@ -288,6 +288,18 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
                   centis % 100);
     hud.text(FontId::Medium, "TEMPS", {34.0f, 208.0f}, 20.0f, alpha(kWhite, 0.75f));
     hud.text(FontId::Bold, buf, {146.0f, 209.0f}, 24.0f, kWhite);
+    if (s.showGap) {
+        // Avance sur la musique : vert devant, rose derrière.
+        std::snprintf(buf, sizeof(buf), "%+.1f s", s.gap);
+        hud.text(FontId::Medium, "ÉCART", {34.0f, 244.0f}, 20.0f, alpha(kWhite, 0.75f));
+        hud.text(FontId::Bold, buf, {146.0f, 245.0f}, 24.0f, s.gap >= 0.0f ? vec4(0.45f, 1.0f, 0.5f, 1.0f) : kMagenta);
+    }
+    if (s.accord > 0.0f) {
+        hud.anchor = Anchor::Center;
+        hud.text(FontId::Bold, "EN RYTHME", {800.0f, 770.0f}, 30.0f + 8.0f * s.accord, alpha(kYellow, 0.4f + 0.6f * s.accord),
+                 Align::Center, 0.2f, alpha(kYellow, 0.4f * s.accord));
+        hud.anchor = Anchor::Left;
+    }
 
     hud.anchor = Anchor::Center;
     if (s.countdown > 0.0f) {

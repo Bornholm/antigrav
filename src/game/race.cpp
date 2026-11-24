@@ -38,7 +38,6 @@ float mixf(float a, float b, float t) { return a + (b - a) * t; }
 RaceConfig defaultConfig(int track, bool gridStart) {
     RaceConfig config;
     config.track = track;
-    config.laps = sim::trackInfo(track).laps;
     config.gridStart = gridStart;
     config.racerCount = 4;
     const char* names[4] = {"Vous", "SynthFox", "KazeVR", "NovaBlade"};
@@ -187,7 +186,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     // la mesure, puis retombe.
     {
         const std::vector<music::Beat>& beats = sim::song(config.track).beats;
-        const float songTime = world.raceTime;
+        const float songTime = sim::songTime(world, track, player);
         auto next = std::upper_bound(beats.begin(), beats.end(), songTime,
                                      [](float t, const music::Beat& b) { return t < b.time; });
         out.pulse = 0.0f;
@@ -227,7 +226,10 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.energy = player.energy;
     state.position = sim::rankOf(world, localIndex);
     state.racers = world.count;
-    state.remaining = std::max(0.0f, track.duration - world.raceTime);
+    state.remaining = std::max(0.0f, track.duration - sim::songTime(world, track, player));
+    state.showGap = !world.ownClock && world.countdown <= 0.0f && !player.finished;
+    state.gap = sim::gapOf(world, track, player);
+    state.accord = player.accord / sim::kAccordTime;
     state.countdown = world.countdown;
     state.raceTime = player.finished ? player.finishTime : world.raceTime;
     state.finished = player.finished;

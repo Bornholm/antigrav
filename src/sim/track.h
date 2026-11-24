@@ -43,6 +43,10 @@ struct Track {
     float duration = 0.0f; // durée du morceau, en secondes
     std::vector<TrackFrame> frames;
     std::vector<Feature> features;
+    std::vector<float> beats; // instants des temps du morceau, croissants
+
+    // Vrai si l'instant tombe sur un temps, à la tolérance près.
+    bool onBeat(float time, float tolerance) const;
 
     // id : indice du morceau, de 0 à kTrackCount - 1. Voir sim/content.h.
     static Track make(int id);

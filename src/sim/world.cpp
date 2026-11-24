@@ -15,12 +15,20 @@ constexpr float kSteerResponse = 9.0f;
 constexpr float kDrift = 0.040f;      // part de l'accélération centrifuge subie
 constexpr float kScrub = 1.6f;        // vitesse perdue par mètre de glissade
 constexpr float kBoostDrain = 1.0f / 5.0f;   // énergie par seconde
-constexpr float kEnergyRegen = 1.0f / 24.0f;
+// La jauge se recharge surtout par le rythme : plaques et accords. La
+// recharge passive n'est qu'un filet.
+constexpr float kEnergyRegen = 0.4f / 24.0f;
+
+struct Clock {
+    float raceTime;
+    bool own;
+};
 
 // Effet des éléments de piste sur un vaisseau qui vient d'avancer de `before`
 // à v.dist. Un bouclier levé traverse les champs et encaisse une barrière.
 void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float before,
                    float pace, float dt) {
+
     float moved = v.dist - before;
     bool shielded = v.shieldTime > 0.0f;
     for (const Feature& f : track.features) {
@@ -42,6 +50,8 @@ void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float
         if (track.ahead(f.dist, v.dist) > f.length) continue;
         if (std::abs(v.lateral - f.lateral) > f.halfWidth) continue;
         if (f.type == FeatureType::BoostPad) {
+            // À l'entrée sur la plaque, un peu d'énergie.
+            if (before < f.dist) v.energy = std::min(1.0f, v.energy + kPadEnergy);
             float top = kPadSpeed * pace * stats.topSpeed;
             if (v.speed < top) v.speed = std::min(top, v.speed + kPadAccel * dt);
         } else if (!shielded) {
@@ -51,7 +61,7 @@ void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float
     }
 }
 
-void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, float dt) {
+void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock& clock, float dt) {
     const ShipStats& stats = shipStats(v.ship);
     TrackFrame f = track.at(v.dist);
     float steer = std::clamp(in.steer, -1.0f, 1.0f);
@@ -61,18 +71,43 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, float dt) {
     v.stunTime = std::max(0.0f, v.stunTime - dt);
     if (stunned) steer *= 0.3f;
 
-    v.boosting = in.boost && v.energy > 0.0f && !stunned;
+    // Horloge commune : un élastique retient qui prend de l'avance sur la
+    // musique et aspire qui prend du retard. Tout le peloton reste dans la
+    // même phrase.
+    float band = 1.0f;
+    if (!clock.own) {
+        const float gap = f.time - clock.raceTime;
+        band = gap > 0.0f ? std::max(0.75f, 1.0f - kLeadDrag * gap / kWindow)
+                          : std::min(1.25f, 1.0f - kDraft * gap / kWindow);
+    }
+
+    // Boost lancé sur un temps : un accord. Il ne coûte rien pendant un
+    // instant, pousse plus fort et rend un peu d'énergie.
+    const bool pressed = in.boost && !v.boostHeld;
+    v.boostHeld = in.boost;
+    v.accord = std::max(0.0f, v.accord - dt);
+    v.accordCooldown = std::max(0.0f, v.accordCooldown - dt);
+    if (pressed && !stunned && v.accordCooldown <= 0.0f &&
+        track.onBeat(clock.own ? f.time : clock.raceTime, kBeatTolerance)) {
+        v.accord = kAccordTime;
+        v.accordCooldown = kAccordCooldown;
+        v.energy = std::min(1.0f, v.energy + kAccordEnergy);
+    }
+    if (stunned || !in.boost) v.accord = 0.0f;
+    const bool accord = v.accord > 0.0f;
+
+    v.boosting = in.boost && (v.energy > 0.0f || accord) && !stunned;
     // Les vitesses suivent celle du point de synchronisation : un vaisseau
     // en croisière avance avec la musique.
-    const float pace = f.pace / kCruiseSpeed;
-    float cruise = f.pace * stats.topSpeed;
-    float target = v.boosting ? kBoostSpeed * pace * stats.topSpeed : cruise;
+    const float pace = f.pace / kCruiseSpeed * band;
+    float cruise = f.pace * band * stats.topSpeed;
+    float target = v.boosting ? kBoostSpeed * pace * stats.topSpeed * (accord ? 1.05f : 1.0f) : cruise;
     if (stunned) target = cruise * 0.55f;
     float delta = target - v.speed;
-    float gain = (v.boosting ? kBoostAccel : kAccel) * stats.accel;
+    float gain = (v.boosting ? kBoostAccel * (accord ? 1.6f : 1.0f) : kAccel) * stats.accel;
     v.speed += std::clamp(delta, -(stunned ? 4.0f : 1.0f) * kDecel * dt, gain * dt);
 
-    v.energy += (v.boosting ? -kBoostDrain : kEnergyRegen * stats.regen) * dt;
+    v.energy += (v.boosting ? (accord ? 0.0f : -kBoostDrain) : kEnergyRegen * stats.regen) * dt;
 
     // Braquage, plus la dérive vers l'extérieur du virage.
     float steerSpeed = kSteerSpeed * stats.handling;
@@ -196,8 +231,8 @@ void stepMissiles(World& world, const Track& track, float dt) {
 
 } // namespace
 
-void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track) {
-    stepVehicleDt(vehicle, input, track, kFixedDt);
+void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track, const World& world) {
+    stepVehicleDt(vehicle, input, track, {world.raceTime, world.ownClock}, kFixedDt);
 }
 
 float cruiseSpeed(const Vehicle& vehicle, const Track& track) {
@@ -213,12 +248,13 @@ void step(World& world, const Track& track, const Input* inputs) {
     }
     world.raceTime += kFixedDt;
 
-    const float finishDist = track.length * static_cast<float>(world.laps);
+    const float finishDist = track.length;
+    const Clock clock{world.raceTime, world.ownClock};
     for (int i = 0; i < world.count; i++) {
         Vehicle& v = world.vehicles[i];
         float before = v.dist;
         useItems(world, i, inputs[i]);
-        stepVehicleDt(v, inputs[i], track, kFixedDt);
+        stepVehicleDt(v, inputs[i], track, clock, kFixedDt);
         if (!v.finished && v.dist >= finishDist) {
             v.finished = true;
             // Instant exact du passage, interpolé dans le pas.
@@ -367,6 +403,18 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     in.boost = straight && (v.boosting ? v.energy > profile.boostStop : v.energy > profile.boostStart);
     if (whim && v.energy > 0.3f) in.boost = chance(index, slot, 2u) < 0.5f;
 
+    // Sens du rythme : selon son talent, il attend le temps pour lancer un
+    // boost, et place des accords même sans vouloir accélérer longtemps.
+    const float beatTime = songTime(world, track, v);
+    const bool onBeat = track.onBeat(beatTime, kBeatTolerance * 0.6f);
+    const bool inRhythm = chance(index, static_cast<uint32_t>(beatTime * 0.5f) + 7919u, 3u) < profile.rhythm;
+    if (v.accord > 0.0f) {
+        in.boost = true; // tient l'accord jusqu'au bout
+    } else if (inRhythm && v.stunTime <= 0.0f) {
+        if (in.boost && !v.boostHeld && !onBeat) in.boost = false; // attend le temps
+        if (!in.boost && onBeat && v.accordCooldown <= 0.0f && straight) in.boost = true;
+    }
+
     // Un appui bref : la simulation ne tire que sur le front montant.
     bool pulse = world.tick % 30u == static_cast<uint32_t>(index) % 30u;
     bool wantsFire = targetInSight && v.energy >= profile.fireEnergy;
@@ -400,9 +448,12 @@ int rankOf(const World& world, int index) {
     return rank;
 }
 
-int lapOf(const World& world, const Track& track, const Vehicle& vehicle) {
-    int lap = static_cast<int>(std::floor(vehicle.dist / track.length)) + 1;
-    return std::clamp(lap, 1, world.laps);
+float songTime(const World& world, const Track& track, const Vehicle& vehicle) {
+    return world.ownClock ? track.at(vehicle.dist).time : world.raceTime;
+}
+
+float gapOf(const World& world, const Track& track, const Vehicle& vehicle) {
+    return track.at(vehicle.dist).time - world.raceTime;
 }
 
 } // namespace sim

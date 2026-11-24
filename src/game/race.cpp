@@ -30,13 +30,6 @@ constexpr float kShipScale = 1.15f;
 
 float mixf(float a, float b, float t) { return a + (b - a) * t; }
 
-// Couloir préféré d'un pilote automatique, réparti sur la largeur.
-float laneOf(int index, int count, float halfWidth) {
-    if (count <= 1) return 0.0f;
-    float t = static_cast<float>(index) / static_cast<float>(count - 1);
-    return (t - 0.5f) * halfWidth * 0.75f;
-}
-
 } // namespace
 
 RaceConfig defaultConfig(int track, bool gridStart) {
@@ -55,39 +48,10 @@ RaceConfig defaultConfig(int track, bool gridStart) {
 }
 
 void Race::init(const RaceConfig& cfg, int local) {
-    config = cfg;
-    localIndex = std::clamp(local, 0, std::max(0, cfg.racerCount - 1));
-    track = sim::Track::make(cfg.track);
+    start(cfg, local);
     accumulator = 0.0f;
-    camLateral = 0.0f;
-
-    world = sim::World{};
-    world.count = cfg.racerCount;
-    world.laps = cfg.laps;
-    world.countdown = cfg.gridStart ? 3.0f : 0.0f;
-    const float side = track.halfWidth * 0.42f;
-    for (int i = 0; i < cfg.racerCount; i++) {
-        sim::Vehicle& v = world.vehicles[i];
-        v.ship = cfg.racers[i].ship;
-        // Deux par ligne, en quinconce.
-        int row = i / 2;
-        v.lateral = (i % 2 == 0 ? -side : side);
-        if (cfg.gridStart) {
-            v.dist = -40.0f - 24.0f * static_cast<float>(row) - (i % 2 ? 8.0f : 0.0f);
-            v.speed = 0.0f;
-            v.energy = 1.0f;
-        } else {
-            v.dist = 150.0f + 26.0f * static_cast<float>(cfg.racerCount - 1 - i);
-            v.speed = sim::cruiseSpeed(v);
-            v.energy = 0.87f;
-        }
-    }
-    previous = world;
-    for (int i = 0; i < sim::kMaxVehicles; i++) {
-        remoteInputs[i] = sim::Input{};
-        lastInputs[i] = sim::Input{};
-        smoothDist[i] = smoothLateral[i] = 0.0f;
-    }
+    camLateral = world.vehicles[localIndex].lateral;
+    for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
 
     // Tracé vu de dessus pour la minimap, normalisé en gardant les proportions.
     glm::vec2 lo{1e9f}, hi{-1e9f};
@@ -105,47 +69,28 @@ void Race::init(const RaceConfig& cfg, int local) {
     for (glm::vec2& p : minimap) p = (p - center) / extent;
 }
 
-void Race::gatherInputs(const Controls& input, sim::Input* out) {
-    for (int i = 0; i < world.count; i++) {
-        const RacerSetup& racer = config.racers[i];
-        bool local = i == localIndex;
-        // Après l'arrivée, le pilote automatique reprend la main.
-        bool ai = racer.profile != kHuman || (local && autopilot) || world.vehicles[i].finished;
-        if (ai) {
-            int profile = racer.profile != kHuman ? racer.profile : 2;
-            out[i] = sim::autopilot(world, i, track, sim::aiProfile(profile),
-                                    laneOf(i, world.count, track.halfWidth));
-        } else if (local) {
-            out[i] = sim::Input{};
-            out[i].steer = input.steer;
-            out[i].boost = input.pressed[static_cast<int>(Button::Boost)];
-            out[i].fire = input.pressed[static_cast<int>(Button::Missile)];
-            out[i].shield = input.pressed[static_cast<int>(Button::Shield)];
-        } else {
-            out[i] = remoteInputs[i];
-        }
-    }
-}
-
 void Race::update(float dt, const Controls& input) {
     controls = input;
-    if (!externalSim) {
-        // Une image très longue ne doit pas déclencher une rafale de pas.
-        accumulator += std::min(dt, 0.1f);
-        while (accumulator >= sim::kFixedDt) {
-            previous = world;
-            float countdownBefore = world.countdown;
-            gatherInputs(input, lastInputs);
-            sim::step(world, track, lastInputs);
-            accumulator -= sim::kFixedDt;
+    sim::Input local;
+    local.steer = input.steer;
+    local.boost = input.pressed[static_cast<int>(Button::Boost)];
+    local.fire = input.pressed[static_cast<int>(Button::Missile)];
+    local.shield = input.pressed[static_cast<int>(Button::Shield)];
 
-            // Un bip à chaque seconde du compte à rebours, un signal au départ.
-            if (synth && countdownBefore > 0.0f) {
-                if (world.countdown <= 0.0f) synth->beep(1);
-                else if (std::ceil(world.countdown) != std::ceil(countdownBefore) ||
-                         countdownBefore == 3.0f)
-                    synth->beep(0);
-            }
+    // Une image très longue ne doit pas déclencher une rafale de pas.
+    accumulator += std::min(dt, 0.1f);
+    while (accumulator >= sim::kFixedDt) {
+        float countdownBefore = world.countdown;
+        if (clientTick) clientTick(clientUser, *this, local);
+        else tick(local);
+        accumulator -= sim::kFixedDt;
+
+        // Un bip à chaque seconde du compte à rebours, un signal au départ.
+        if (synth && countdownBefore > 0.0f) {
+            if (world.countdown <= 0.0f) synth->beep(1);
+            else if (std::ceil(world.countdown) != std::ceil(countdownBefore) ||
+                     countdownBefore == 3.0f)
+                synth->beep(0);
         }
     }
     updatePresentation(dt);
@@ -172,7 +117,7 @@ void Race::updatePresentation(float dt) {
 }
 
 void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams& out) {
-    const float alpha = externalSim ? 1.0f : accumulator / sim::kFixedDt;
+    const float alpha = accumulator / sim::kFixedDt;
     const float time = static_cast<float>(world.time) + accumulator;
 
     out.time = time;
@@ -248,6 +193,16 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     out.camTarget = track.point(playerDist + 26.0f, camLateral * 0.55f, 0.0f);
     out.camUp = camFrame.up;
     out.fovY = camFov;
+    if (orbit) {
+        // Vue de présentation : la caméra tourne autour du vaisseau.
+        sim::TrackFrame f = track.at(playerDist);
+        glm::vec3 center = f.pos + f.right * player.lateral + f.up * 1.2f;
+        out.camPos = center + (f.right * std::sin(orbitAngle) - f.tangent * std::cos(orbitAngle)) * 11.5f +
+                     f.up * 3.6f;
+        out.camTarget = center;
+        out.camUp = f.up;
+        out.fovY = 0.95f;
+    }
     out.planePoint = camFrame.pos;
     out.planeNormal = camFrame.up;
 

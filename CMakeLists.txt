@@ -113,7 +113,7 @@ add_custom_target(shaders DEPENDS ${SHADER_OUTPUTS})
 
 # La simulation ne dépend ni de Vulkan ni de SDL : elle se compile et se teste
 # seule.
-add_library(sim STATIC src/sim/track.cpp src/sim/world.cpp src/sim/content.cpp)
+add_library(sim STATIC src/sim/track.cpp src/sim/world.cpp src/sim/content.cpp src/sim/session.cpp)
 target_include_directories(sim PUBLIC src)
 target_include_directories(sim SYSTEM PUBLIC ${glm_SOURCE_DIR})
 target_compile_definitions(sim PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_RADIANS GLM_ENABLE_EXPERIMENTAL)

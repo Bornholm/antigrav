@@ -195,6 +195,8 @@ void placeFeatures(Track& track, const music::Partition& p, const std::vector<mu
         return -side * 0.5f * hw;
     };
 
+    const float kHazardGap = 2.0f; // secondes
+    float lastHazard = -100.0f;
     int bar = 0;
     for (size_t i = 0; i + 3 < beats.size(); i++) {
         if (beats[i].bar != 0) continue;
@@ -208,19 +210,19 @@ void placeFeatures(Track& track, const music::Partition& p, const std::vector<mu
 
         const float accent2 = accent(beats[i + 1].time), accent4 = accent(beats[i + 3].time);
         // Les passages calmes n'ont presque pas d'obstacles, les passages
-        // hargneux en ont à chaque mesure, et jusqu'à deux.
-        const float chance = (0.15f + 0.35f * energy + 0.20f * std::max(accent2, accent4) + 0.35f * drive) *
+        // hargneux en ont un peu plus.
+        const float chance = (0.15f + 0.35f * energy + 0.20f * std::max(accent2, accent4) + 0.15f * drive) *
                              (energy < 0.25f ? 0.3f : 1.0f);
         // Sur le deuxième temps l'obstacle suit la plaque d'un seul temps :
         // réservé aux passages intenses.
         const bool early = accent2 > accent4 && energy >= 0.6f;
-        const bool both = drive > 0.7f && featureRoll(seed, slot, 7u) < drive - 0.3f;
-        if (featureRoll(seed, slot, 1u) < chance) {
-            if (early || both) padLane = hazard(track.distAt(beats[i + 1].time), slot, 3u, padLane);
-            if (!early || both) {
-                const float free = hazard(track.distAt(beats[i + 3].time), slot, 5u, padLane);
-                if (!early && !both) padLane = free;
-            }
+        // Jamais deux obstacles à moins de deux secondes l'un de l'autre :
+        // sur un tempo rapide les mesures défilent vite, et la piste
+        // deviendrait un mur.
+        const float hazardTime = beats[i + (early ? 1 : 3)].time;
+        if (hazardTime - lastHazard >= kHazardGap && featureRoll(seed, slot, 1u) < chance) {
+            padLane = hazard(track.distAt(hazardTime), slot, 3u, padLane);
+            lastHazard = hazardTime;
         }
         // Passages calmes : une plaque une mesure sur deux. Passages hargneux :
         // une seconde plaque sur le troisième temps.

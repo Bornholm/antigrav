@@ -4,7 +4,7 @@ Chaque piste est générée à partir d'un morceau de musique. La course va de s
 
 - **Tempo.** Un trait barre la piste sur chaque temps, plus épais sur le premier temps de la mesure. Les plaques d'énergie tombent sur les temps forts, les barrières sur les temps accentués.
 - **Intensité.** La piste plonge dans les passages intenses et remonte dans les passages calmes. Les virages se resserrent avec l'intensité.
-- **Hargne.** Un morceau saturé et dense, du metal par exemple, donne une piste plus rapide, des virages deux fois plus fréquents, jusqu'à deux barrières par mesure, et une caméra qui encaisse chaque temps.
+- **Hargne.** Un morceau saturé et dense, du metal par exemple, donne une piste plus rapide, des virages deux fois plus fréquents, deux plaques par mesure, et une caméra qui encaisse chaque temps. Deux barrières ne se suivent jamais à moins de deux secondes.
 - **Décor.** Les bâtiments s'étirent avec les bandes de fréquences du morceau, comme un égaliseur, et les néons battent sur les temps.
 
 ## Courir sur ses propres morceaux

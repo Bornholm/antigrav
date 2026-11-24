@@ -49,7 +49,6 @@ struct App {
     double now = 0.0;
     double lastDiscover = -10.0;
     uint32_t lastSnapshotTick = 0;
-    float lastRaceTime = -1.0f;
     bool confirmQuit = false; // demande de confirmation avant d'abandonner une course
     bool inRace = false; // une vraie course est en cours, pas la démonstration
     // Automatismes pour les essais sans interface : l'hôte lance dès que ce

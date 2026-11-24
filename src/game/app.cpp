@@ -299,11 +299,12 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
             // Horloge par joueur : le morceau avance avec le vaisseau, plus
             // vite quand il va vite, au ralenti quand il percute.
             const sim::Vehicle& player = race.world.vehicles[race.localIndex];
-            const double songTime = race.world.countdown > 0.0f
-                                        ? -1.0
-                                        : sim::songTime(race.world, race.track, player);
-            const bool moving = race.world.raceTime != lastRaceTime;
-            lastRaceTime = race.world.raceTime;
+            // Instant du morceau, affiné entre deux pas de simulation. La
+            // course n'a pas de pause : la musique tourne dès le départ. Il
+            // ne faut surtout pas la dire arrêtée quand une image passe sans
+            // pas de simulation, ce qui arrive une image sur deux à 120 Hz.
+            const bool moving = race.world.countdown <= 0.0f;
+            const double songTime = moving ? sim::songTime(race.world, race.track, player) + race.accumulator : -1.0;
             // Vitesse du morceau : 1 avec l'horloge commune, celle du vaisseau
             // rapportée à celle de la musique avec l'horloge par joueur.
             double speed = 1.0;

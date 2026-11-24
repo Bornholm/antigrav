@@ -193,21 +193,52 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
 void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
     // Positions calculées en pixels, puis ramenées au repère de référence.
     hud.anchor = Anchor::Left;
+    const float h = 27.0f, skew = 6.0f, rankW = 30.0f;
+
+    struct Placed {
+        float x0, x1, y1;
+    };
+    Placed placed[8];
+    int placedCount = 0;
+
+    // Du plus proche au plus lointain : en cas de chevauchement, c'est
+    // l'étiquette du plus lointain qui monte.
+    int order[8];
+    float depth[8];
+    int count = 0;
     for (int i = 0; i < s.tagCount; i++) {
-        const NameTag& tag = s.tags[i];
-        glm::vec4 clip = viewProj * glm::vec4(tag.worldPos, 1.0f);
+        glm::vec4 clip = viewProj * glm::vec4(s.tags[i].worldPos, 1.0f);
         if (clip.w <= 0.5f) continue;
         vec2 ndc = vec2(clip.x, clip.y) / clip.w;
         if (std::abs(ndc.x) > 1.05f || std::abs(ndc.y) > 1.05f) continue;
-        vec2 p = (ndc * 0.5f + 0.5f) * hud.screen / hud.scale;
+        int k = count++;
+        while (k > 0 && depth[k - 1] > clip.w) {
+            order[k] = order[k - 1];
+            depth[k] = depth[k - 1];
+            k--;
+        }
+        order[k] = i;
+        depth[k] = clip.w;
+    }
 
-        hud.tri(p + vec2(-8.0f, -13.0f), p + vec2(8.0f, -13.0f), p + vec2(0.0f, -2.0f), tag.color);
+    for (int n = 0; n < count; n++) {
+        const NameTag& tag = s.tags[order[n]];
+        glm::vec4 clip = viewProj * glm::vec4(tag.worldPos, 1.0f);
+        vec2 p = (vec2(clip.x, clip.y) / clip.w * 0.5f + 0.5f) * hud.screen / hud.scale;
 
-        const float h = 27.0f, skew = 6.0f, rankW = 30.0f;
         float nameW = hud.textWidth(FontId::Medium, tag.name, 16.0f);
         float w = rankW + nameW + 22.0f;
         float x0 = p.x - w * 0.5f, x1 = p.x + w * 0.5f;
-        float y1 = p.y - 19.0f, y0 = y1 - h;
+        float y1 = p.y - 19.0f;
+        for (int pass = 0; pass < 4; pass++)
+            for (int k = 0; k < placedCount; k++)
+                if (x0 < placed[k].x1 + 8.0f && x1 > placed[k].x0 - 8.0f &&
+                    std::abs(y1 - placed[k].y1) < h + 4.0f)
+                    y1 = placed[k].y1 - h - 5.0f;
+        float y0 = y1 - h;
+        placed[placedCount++] = {x0, x1, y1};
+
+        hud.tri(p + vec2(-8.0f, -13.0f), p + vec2(8.0f, -13.0f), p + vec2(0.0f, -2.0f), tag.color);
         hud.quad({x0 + skew, y0}, {x1 + skew, y0}, {x1, y1}, {x0, y1},
                  vec4(0.07f, 0.05f, 0.14f, 0.82f));
         hud.quad({x0 + skew, y0}, {x0 + skew + rankW, y0}, {x0 + rankW, y1}, {x0, y1},

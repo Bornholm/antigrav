@@ -61,14 +61,24 @@ void main() {
     // Marquages émissifs.
     float edge = lineMask(ax, halfWidth - 0.55, 0.22);
     float inner = lineMask(ax, halfWidth - 2.6, 0.07);
-    float dash = step(fract(uv.y / 16.0), 0.45);
+    // Tirets longs : à 340 m/s, un motif court clignoterait d'une image à l'autre.
+    float dash = step(fract(uv.y / 96.0), 0.55);
     float lane = lineMask(ax, halfWidth / 3.0, 0.05) * dash;
-    float center = lineMask(ax, 0.0, 0.04) * step(fract(uv.y / 8.0), 0.3);
+    float center = lineMask(ax, 0.0, 0.04) * step(fract(uv.y / 48.0), 0.4);
+
+    // Filets lumineux épars dans le sens de la marche : ils donnent la vitesse.
+    float band = floor(x * 1.3);
+    float pick = hash11(band + 17.0);
+    float along = fract(uv.y / 150.0 + pick * 7.0);
+    float streak = step(0.80, pick) * lineMask(fract(x * 1.3), 0.5, 0.035 * 1.3) *
+                   smoothstep(0.0, 0.15, along) * smoothstep(0.55, 0.35, along);
+    vec3 streakColor = mix(CYAN, MAGENTA, step(0.5, hash11(band * 3.1)));
 
     c += CYAN * edge * 7.0;
     c += MAGENTA * inner * 4.0;
     c += MAGENTA * lane * 0.9;
     c += vec3(0.5, 0.6, 1.0) * center * 0.25;
+    c += streakColor * streak * 0.55;
 
     // Halo des bandes de bord sur l'asphalte.
     c += CYAN * exp(-max(halfWidth - 0.55 - ax, 0.0) * 1.1) * 0.10;

@@ -4,6 +4,8 @@
 
 #include <SDL3/SDL.h>
 
+#include <cmath>
+
 namespace game {
 
 ButtonShape buttonShape(Button button, glm::vec2 screen) {
@@ -74,6 +76,46 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
         }
         break;
     }
+    case SDL_EVENT_GAMEPAD_ADDED:
+        // Ouvrir la manette suffit pour recevoir ses événements.
+        SDL_OpenGamepad(event.gdevice.which);
+        break;
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
+        float value = static_cast<float>(event.gaxis.value) / 32767.0f;
+        if (event.gaxis.axis == SDL_GAMEPAD_AXIS_LEFTX) {
+            // Zone morte : un stick au repos ne renvoie jamais exactement zéro.
+            const float dead = 0.18f;
+            float magnitude = (std::abs(value) - dead) / (1.0f - dead);
+            padSteer = magnitude > 0.0f ? (value > 0.0f ? magnitude : -magnitude) : 0.0f;
+        } else if (event.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) {
+            padTrigger = value > 0.3f;
+        }
+        break;
+    }
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP: {
+        bool down = event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
+        switch (event.gbutton.button) {
+        case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+            padLeft = down;
+            break;
+        case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+            padRight = down;
+            break;
+        case SDL_GAMEPAD_BUTTON_SOUTH:
+            padBoost = down;
+            break;
+        case SDL_GAMEPAD_BUTTON_WEST:
+            padMissile = down;
+            break;
+        case SDL_GAMEPAD_BUTTON_EAST:
+            padShield = down;
+            break;
+        default:
+            break;
+        }
+        break;
+    }
     case SDL_EVENT_FINGER_DOWN:
     case SDL_EVENT_FINGER_MOTION:
     case SDL_EVENT_FINGER_UP:
@@ -110,12 +152,14 @@ Controls InputReader::read(glm::vec2 screen) const {
         }
     }
     auto on = [&](Button b) -> bool& { return c.pressed[static_cast<int>(b)]; };
-    on(Button::Left) |= keyLeft;
-    on(Button::Right) |= keyRight;
-    on(Button::Boost) |= keyBoost;
-    on(Button::Missile) |= keyMissile;
-    on(Button::Shield) |= keyShield;
+    on(Button::Left) |= keyLeft || padLeft;
+    on(Button::Right) |= keyRight || padRight;
+    on(Button::Boost) |= keyBoost || padBoost || padTrigger;
+    on(Button::Missile) |= keyMissile || padMissile;
+    on(Button::Shield) |= keyShield || padShield;
     c.steer = (on(Button::Right) ? 1.0f : 0.0f) - (on(Button::Left) ? 1.0f : 0.0f);
+    // Le stick donne un braquage progressif, que les boutons n'ont pas.
+    if (c.steer == 0.0f) c.steer = padSteer;
     return c;
 }
 

@@ -381,4 +381,53 @@ MeshData buildTrail() {
     return mesh;
 }
 
+// Bulle du bouclier : ellipsoïde autour du vaisseau, dessiné en additif.
+MeshData buildShield() {
+    MeshData mesh;
+    const glm::vec3 center{0.0f, 0.55f, -0.3f};
+    const glm::vec3 radii{4.1f, 1.9f, 5.0f};
+    const int rings = 10, sectors = 20;
+    for (int r = 0; r <= rings; r++) {
+        float phi = 3.14159265f * static_cast<float>(r) / rings;
+        for (int s = 0; s <= sectors; s++) {
+            float theta = 6.2831853f * static_cast<float>(s) / sectors;
+            glm::vec3 n{std::sin(phi) * std::cos(theta), std::cos(phi),
+                        std::sin(phi) * std::sin(theta)};
+            Vertex v;
+            v.pos = center + n * radii;
+            v.normal = glm::normalize(n / radii);
+            v.kind = 1.0f;
+            v.uv = {static_cast<float>(s) / sectors, static_cast<float>(r) / rings};
+            mesh.add(v);
+        }
+    }
+    for (int r = 0; r < rings; r++)
+        for (int s = 0; s < sectors; s++) {
+            uint32_t a = static_cast<uint32_t>(r * (sectors + 1) + s);
+            uint32_t b = a + static_cast<uint32_t>(sectors) + 1;
+            mesh.quad(a, a + 1, b + 1, b);
+        }
+    return mesh;
+}
+
+// Missile : fuseau lumineux à quatre ailettes, pointé vers -Z.
+MeshData buildMissile() {
+    MeshData mesh;
+    const glm::vec3 core{0.0f};
+    const glm::vec4 body{1.0f, 0.55f, 0.9f, 9.0f};
+    const glm::vec4 fin{1.0f, 0.15f, 0.75f, 7.0f};
+    const glm::vec3 nose{0.0f, 0.0f, -1.6f}, tail{0.0f, 0.0f, 1.3f};
+    const float r = 0.22f;
+    const glm::vec3 ring[4] = {{r, 0.0f, 0.2f}, {0.0f, r, 0.2f}, {-r, 0.0f, 0.2f}, {0.0f, -r, 0.2f}};
+    for (int i = 0; i < 4; i++) {
+        addFace(mesh, {nose, ring[i], ring[(i + 1) % 4]}, 0.0f, body, core);
+        addFace(mesh, {tail, ring[i], ring[(i + 1) % 4]}, 0.0f, body, core);
+        glm::vec3 out = ring[i] * 3.2f;
+        addFace(mesh, {{ring[i].x, ring[i].y, 0.5f}, {out.x, out.y, 1.5f},
+                       {ring[i].x * 0.6f, ring[i].y * 0.6f, 1.3f}},
+                0.0f, fin, core + glm::vec3(1.0f, 1.0f, 0.0f) * 1e-3f);
+    }
+    return mesh;
+}
+
 } // namespace gfx

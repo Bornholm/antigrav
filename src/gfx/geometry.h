@@ -13,5 +13,7 @@ MeshData buildGates(const sim::Track& track);
 MeshData buildCity(const sim::Track& track);
 MeshData buildShip();
 MeshData buildTrail();
+MeshData buildShield();
+MeshData buildMissile();
 
 } // namespace gfx

@@ -1,0 +1,57 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Archive locale des sources de SDL, si elle a déjà été téléchargée. Sinon
+// CMake la récupère lui-même.
+def sdlArchive = rootProject.file('../.cache/sdl/SDL3-3.4.16.tar.gz')
+
+android {
+    namespace 'dev.antigrav.game'
+    compileSdk 36
+    ndkVersion '27.2.12479018'
+
+    defaultConfig {
+        applicationId 'dev.antigrav.game'
+        // Android 13 : première version où Vulkan 1.3 est courant.
+        minSdk 33
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+
+        ndk {
+            // Tous les téléphones visés sont en ARM 64 bits.
+            abiFilters 'arm64-v8a'
+        }
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_static',
+                          '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON',
+                          '-DCMAKE_BUILD_TYPE=Release'
+                if (sdlArchive.exists()) {
+                    arguments "-DANTIGRAV_SDL_ARCHIVE=${sdlArchive.absolutePath}"
+                }
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path '../../CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Signature de débogage en attendant une vraie clé de publication.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

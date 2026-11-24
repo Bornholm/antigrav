@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -205,6 +206,51 @@ void testSynth() {
     CHECK(energy / buffer.size() > 1e-4);
 }
 
+void testMissileAndShield() {
+    sim::Track track = sim::Track::makeDemo();
+    auto setup = [&](bool shielded) {
+        sim::World world;
+        world.count = 2;
+        for (int i = 0; i < 2; i++) {
+            world.vehicles[i].dist = 300.0f + 80.0f * static_cast<float>(i);
+            world.vehicles[i].speed = sim::kCruiseSpeed;
+        }
+        sim::Input inputs[2];
+        inputs[0].fire = true;
+        inputs[1].shield = shielded;
+        float minSpeed = sim::kCruiseSpeed;
+        bool stunned = false;
+        for (int s = 0; s < 120; s++) {
+            sim::step(world, track, inputs);
+            minSpeed = std::min(minSpeed, world.vehicles[1].speed);
+            stunned = stunned || world.vehicles[1].stunTime > 0.0f;
+        }
+        // Un seul missile part, même en gardant le bouton enfoncé.
+        CHECK(world.vehicles[0].energy > 1.0f - sim::kMissileCost - 0.01f);
+        return std::pair<bool, float>(stunned, minSpeed);
+    };
+
+    auto hit = setup(false);
+    CHECK(hit.first);
+    CHECK(hit.second < sim::kCruiseSpeed * 0.75f);
+
+    auto blocked = setup(true);
+    CHECK(!blocked.first);
+    CHECK(blocked.second > sim::kCruiseSpeed * 0.95f);
+
+    // Sans énergie, ni missile ni bouclier.
+    sim::World world;
+    world.count = 1;
+    world.vehicles[0].speed = sim::kCruiseSpeed;
+    world.vehicles[0].energy = 0.05f;
+    sim::Input in;
+    in.fire = true;
+    in.shield = true;
+    sim::step(world, track, &in);
+    CHECK(world.vehicles[0].shieldTime == 0.0f);
+    for (const sim::Missile& m : world.missiles) CHECK(!m.active);
+}
+
 void testRanking() {
     sim::World world;
     world.count = 3;
@@ -227,6 +273,7 @@ int main() {
     testRanking();
     testCountdownAndFinish();
     testSynth();
+    testMissileAndShield();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");
     return failures == 0 ? 0 : 1;
 }

@@ -16,6 +16,7 @@ struct Race {
     sim::World previous; // état du pas précédent, pour interpoler le rendu
     float accumulator = 0.0f;
     int laps = 3;
+    bool gridStart = false;
     // Le joueur est piloté par l'ordinateur : mode démonstration et captures.
     bool autopilot = false;
 

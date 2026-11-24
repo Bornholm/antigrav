@@ -168,25 +168,29 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
         hud.text(FontId::Bold, "BOOST", c + vec2(0.0f, 46.0f), 28.0f, kWhite, Align::Center);
     }
     {
+        // Grisé quand la jauge ne suffit pas.
         bool down = shapeOf(Button::Missile, c, r);
-        const vec4 pink{1.0f, 0.45f, 0.85f, 1.0f};
+        float on = s.canFire ? 1.0f : 0.32f;
+        const vec4 pink = alpha(vec4(1.0f, 0.45f, 0.85f, 1.0f), on);
         hud.circle(c, r, down ? vec4(0.5f, 0.12f, 0.4f, 0.6f) : vec4(0.10f, 0.03f, 0.09f, 0.5f),
                    pink, down ? 5.0f : 3.0f);
         hud.line(c + vec2(-16.0f, 14.0f), c + vec2(14.0f, -14.0f), 16.0f, pink);
-        hud.line(c + vec2(14.0f, -14.0f), c + vec2(24.0f, -24.0f), 8.0f, kWhite);
-        hud.line(c + vec2(-22.0f, 6.0f), c + vec2(-8.0f, 22.0f), 6.0f, kWhite);
+        hud.line(c + vec2(14.0f, -14.0f), c + vec2(24.0f, -24.0f), 8.0f, alpha(kWhite, on));
+        hud.line(c + vec2(-22.0f, 6.0f), c + vec2(-8.0f, 22.0f), 6.0f, alpha(kWhite, on));
         hud.line(c + vec2(-24.0f, 22.0f), c + vec2(-33.0f, 31.0f), 6.0f, alpha(pink, 0.8f));
     }
     {
-        bool down = shapeOf(Button::Shield, c, r);
+        bool down = shapeOf(Button::Shield, c, r) || s.shielded;
+        float on = (s.canShield || s.shielded) ? 1.0f : 0.32f;
+        const vec4 cyan = alpha(kCyan, on);
         hud.circle(c, r, down ? vec4(0.08f, 0.40f, 0.55f, 0.6f) : vec4(0.03f, 0.08f, 0.12f, 0.5f),
-                   kCyan, down ? 5.0f : 3.0f);
+                   cyan, down ? 5.0f : 3.0f);
         const vec2 topP = c + vec2(0.0f, -30.0f), tr = c + vec2(26.0f, -20.0f),
                    br = c + vec2(26.0f, 3.0f), bot = c + vec2(0.0f, 31.0f),
                    bl = c + vec2(-26.0f, 3.0f), tl = c + vec2(-26.0f, -20.0f);
         hud.quad(topP + vec2(0.0f, 9.0f), tr + vec2(-8.0f, 6.0f), br + vec2(-8.0f, -3.0f),
-                 bot + vec2(0.0f, -12.0f), alpha(kCyan, 0.55f));
-        polyline(hud, {topP, tr, br, bot, bl, tl, topP}, 4.5f, kCyan, 0.3f);
+                 bot + vec2(0.0f, -12.0f), alpha(cyan, 0.55f));
+        polyline(hud, {topP, tr, br, bot, bl, tl, topP}, 4.5f, cyan, 0.3f);
     }
 }
 
@@ -270,7 +274,7 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         float pulse = 1.0f + 0.25f * (s.countdown - std::floor(s.countdown));
         hud.text(FontId::Bold, buf, {800.0f, 400.0f}, 190.0f * pulse, kWhite, Align::Center,
                  0.2f, alpha(kCyan, 0.8f));
-    } else if (s.raceTime < 1.2f && !s.finished) {
+    } else if (s.gridStart && s.raceTime < 1.2f && !s.finished) {
         hud.text(FontId::Bold, "GO !", {800.0f, 400.0f}, 170.0f,
                  alpha(kYellow, 1.0f - s.raceTime / 1.2f), Align::Center, 0.2f);
     }

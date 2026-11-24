@@ -20,10 +20,17 @@ void stepVehicle(Vehicle& v, const Input& in, const Track& track, float dt) {
     TrackFrame f = track.at(v.dist);
     float steer = std::clamp(in.steer, -1.0f, 1.0f);
 
-    v.boosting = in.boost && v.energy > 0.0f;
+    v.shieldTime = std::max(0.0f, v.shieldTime - dt);
+    bool stunned = v.stunTime > 0.0f;
+    v.stunTime = std::max(0.0f, v.stunTime - dt);
+    if (stunned) steer *= 0.3f;
+
+    v.boosting = in.boost && v.energy > 0.0f && !stunned;
     float target = v.boosting ? kBoostSpeed * (v.topSpeed / kCruiseSpeed) : v.topSpeed;
+    if (stunned) target = v.topSpeed * 0.55f;
     float delta = target - v.speed;
-    v.speed += std::clamp(delta, -kDecel * dt, (v.boosting ? kBoostAccel : kAccel) * dt);
+    v.speed += std::clamp(delta, -(stunned ? 4.0f : 1.0f) * kDecel * dt,
+                          (v.boosting ? kBoostAccel : kAccel) * dt);
 
     v.energy += (v.boosting ? -kBoostDrain : kEnergyRegen) * dt;
 
@@ -40,7 +47,8 @@ void stepVehicle(Vehicle& v, const Input& in, const Track& track, float dt) {
         v.lateral = side * limit;
         if (v.lateralVel * side > 0.0f) v.lateralVel *= -0.35f;
         v.speed -= v.speed * 0.55f * dt;
-        v.energy -= 0.12f * dt;
+        // Le bouclier protège aussi des murets.
+        if (v.shieldTime <= 0.0f) v.energy -= 0.12f * dt;
         v.scraping = true;
     }
     v.energy = std::clamp(v.energy, 0.0f, 1.0f);
@@ -51,6 +59,80 @@ void stepVehicle(Vehicle& v, const Input& in, const Track& track, float dt) {
 
     float rollTarget = -steer * 0.38f - f.curvature * v.speed * 0.25f;
     v.roll += (rollTarget - v.roll) * std::min(1.0f, 7.0f * dt);
+}
+
+// Appuis sur missile et bouclier. Seul le front montant compte : rester appuyé
+// ne tire pas en rafale.
+void useItems(World& world, int index, const Input& in) {
+    Vehicle& v = world.vehicles[index];
+    bool canAct = !v.finished && v.stunTime <= 0.0f;
+
+    if (in.fire && !v.fireHeld && canAct && v.energy >= kMissileCost) {
+        for (Missile& m : world.missiles) {
+            if (m.active) continue;
+            m = Missile{};
+            m.active = true;
+            m.owner = index;
+            m.dist = v.dist + 7.0f;
+            m.lateral = v.lateral;
+            m.speed = v.speed + 170.0f;
+            m.life = 3.5f;
+            v.energy -= kMissileCost;
+            break;
+        }
+    }
+    if (in.shield && !v.shieldHeld && canAct && v.shieldTime <= 0.0f &&
+        v.energy >= kShieldCost) {
+        v.shieldTime = kShieldDuration;
+        v.energy -= kShieldCost;
+    }
+    v.fireHeld = in.fire;
+    v.shieldHeld = in.shield;
+}
+
+void stepMissiles(World& world, const Track& track, float dt) {
+    const float limit = track.halfWidth - 1.0f;
+    for (Missile& m : world.missiles) {
+        if (!m.active) continue;
+
+        // Cible : le vaisseau le plus proche devant, autre que le tireur.
+        const Vehicle* target = nullptr;
+        float best = 600.0f;
+        for (int i = 0; i < world.count; i++) {
+            if (i == m.owner) continue;
+            float ahead = world.vehicles[i].dist - m.dist;
+            if (ahead > -4.0f && ahead < best) {
+                best = ahead;
+                target = &world.vehicles[i];
+            }
+        }
+        if (target) {
+            float delta = target->lateral - m.lateral;
+            m.lateral += std::clamp(delta, -34.0f * dt, 34.0f * dt);
+        }
+        m.lateral = std::clamp(m.lateral, -limit, limit);
+        m.dist += m.speed * dt;
+        m.life -= dt;
+        if (m.life <= 0.0f) {
+            m.active = false;
+            continue;
+        }
+
+        for (int i = 0; i < world.count; i++) {
+            if (i == m.owner) continue;
+            Vehicle& v = world.vehicles[i];
+            if (std::abs(v.dist - m.dist) > 6.5f || std::abs(v.lateral - m.lateral) > 3.8f)
+                continue;
+            m.active = false;
+            // Un bouclier levé absorbe le missile.
+            if (v.shieldTime <= 0.0f) {
+                v.stunTime = kStunDuration;
+                v.speed *= 0.6f;
+                v.energy = std::max(0.0f, v.energy - 0.10f);
+            }
+            break;
+        }
+    }
 }
 
 } // namespace
@@ -67,6 +149,7 @@ void step(World& world, const Track& track, const Input* inputs) {
     for (int i = 0; i < world.count; i++) {
         Vehicle& v = world.vehicles[i];
         float before = v.dist;
+        useItems(world, i, inputs[i]);
         stepVehicle(v, inputs[i], track, kFixedDt);
         if (!v.finished && v.dist >= finishDist) {
             v.finished = true;
@@ -76,6 +159,8 @@ void step(World& world, const Track& track, const Input* inputs) {
             v.finishTime = world.raceTime - kFixedDt * (1.0f - fraction);
         }
     }
+
+    stepMissiles(world, track, kFixedDt);
 
     // Contacts entre vaisseaux : ils s'écartent, sans blocage dur.
     for (int i = 0; i < world.count; i++) {
@@ -118,6 +203,28 @@ Input autopilot(const Vehicle& v, const Track& track, float laneOffset) {
     bool straight = std::abs(here.curvature) < 0.0006f && std::abs(ahead.curvature) < 0.0008f;
     in.boost = straight && (v.boosting ? v.energy > 0.25f : v.energy > 0.85f);
     return in;
+}
+
+void autopilotItems(const World& world, int index, Input& input) {
+    const Vehicle& me = world.vehicles[index];
+
+    // Tire sur un adversaire proche et à peu près dans l'axe, s'il reste de
+    // quoi garder un peu de boost.
+    for (int i = 0; i < world.count; i++) {
+        if (i == index) continue;
+        const Vehicle& other = world.vehicles[i];
+        float ahead = other.dist - me.dist;
+        if (ahead > 25.0f && ahead < 170.0f && std::abs(other.lateral - me.lateral) < 5.0f &&
+            other.stunTime <= 0.0f && other.shieldTime <= 0.0f && me.energy > 0.7f)
+            input.fire = true;
+    }
+    // Lève le bouclier quand un missile adverse arrive par derrière.
+    for (const Missile& m : world.missiles) {
+        if (!m.active || m.owner == index) continue;
+        float behind = me.dist - m.dist;
+        if (behind > 0.0f && behind < 110.0f && std::abs(m.lateral - me.lateral) < 7.0f)
+            input.shield = true;
+    }
 }
 
 int rankOf(const World& world, int index) {

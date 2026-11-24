@@ -399,6 +399,8 @@ void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
     city = uploadMesh(*gpu, buildCity(track), "city");
     ship = uploadMesh(*gpu, buildShip(), "ship");
     trail = uploadMesh(*gpu, buildTrail(), "trail");
+    shield = uploadMesh(*gpu, buildShield(), "shield");
+    missile = uploadMesh(*gpu, buildMissile(), "missile");
 }
 
 void Renderer::shutdown() {
@@ -410,6 +412,8 @@ void Renderer::shutdown() {
     destroyMesh(*gpu, city);
     destroyMesh(*gpu, ship);
     destroyMesh(*gpu, trail);
+    destroyMesh(*gpu, shield);
+    destroyMesh(*gpu, missile);
     for (int i = 0; i < static_cast<int>(Material::Count); i++) {
         vkDestroyPipeline(dev, scenePipelines[i], nullptr);
         vkDestroyPipeline(dev, reflectionPipelines[i], nullptr);
@@ -545,6 +549,21 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     bindMesh(cmd, gates);
     vkCmdDrawIndexed(cmd, gates.indexCount, 1, 0, 0, 0);
 
+    // Missiles : même matériau lumineux que les rails.
+    auto missileModel = [&](const MissileDraw& m) {
+        return reflection ? mirrorMatrix(m.planePoint, m.planeNormal) * m.model : m.model;
+    };
+    if (params.missileCount > 0) {
+        bindMesh(cmd, missile);
+        for (int i = 0; i < params.missileCount; i++) {
+            ScenePush push;
+            push.model = missileModel(params.missiles[i]);
+            pushScene(cmd, sceneLayout, push);
+            vkCmdDrawIndexed(cmd, missile.indexCount, 1, 0, 0, 0);
+        }
+        pushScene(cmd, sceneLayout, identity);
+    }
+
     bind(Material::Building);
     bindMesh(cmd, city);
     ScenePush cityPush;
@@ -577,6 +596,25 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     for (int i = 0; i < params.shipCount; i++) {
         pushScene(cmd, sceneLayout, shipPush(params.ships[i]));
         vkCmdDrawIndexed(cmd, trail.indexCount, 1, 0, 0, 0);
+    }
+    // Flamme des missiles : le même maillage, réduit.
+    for (int i = 0; i < params.missileCount; i++) {
+        ScenePush push;
+        push.model = missileModel(params.missiles[i]) *
+                     glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.12f, 0.55f)) *
+                     glm::scale(glm::mat4(1.0f), glm::vec3(0.35f));
+        push.colorB = glm::vec4(1.0f, 0.2f, 0.8f, 14.0f);
+        pushScene(cmd, sceneLayout, push);
+        vkCmdDrawIndexed(cmd, trail.indexCount, 1, 0, 0, 0);
+    }
+    // Bulles des boucliers.
+    bindMesh(cmd, shield);
+    for (int i = 0; i < params.shipCount; i++) {
+        if (params.ships[i].shield <= 0.0f) continue;
+        ScenePush push = shipPush(params.ships[i]);
+        push.colorB = glm::vec4(0.1f, 0.8f, 1.0f, params.ships[i].shield);
+        pushScene(cmd, sceneLayout, push);
+        vkCmdDrawIndexed(cmd, shield.indexCount, 1, 0, 0, 0);
     }
 }
 

@@ -35,6 +35,10 @@ struct HudState {
     bool finished = false;
     // Ligne de mesures affichée en bas de l'écran, vide pour la masquer.
     const char* statsLine = "";
+    bool canFire = true;
+    bool canShield = true;
+    bool shielded = false;
+    bool gridStart = false; // départ arrêté : affiche le signal du départ
     bool pressed[static_cast<int>(Button::Count)] = {};
 };
 

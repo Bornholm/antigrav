@@ -1,8 +1,8 @@
 #version 450
 #include "common.glsl"
 
-// Flamme de réacteur, dessinée en additif. uv.x en travers, uv.y de la
-// tuyère vers la queue.
+// Effets dessinés en additif. kind 0 : flamme de réacteur, uv.x en travers,
+// uv.y de la tuyère vers la queue. kind 1 : bulle de bouclier.
 layout(location = 0) in vec3 worldPos;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 uv;
@@ -12,6 +12,20 @@ layout(location = 4) flat in float kind;
 layout(location = 0) out vec4 outColor;
 
 void main() {
+    float visible = exp(-length(worldPos - g.camPos.xyz) * g.fog.a);
+
+    if (kind > 0.5) {
+        // Bulle de bouclier : brillante sur son contour, avec une trame qui défile.
+        vec3 n = normalize(normal);
+        vec3 v = normalize(g.camPos.xyz - worldPos);
+        float rim = pow(1.0 - abs(dot(n, v)), 2.2);
+        float grid = max(smoothstep(0.42, 0.5, abs(fract(uv.x * 20.0) - 0.5)),
+                         smoothstep(0.42, 0.5, abs(fract(uv.y * 10.0 + g.camPos.w * 0.6) - 0.5)));
+        vec3 c = pc.colorB.rgb * (rim * 2.2 + grid * 0.35 + 0.05) * pc.colorB.a;
+        outColor = vec4(c * visible, 1.0);
+        return;
+    }
+
     // Bornés : en MSAA, l'interpolation peut sortir de [0, 1] sur les bords, et
     // pow d'un nombre négatif donne un NaN que le bloom étale ensuite.
     float across = clamp(1.0 - abs(uv.x * 2.0 - 1.0), 0.0, 1.0);
@@ -20,6 +34,5 @@ void main() {
     float core = pow(across, 3.0) * pow(along, 2.2);
     vec3 c = mix(pc.colorB.rgb, vec3(1.0), pow(across, 10.0) * along * 0.6) * core * pc.colorB.a *
              flicker * 0.30;
-    float visible = exp(-length(worldPos - g.camPos.xyz) * g.fog.a);
     outColor = vec4(c * visible, 1.0);
 }

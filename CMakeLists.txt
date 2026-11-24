@@ -34,8 +34,11 @@ FetchContent_Declare(stb
 FetchContent_MakeAvailable(vulkan_headers volk vma glm stb)
 
 if(ANDROID)
-  FetchContent_Declare(SDL3
-    URL ${GH}/libsdl-org/SDL/archive/refs/tags/release-3.4.16.tar.gz)
+  # SDL est compilé avec le jeu. ANTIGRAV_SDL_ARCHIVE peut désigner une archive
+  # déjà téléchargée.
+  set(ANTIGRAV_SDL_ARCHIVE "https://www.libsdl.org/release/SDL3-3.4.16.tar.gz"
+      CACHE STRING "Archive des sources de SDL3")
+  FetchContent_Declare(SDL3 URL ${ANTIGRAV_SDL_ARCHIVE})
   set(SDL_SHARED ON CACHE BOOL "" FORCE)
   set(SDL_STATIC OFF CACHE BOOL "" FORCE)
   set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)

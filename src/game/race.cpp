@@ -36,7 +36,8 @@ float mixf(float a, float b, float t) { return a + (b - a) * t; }
 
 } // namespace
 
-void Race::init(bool gridStart) {
+void Race::init(bool grid) {
+    gridStart = grid;
     track = sim::Track::makeDemo();
 
     world = sim::World{};
@@ -84,12 +85,17 @@ void Race::update(float dt, const Controls& input) {
         previous = world;
         float countdownBefore = world.countdown;
         sim::Input inputs[sim::kMaxVehicles];
-        for (int i = 0; i < world.count; i++)
+        for (int i = 0; i < world.count; i++) {
             inputs[i] = sim::autopilot(world.vehicles[i], track, kRacers[i].lane);
+            sim::autopilotItems(world, i, inputs[i]);
+        }
         // Après l'arrivée, le pilote automatique reprend la main.
         if (!autopilot && !world.vehicles[0].finished) {
+            inputs[0] = sim::Input{};
             inputs[0].steer = input.steer;
             inputs[0].boost = input.pressed[static_cast<int>(Button::Boost)];
+            inputs[0].fire = input.pressed[static_cast<int>(Button::Missile)];
+            inputs[0].shield = input.pressed[static_cast<int>(Button::Shield)];
         }
         sim::step(world, track, inputs);
         accumulator -= sim::kFixedDt;
@@ -132,6 +138,8 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         float dist = mixf(a.dist, b.dist, alpha);
         float lateral = mixf(a.lateral, b.lateral, alpha);
         float roll = mixf(a.roll, b.roll, alpha);
+        // Touché par un missile : le vaisseau part en vrille.
+        if (b.stunTime > 0.0f) roll += (b.stunTime / sim::kStunDuration) * 12.566f;
         float bob = std::sin(time * 3.1f + static_cast<float>(i) * 1.7f) * 0.05f;
         if (i == 0) playerDist = dist;
 
@@ -149,6 +157,8 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         ship.planeNormal = f.up;
         ship.trim = glm::vec4(kRacers[i].trim, 6.0f);
         ship.engine = glm::vec4(kRacers[i].engine, b.boosting ? 16.0f : 9.0f);
+        // La bulle s'éteint en douceur sur sa dernière demi-seconde.
+        ship.shield = std::min(1.0f, b.shieldTime * 2.0f);
 
         if (i > 0) {
             NameTag& tag = state.tags[state.tagCount++];
@@ -157,6 +167,24 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
             tag.rank = sim::rankOf(world, i);
             tag.color = glm::vec4(glm::mix(kRacers[i].engine, glm::vec3(1.0f), 0.25f), 1.0f);
         }
+    }
+
+    out.missileCount = 0;
+    for (int i = 0; i < sim::kMaxMissiles; i++) {
+        const sim::Missile& m = world.missiles[i];
+        if (!m.active) continue;
+        // Interpolé avec le pas précédent seulement si c'était déjà ce missile.
+        const sim::Missile& before = previous.missiles[i];
+        bool same = before.active && before.owner == m.owner && before.dist <= m.dist;
+        float dist = same ? mixf(before.dist, m.dist, alpha) : m.dist;
+        float lateral = same ? mixf(before.lateral, m.lateral, alpha) : m.lateral;
+        sim::TrackFrame f = track.at(dist);
+        gfx::MissileDraw& draw = out.missiles[out.missileCount++];
+        draw.model = glm::mat4(glm::vec4(f.right, 0.0f), glm::vec4(f.up, 0.0f),
+                               glm::vec4(-f.tangent, 0.0f),
+                               glm::vec4(f.pos + f.right * lateral + f.up * 0.9f, 1.0f));
+        draw.planePoint = f.pos;
+        draw.planeNormal = f.up;
     }
 
     const sim::Vehicle& player = world.vehicles[0];
@@ -183,6 +211,11 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.raceTime = player.finished ? player.finishTime : world.raceTime;
     state.finished = player.finished;
     state.statsLine = statsLine;
+    state.canFire = player.energy >= sim::kMissileCost && player.stunTime <= 0.0f;
+    state.canShield = player.energy >= sim::kShieldCost && player.shieldTime <= 0.0f &&
+                      player.stunTime <= 0.0f;
+    state.shielded = player.shieldTime > 0.0f;
+    state.gridStart = gridStart;
     state.speedKmh = player.speed * 3.6f;
     state.minimap = &minimap;
     float wrapped = std::fmod(playerDist, track.length);

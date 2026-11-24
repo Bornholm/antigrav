@@ -12,6 +12,7 @@ namespace gfx {
 constexpr int kFramesInFlight = 2;
 constexpr int kBloomLevels = 6;
 constexpr int kMaxShips = 8;
+constexpr int kMaxMissileDraws = 16;
 
 // Image dans laquelle la dernière passe écrit : une image de la swapchain ou
 // la cible hors écran du mode capture.
@@ -29,6 +30,13 @@ struct ShipDraw {
     glm::vec3 planeNormal{0.0f, 1.0f, 0.0f};
     glm::vec4 trim{1.0f};   // rgb couleur des liserés, a intensité
     glm::vec4 engine{1.0f}; // rgb couleur des réacteurs, a intensité
+    float shield = 0.0f;    // intensité de la bulle du bouclier, 0 pour aucune
+};
+
+struct MissileDraw {
+    glm::mat4 model{1.0f};
+    glm::vec3 planePoint{0.0f};
+    glm::vec3 planeNormal{0.0f, 1.0f, 0.0f};
 };
 
 // Tout ce que le rendu doit savoir d'une image. Rempli par le jeu.
@@ -45,6 +53,8 @@ struct FrameParams {
     glm::vec3 planeNormal{0.0f, 1.0f, 0.0f};
     int shipCount = 0;
     ShipDraw ships[kMaxShips];
+    int missileCount = 0;
+    MissileDraw missiles[kMaxMissileDraws];
     // Interface de l'image, facultative.
     const HudBatch* hud = nullptr;
 };
@@ -120,7 +130,7 @@ struct Renderer {
     VkDescriptorSet bloomSet[kBloomLevels]{};
     VkDescriptorSet compositeSet = VK_NULL_HANDLE;
 
-    Mesh road, rails, gates, city, ship, trail;
+    Mesh road, rails, gates, city, ship, trail, shield, missile;
 
     FontAtlas fonts;
     Image fontTexture;

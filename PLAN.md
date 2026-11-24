@@ -38,6 +38,14 @@ Jamais exécuté à ce jour : tout ce qui est propre à Android, soit la rotatio
 | Canyon Solaire | Sinueux et vallonné, piste de 26 m | Défilé de pitons au crépuscule, ambre et rouge |
 | Station Orbitale | Huit dont une branche enjambe l'autre, piste de 34 m | Vide spatial, anneaux à traverser, vert et bleu |
 
+| Élément de piste | Effet | Parade |
+|---|---|---|
+| Plaque de boost, chevrons jaunes | Porte le vaisseau au-delà de la vitesse de boost, sans coût | Aucune, mais la vitesse gagnée fait dériver en virage |
+| Champ de freinage, hachures rouges | Freine fort et vide la jauge tant qu'on y reste | L'éviter, ou le traverser bouclier levé |
+| Barrière rouge | Choc : plus de la moitié de la vitesse perdue, 0,6 s sans contrôle | L'éviter ; un bouclier levé encaisse le choc et se brise |
+
+Les éléments sont semés tous les 300 m environ, par un tirage fixe : un circuit a toujours la même disposition. Néon City a surtout des plaques et des barrières, Canyon Solaire un mélange des trois, Station Orbitale surtout des plaques et des champs. En virage, les champs occupent la corde et les plaques l'extérieur. Une barrière arrête aussi les missiles.
+
 | Vaisseau | Caractère |
 |---|---|
 | Flèche | Équilibrée |
@@ -64,12 +72,12 @@ Boost, missile et bouclier puisent dans la même jauge d'énergie. Trois règles
 
 | À personnalité égale | Victoires | À vaisseau égal | Victoires |
 |---|---|---|---|
-| Flèche | 26 % | Agressif | 18 % |
-| Manta | 22 % | Défensif | 15 % |
-| Aiguille | 26 % | Pilote | 37 % |
+| Flèche | 18 % | Agressif | 24 % |
+| Manta | 26 % | Défensif | 21 % |
+| Aiguille | 31 % | Pilote | 25 % |
 | Jumeau | 25 % | Imprévisible | 31 % |
 
-Limite de cette mesure : elle oppose des IA entre elles. Elle ne dit rien d'une stratégie qu'un joueur humain inventerait et qu'aucune personnalité ne joue. « Pilote » reste la personnalité la plus efficace, dans la limite fixée.
+Limite de cette mesure : elle oppose des IA entre elles. Elle ne dit rien d'une stratégie qu'un joueur humain inventerait et qu'aucune personnalité ne joue. Les IA esquivent presque toujours les barrières : un joueur humain en touchera davantage, ce qui avantage en pratique les vaisseaux solides.
 
 Mesures sur la machine de développement, GPU Intel Arrow Lake, par image :
 

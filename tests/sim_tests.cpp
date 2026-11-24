@@ -413,6 +413,18 @@ void testFeatures() {
             CHECK(2.0f * t.halfWidth - closed >= 4.0f * sim::kShipHalfWidth);
         }
         for (int c : counts) CHECK(c >= 4);
+
+        // Une barrière ne suit jamais une plaque : après une plaque, son
+        // couloir reste libre une seconde et demie.
+        for (const sim::Feature& pad : t.features) {
+            if (pad.type != sim::FeatureType::EnergyPad) continue;
+            for (const sim::Feature& f : t.features) {
+                if (f.type != sim::FeatureType::Barrier) continue;
+                const float after = f.dist - (pad.dist + pad.length);
+                if (after < 0.0f || after > t.at(pad.dist).pace * sim::kClearAfterPad) continue;
+                CHECK(std::abs(f.lateral - pad.lateral) >= f.halfWidth + sim::kClearHalfWidth);
+            }
+        }
     }
 
     // Les pilotes automatiques esquivent : un morceau sans toucher une barrière.

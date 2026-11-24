@@ -232,6 +232,24 @@ void placeFeatures(Track& track, const music::Partition& p, const std::vector<mu
             add(FeatureType::EnergyPad, track.distAt(beats[i + 2].time) - 0.5f * kPadLength, kPadLength,
                 -padLane, kPadHalf);
     }
+
+    // Règle générale : une barrière ne suit jamais une plaque. Qui vient de
+    // prendre une plaque doit pouvoir continuer tout droit sans rien heurter
+    // pendant une seconde et demie. Les barrières en faute sont retirées.
+    std::vector<Feature> kept;
+    for (const Feature& f : track.features) {
+        bool blocked = false;
+        if (f.type == FeatureType::Barrier) {
+            for (const Feature& pad : track.features) {
+                if (pad.type != FeatureType::EnergyPad) continue;
+                const float after = f.dist - (pad.dist + pad.length);
+                if (after < 0.0f || after > track.at(pad.dist).pace * kClearAfterPad) continue;
+                if (std::abs(f.lateral - pad.lateral) < f.halfWidth + kClearHalfWidth) blocked = true;
+            }
+        }
+        if (!blocked) kept.push_back(f);
+    }
+    track.features.swap(kept);
 }
 
 } // namespace

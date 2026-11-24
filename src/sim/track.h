@@ -20,6 +20,11 @@ struct TrackFrame {
     float time = 0.0f;
 };
 
+// Après une plaque, aucune barrière dans son couloir pendant cette durée, sur
+// cette demi-largeur autour de son axe.
+constexpr float kClearAfterPad = 1.5f;  // secondes
+constexpr float kClearHalfWidth = 5.0f; // mètres
+
 // Élément posé sur la piste. Tous agissent selon la seule position du
 // vaisseau, sans état propre : la prédiction réseau les rejoue telle quelle.
 enum class FeatureType { EnergyPad, Barrier };

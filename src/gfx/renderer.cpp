@@ -72,6 +72,11 @@ struct Globals {
     glm::vec4 camForward;
     glm::vec4 fog;
     glm::vec4 screen;
+    glm::vec4 neonA;
+    glm::vec4 neonB;
+    glm::vec4 skyZenith;
+    glm::vec4 skyMid;
+    glm::vec4 skyHaze;
 };
 
 struct ScenePush {
@@ -168,7 +173,7 @@ glm::mat4 viewProjection(const FrameParams& params, float aspect) {
            glm::lookAt(params.camPos, params.camPos + forward, up);
 }
 
-void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
+void Renderer::init(Gpu& gpuRef, VkFormat output) {
     gpu = &gpuRef;
     outputFormat = output;
     VkDevice dev = gpu->device;
@@ -393,14 +398,26 @@ void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
         VK_CHECK(vkCreateQueryPool(dev, &qci, nullptr, &queryPool));
     }
 
-    road = uploadMesh(*gpu, buildRoad(track), "road");
-    rails = uploadMesh(*gpu, buildRails(track), "rails");
-    gates = uploadMesh(*gpu, buildGates(track), "gates");
-    city = uploadMesh(*gpu, buildCity(track), "city");
-    ship = uploadMesh(*gpu, buildShip(), "ship");
-    trail = uploadMesh(*gpu, buildTrail(), "trail");
+    for (int i = 0; i < sim::kShipCount; i++) {
+        ships[i] = uploadMesh(*gpu, buildShip(i), "ship");
+        trails[i] = uploadMesh(*gpu, buildTrail(i), "trail");
+    }
     shield = uploadMesh(*gpu, buildShield(), "shield");
     missile = uploadMesh(*gpu, buildMissile(), "missile");
+}
+
+void Renderer::loadTrack(const sim::Track& track, int trackId) {
+    VK_CHECK(vkDeviceWaitIdle(gpu->device));
+    destroyMesh(*gpu, road);
+    destroyMesh(*gpu, rails);
+    destroyMesh(*gpu, gates);
+    destroyMesh(*gpu, city);
+    theme = themeFor(trackId);
+    loadedTrack = trackId;
+    road = uploadMesh(*gpu, buildRoad(track), "road");
+    rails = uploadMesh(*gpu, buildRails(track, theme), "rails");
+    gates = uploadMesh(*gpu, buildGates(track, theme), "gates");
+    city = uploadMesh(*gpu, buildScenery(track, theme), "scenery");
 }
 
 void Renderer::shutdown() {
@@ -410,8 +427,10 @@ void Renderer::shutdown() {
     destroyMesh(*gpu, rails);
     destroyMesh(*gpu, gates);
     destroyMesh(*gpu, city);
-    destroyMesh(*gpu, ship);
-    destroyMesh(*gpu, trail);
+    for (int i = 0; i < sim::kShipCount; i++) {
+        destroyMesh(*gpu, ships[i]);
+        destroyMesh(*gpu, trails[i]);
+    }
     destroyMesh(*gpu, shield);
     destroyMesh(*gpu, missile);
     for (int i = 0; i < static_cast<int>(Material::Count); i++) {
@@ -579,11 +598,15 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
         return push;
     };
 
+    auto variantOf = [&](const ShipDraw& s) {
+        return std::clamp(s.variant, 0, sim::kShipCount - 1);
+    };
     bind(Material::Ship);
-    bindMesh(cmd, ship);
     for (int i = 0; i < params.shipCount; i++) {
+        const Mesh& mesh = ships[variantOf(params.ships[i])];
+        bindMesh(cmd, mesh);
         pushScene(cmd, sceneLayout, shipPush(params.ships[i]));
-        vkCmdDrawIndexed(cmd, ship.indexCount, 1, 0, 0, 0);
+        vkCmdDrawIndexed(cmd, mesh.indexCount, 1, 0, 0, 0);
     }
 
     // Le ciel passe après les objets opaques : le test de profondeur ne
@@ -592,12 +615,15 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     vkCmdDraw(cmd, 3, 1, 0, 0);
 
     bind(Material::Trail);
-    bindMesh(cmd, trail);
     for (int i = 0; i < params.shipCount; i++) {
+        const Mesh& mesh = trails[variantOf(params.ships[i])];
+        bindMesh(cmd, mesh);
         pushScene(cmd, sceneLayout, shipPush(params.ships[i]));
-        vkCmdDrawIndexed(cmd, trail.indexCount, 1, 0, 0, 0);
+        vkCmdDrawIndexed(cmd, mesh.indexCount, 1, 0, 0, 0);
     }
-    // Flamme des missiles : le même maillage, réduit.
+    // Flamme des missiles : celle de la Flèche, réduite.
+    const Mesh& trail = trails[0];
+    bindMesh(cmd, trail);
     for (int i = 0; i < params.missileCount; i++) {
         ScenePush push;
         push.model = missileModel(params.missiles[i]) *
@@ -717,7 +743,12 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
     scene.camRight = glm::vec4(right * tanX, 1.0f);
     scene.camUp = glm::vec4(up * tanY, 0.0f);
     scene.camForward = glm::vec4(forward, 0.0f);
-    scene.fog = glm::vec4(0.050f, 0.012f, 0.095f, 0.0010f);
+    scene.fog = glm::vec4(theme.fogColor, theme.fogDensity);
+    scene.neonA = glm::vec4(theme.neonA, 0.0f);
+    scene.neonB = glm::vec4(theme.neonB, 0.0f);
+    scene.skyZenith = glm::vec4(theme.skyZenith, 0.0f);
+    scene.skyMid = glm::vec4(theme.skyMid, 0.0f);
+    scene.skyHaze = glm::vec4(theme.skyHaze, static_cast<float>(theme.sky));
     scene.screen = glm::vec4(1.0f / static_cast<float>(sceneExtent.width),
                              1.0f / static_cast<float>(sceneExtent.height), params.speed, 0.0f);
 

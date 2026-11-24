@@ -8,6 +8,11 @@ layout(set = 0, binding = 0) uniform Globals {
     vec4 camForward; // xyz axe de visée
     vec4 fog;        // rgb couleur de la brume, a densité
     vec4 screen;     // xy inverse de la taille de la cible de scène, z vitesse en m/s
+    vec4 neonA;      // couleurs du thème du circuit
+    vec4 neonB;
+    vec4 skyZenith;
+    vec4 skyMid;
+    vec4 skyHaze;    // a style de ciel : 0 anneau, 1 soleil, 2 planète
 } g;
 
 layout(push_constant) uniform Push {
@@ -16,8 +21,9 @@ layout(push_constant) uniform Push {
     vec4 colorB;
 } pc;
 
-const vec3 CYAN = vec3(0.05, 0.75, 1.0);
-const vec3 MAGENTA = vec3(1.0, 0.08, 0.75);
+// Les deux couleurs néon du circuit. Les noms datent du premier thème.
+#define CYAN g.neonA.rgb
+#define MAGENTA g.neonB.rgb
 
 float hash11(float p) {
     p = fract(p * 0.1031);

@@ -3,6 +3,8 @@
 #include "gfx/gpu.h"
 #include "gfx/hud.h"
 #include "gfx/mesh.h"
+#include "gfx/theme.h"
+#include "sim/content.h"
 #include "sim/track.h"
 
 #include <glm/glm.hpp>
@@ -131,7 +133,12 @@ struct Renderer {
     VkDescriptorSet bloomSet[kBloomLevels]{};
     VkDescriptorSet compositeSet = VK_NULL_HANDLE;
 
-    Mesh road, rails, gates, city, ship, trail, shield, missile;
+    // Maillages du circuit chargé, puis ceux qui ne changent jamais.
+    Mesh road, rails, gates, city;
+    Mesh ships[sim::kShipCount], trails[sim::kShipCount];
+    Mesh shield, missile;
+    Theme theme = themeFor(0);
+    int loadedTrack = -1;
 
     FontAtlas fonts;
     Image fontTexture;
@@ -146,7 +153,10 @@ struct Renderer {
     bool queryPending[kFramesInFlight] = {};
     GpuStats stats;
 
-    void init(Gpu& gpu, VkFormat outputFormat, const sim::Track& track);
+    void init(Gpu& gpu, VkFormat outputFormat);
+    // Construit la géométrie d'un circuit et adopte son thème. Bloque le temps
+    // de générer les maillages, donc à appeler entre deux courses.
+    void loadTrack(const sim::Track& track, int trackId);
     void shutdown();
 
     // La cible doit être en disposition COLOR_ATTACHMENT_OPTIMAL.

@@ -215,7 +215,8 @@ int runHeadless(const Options& opt) {
         race.update(sim::kFixedDt, game::Controls{});
 
     gfx::Renderer renderer;
-    renderer.init(gpu, format, race.track);
+    renderer.init(gpu, format);
+    renderer.loadTrack(race.track, race.config.track);
     renderer.settings = opt.render;
 
     FrameData frames[kFramesInFlight];
@@ -320,7 +321,8 @@ int runWindowed(const Options& opt) {
     if (opt.audio && audio.init()) race.synth = &audio.synth;
 
     gfx::Renderer renderer;
-    renderer.init(gpu, swapchain.format, race.track);
+    renderer.init(gpu, swapchain.format);
+    renderer.loadTrack(race.track, race.config.track);
     renderer.settings = opt.render;
 
     FrameData frames[kFramesInFlight];

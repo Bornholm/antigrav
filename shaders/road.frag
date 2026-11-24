@@ -29,6 +29,16 @@ void main() {
     vec3 toCam = g.camPos.xyz - worldPos;
     float dist = length(toCam);
     vec3 v = toCam / dist;
+
+    // Vu par en dessous, quand une branche du circuit enjambe l'autre : tablier
+    // sombre, avec le liseré de bord pour le deviner.
+    if (dot(n, v) < 0.0) {
+        float rim = 1.0 - smoothstep(0.0, 1.6, halfWidth - ax);
+        vec3 under = vec3(0.004, 0.005, 0.010) + CYAN * rim * 1.5 +
+                     MAGENTA * step(0.92, fract(uv.y / 40.0)) * 0.6;
+        outColor = vec4(applyFog(under, worldPos), 1.0);
+        return;
+    }
     float nv = clamp(dot(n, v), 0.0, 1.0);
 
     // Plaques plus ou moins humides, étirées dans le sens de la piste.

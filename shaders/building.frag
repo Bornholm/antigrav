@@ -2,8 +2,8 @@
 #include "common.glsl"
 #include "sky.glsl"
 
-// Ville. kind >= 0 : façade, kind sert de graine aléatoire et color.a porte
-// la hauteur de la tour. kind < 0 : panneau lumineux.
+// Décor. kind de 0 à 999 : façade de tour, kind sert de graine aléatoire et
+// color.a porte la hauteur. kind < 0 : panneau lumineux. kind >= 1000 : roche.
 layout(location = 0) in vec3 worldPos;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 uv; // mètres le long de la façade, mètres de hauteur
@@ -14,7 +14,21 @@ layout(location = 0) out vec4 outColor;
 
 void main() {
     vec3 c;
-    if (kind < 0.0) {
+    if (kind >= 1000.0) {
+        // Roche : aplats sombres éclairés par le soleil, strates incandescentes.
+        vec3 n = normalize(normal);
+        vec3 v = normalize(g.camPos.xyz - worldPos);
+        vec3 sunDir = normalize(vec3(0.12, 0.16, -1.0));
+        float lit = max(dot(n, sunDir), 0.0);
+        float seed = kind - 1000.0;
+        float strata = floor(uv.y / 9.0);
+        float glow = step(0.78, hash11(strata * 1.7 + seed)) *
+                     (1.0 - smoothstep(0.0, 0.9, abs(fract(uv.y / 9.0) - 0.5) * 9.0));
+        c = vec3(0.030, 0.014, 0.012) * (0.35 + 0.65 * hash11(strata + seed * 3.0));
+        c += g.skyHaze.rgb * lit * 0.16;
+        c += CYAN * glow * 1.6;
+        c += g.skyHaze.rgb * pow(1.0 - max(dot(n, v), 0.0), 3.0) * 0.10;
+    } else if (kind < 0.0) {
         float scan = 0.75 + 0.25 * sin(uv.y * 2.4);
         c = color.rgb * color.a * scan;
     } else {

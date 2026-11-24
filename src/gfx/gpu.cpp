@@ -185,6 +185,12 @@ void Gpu::createSurface(SDL_Window* window) {
         fatal("SDL_Vulkan_CreateSurface: %s", SDL_GetError());
 }
 
+bool Gpu::tryCreateSurface(SDL_Window* window) {
+    if (SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface)) return true;
+    surface = VK_NULL_HANDLE;
+    return false;
+}
+
 void Gpu::destroySurface() {
     if (surface) vkDestroySurfaceKHR(instance, surface, nullptr);
     surface = VK_NULL_HANDLE;

@@ -352,8 +352,27 @@ int runWindowed(const Options& opt) {
     gfx::Swapchain swapchain;
     uint32_t w = 0, h = 0;
     pixelSize(w, h);
-    bool haveSwapchain = swapchain.create(gpu, w, h, opt.vsync);
-    if (!haveSwapchain) fatal("Surface de taille nulle au démarrage");
+    // Recrée la chaîne, et la surface avec si Android l'a retirée.
+    auto rebuildSwapchain = [&]() {
+        if (swapchain.surfaceLost || !gpu.surface) {
+            swapchain.destroy(gpu);
+            gpu.destroySurface();
+            if (!gpu.tryCreateSurface(window)) return false;
+        }
+        pixelSize(w, h);
+        return swapchain.create(gpu, w, h, opt.vsync);
+    };
+    // Au lancement, Android fait tourner l'écran en paysage et remplace la
+    // surface en route : on réessaie quelques secondes avant d'abandonner.
+    bool haveSwapchain = false;
+    for (int attempt = 0; attempt < 100 && !haveSwapchain; attempt++) {
+        haveSwapchain = rebuildSwapchain();
+        if (!haveSwapchain) {
+            SDL_PumpEvents();
+            SDL_Delay(50);
+        }
+    }
+    if (!haveSwapchain) fatal("Impossible d'obtenir une surface d'affichage au démarrage");
 
     game::InputReader input;
     game::Audio audio;
@@ -414,7 +433,6 @@ int runWindowed(const Options& opt) {
                 break;
             case SDL_EVENT_DID_ENTER_FOREGROUND:
                 if (background) {
-                    gpu.createSurface(window);
                     background = false;
                     needResize = true;
                     audio.setPaused(false);
@@ -433,8 +451,7 @@ int runWindowed(const Options& opt) {
         if (needResize || !haveSwapchain) {
             VK_CHECK(vkDeviceWaitIdle(gpu.device));
             renderer.releaseOutputs();
-            pixelSize(w, h);
-            haveSwapchain = swapchain.create(gpu, w, h, opt.vsync);
+            haveSwapchain = rebuildSwapchain();
             needResize = false;
             if (!haveSwapchain) {
                 SDL_Delay(50);
@@ -449,6 +466,7 @@ int runWindowed(const Options& opt) {
         VkResult acquire = vkAcquireNextImageKHR(gpu.device, swapchain.handle, UINT64_MAX,
                                                  frame.acquired, VK_NULL_HANDLE, &imageIndex);
         if (acquire == VK_ERROR_OUT_OF_DATE_KHR || acquire == VK_ERROR_SURFACE_LOST_KHR) {
+            swapchain.surfaceLost = acquire == VK_ERROR_SURFACE_LOST_KHR;
             needResize = true;
             continue;
         }
@@ -502,10 +520,12 @@ int runWindowed(const Options& opt) {
         present.pImageIndices = &imageIndex;
         VkResult presented = vkQueuePresentKHR(gpu.queue, &present);
         if (presented == VK_ERROR_OUT_OF_DATE_KHR || presented == VK_SUBOPTIMAL_KHR ||
-            presented == VK_ERROR_SURFACE_LOST_KHR)
+            presented == VK_ERROR_SURFACE_LOST_KHR) {
+            swapchain.surfaceLost = presented == VK_ERROR_SURFACE_LOST_KHR;
             needResize = true;
-        else if (presented != VK_SUCCESS)
+        } else if (presented != VK_SUCCESS) {
             gfx::vkFail("vkQueuePresentKHR", presented, __FILE__, __LINE__);
+        }
 
         frameIndex++;
         if (opt.frames > 0 && frameIndex >= static_cast<uint64_t>(opt.frames)) running = false;

@@ -7,8 +7,17 @@
 namespace gfx {
 
 bool Swapchain::create(Gpu& gpu, uint32_t width, uint32_t height, bool vsync) {
+    auto lost = [&] {
+        destroy(gpu);
+        surfaceLost = true;
+        return false;
+    };
+    surfaceLost = false;
     VkSurfaceCapabilitiesKHR caps;
-    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu.physical, gpu.surface, &caps));
+    VkResult queried = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu.physical, gpu.surface, &caps);
+    if (queried == VK_ERROR_SURFACE_LOST_KHR) return lost();
+    if (queried != VK_SUCCESS)
+        vkFail("vkGetPhysicalDeviceSurfaceCapabilitiesKHR", queried, __FILE__, __LINE__);
 
     VkExtent2D size = caps.currentExtent;
     if (size.width == UINT32_MAX) {
@@ -92,7 +101,10 @@ bool Swapchain::create(Gpu& gpu, uint32_t width, uint32_t height, bool vsync) {
     sci.clipped = VK_TRUE;
     sci.oldSwapchain = old;
     VkSwapchainKHR created = VK_NULL_HANDLE;
-    VK_CHECK(vkCreateSwapchainKHR(gpu.device, &sci, nullptr, &created));
+    VkResult result = vkCreateSwapchainKHR(gpu.device, &sci, nullptr, &created);
+    if (result == VK_ERROR_SURFACE_LOST_KHR || result == VK_ERROR_NATIVE_WINDOW_IN_USE_KHR)
+        return lost();
+    if (result != VK_SUCCESS) vkFail("vkCreateSwapchainKHR", result, __FILE__, __LINE__);
 
     // L'ancienne chaîne sert à créer la nouvelle, puis disparaît avec ses vues.
     destroy(gpu);

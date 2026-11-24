@@ -65,6 +65,8 @@ struct Gpu {
     void shutdown();
 
     void createSurface(SDL_Window* window);
+    // Variante sans arrêt du jeu : Android peut ne pas avoir de fenêtre à cet instant.
+    bool tryCreateSurface(SDL_Window* window);
     void destroySurface();
 
     Image createImage(const ImageDesc& desc);

@@ -25,7 +25,13 @@ struct Swapchain {
     // réacquise avant que la présentation précédente ait libéré le sien.
     std::vector<VkSemaphore> renderDone;
 
-    // Renvoie false si la surface a une taille nulle, fenêtre réduite par exemple.
+    // Android détruit la surface quand l'écran tourne ou que le jeu passe en
+    // arrière-plan. La chaîne est alors détruite et l'appelant doit recréer
+    // la surface avant de réessayer.
+    bool surfaceLost = false;
+
+    // Renvoie false si la surface a une taille nulle, fenêtre réduite par
+    // exemple, ou si elle est perdue : voir surfaceLost.
     bool create(Gpu& gpu, uint32_t width, uint32_t height, bool vsync);
     void destroy(Gpu& gpu);
 };

@@ -37,6 +37,7 @@ class Synth {
     float windBand_[2] = {}, windLow_[2] = {};
     float scrapeBand_[2] = {}, scrapeLow_[2] = {};
     float boostHigh_[2] = {};
+    float crushPhase_ = 0.0f, crushHold_[2] = {};
     uint32_t noise_ = 0x1234567u;
     uint32_t beepSeen_ = 0;
     float beepPhase_ = 0.0f, beepTime_ = 1e9f, beepFreq_ = 0.0f, beepLength_ = 0.0f;

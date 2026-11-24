@@ -11,6 +11,7 @@ enum class Blend {
     Opaque,
     Alpha,    // src * a + dst * (1 - a)
     Additive, // src + dst, pour tout ce qui émet de la lumière
+    Premultiplied, // src + dst * (1 - a), pour l'interface
 };
 
 struct PipelineDesc {

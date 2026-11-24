@@ -247,6 +247,58 @@ void Gpu::destroyImage(Image& image) {
     image = Image{};
 }
 
+Image Gpu::createTexture(VkExtent2D extent, VkFormat format, const void* pixels,
+                         VkDeviceSize sizeBytes, const char* name) {
+    ImageDesc desc;
+    desc.extent = extent;
+    desc.format = format;
+    desc.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    desc.name = name;
+    Image image = createImage(desc);
+
+    Buffer staging = createBuffer(sizeBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, true, "staging");
+    std::memcpy(staging.mapped, pixels, sizeBytes);
+    vmaFlushAllocation(allocator, staging.alloc, 0, VK_WHOLE_SIZE);
+
+    // Copie ponctuelle au chargement : une commande à usage unique suffit.
+    VkCommandPoolCreateInfo pci{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+    pci.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    pci.queueFamilyIndex = queueFamily;
+    VkCommandPool pool = VK_NULL_HANDLE;
+    VK_CHECK(vkCreateCommandPool(device, &pci, nullptr, &pool));
+    VkCommandBufferAllocateInfo ai{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    ai.commandPool = pool;
+    ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    ai.commandBufferCount = 1;
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    VK_CHECK(vkAllocateCommandBuffers(device, &ai, &cmd));
+    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK(vkBeginCommandBuffer(cmd, &bi));
+
+    transition(cmd, image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    VkBufferImageCopy region{};
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageExtent = {extent.width, extent.height, 1};
+    vkCmdCopyBufferToImage(cmd, staging.buffer, image.image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    transition(cmd, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    VK_CHECK(vkEndCommandBuffer(cmd));
+    VkCommandBufferSubmitInfo cmdInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO};
+    cmdInfo.commandBuffer = cmd;
+    VkSubmitInfo2 submit{VK_STRUCTURE_TYPE_SUBMIT_INFO_2};
+    submit.commandBufferInfoCount = 1;
+    submit.pCommandBufferInfos = &cmdInfo;
+    VK_CHECK(vkQueueSubmit2(queue, 1, &submit, VK_NULL_HANDLE));
+    VK_CHECK(vkQueueWaitIdle(queue));
+
+    vkDestroyCommandPool(device, pool, nullptr);
+    destroyBuffer(staging);
+    return image;
+}
+
 Buffer Gpu::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, bool hostVisible,
                          const char* name) {
     Buffer out;

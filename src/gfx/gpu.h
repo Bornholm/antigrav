@@ -69,6 +69,10 @@ struct Gpu {
     Image createImage(const ImageDesc& desc);
     void destroyImage(Image& image);
 
+    // Texture à partir de pixels en mémoire, prête à être lue par un shader.
+    Image createTexture(VkExtent2D extent, VkFormat format, const void* pixels,
+                        VkDeviceSize sizeBytes, const char* name = nullptr);
+
     Buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, bool hostVisible,
                         const char* name = nullptr);
     void destroyBuffer(Buffer& buffer);

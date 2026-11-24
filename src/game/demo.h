@@ -1,5 +1,6 @@
 #pragma once
 
+#include "game/hud.h"
 #include "gfx/renderer.h"
 #include "sim/track.h"
 
@@ -11,8 +12,12 @@ struct Demo {
     sim::Track track;
     float speed = 352.0f; // m/s, soit 1 268 km/h comme sur le mockup
 
+    std::vector<glm::vec2> minimap;
+    gfx::HudBatch hud;
+
     void init();
-    void fill(float time, gfx::FrameParams& out) const;
+    // screen : taille de l'écran vue par le jeu, en pixels.
+    void fill(float time, const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams& out);
 };
 
 } // namespace game

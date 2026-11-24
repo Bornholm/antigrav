@@ -50,6 +50,12 @@ const uint32_t kBloomUpFrag[] =
 const uint32_t kCompositeFrag[] =
 #include "composite_frag.inc"
     ;
+const uint32_t kHudVert[] =
+#include "hud_vert.inc"
+    ;
+const uint32_t kHudFrag[] =
+#include "hud_frag.inc"
+    ;
 
 // Flottants 11 et 10 bits sans alpha : moitié moins de mémoire qu'un RGBA16F,
 // ce qui compte sur un GPU limité par sa bande passante.
@@ -154,6 +160,14 @@ void beginColorPass(VkCommandBuffer cmd, VkImageView view, VkExtent2D extent,
 
 } // namespace
 
+glm::mat4 viewProjection(const FrameParams& params, float aspect) {
+    glm::vec3 forward = glm::normalize(params.camTarget - params.camPos);
+    glm::vec3 right = glm::normalize(glm::cross(forward, params.camUp));
+    glm::vec3 up = glm::cross(right, forward);
+    return projection(params.fovY, aspect, 0.3f) *
+           glm::lookAt(params.camPos, params.camPos + forward, up);
+}
+
 void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
     gpu = &gpuRef;
     outputFormat = output;
@@ -213,11 +227,14 @@ void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
     }
 
     {
-        VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, kFramesInFlight};
+        VkDescriptorPoolSize sizes[2] = {
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, kFramesInFlight},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2},
+        };
         VkDescriptorPoolCreateInfo pci{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        pci.maxSets = kFramesInFlight;
-        pci.poolSizeCount = 1;
-        pci.pPoolSizes = &size;
+        pci.maxSets = kFramesInFlight + 1;
+        pci.poolSizeCount = 2;
+        pci.pPoolSizes = sizes;
         VK_CHECK(vkCreateDescriptorPool(dev, &pci, nullptr, &staticPool));
     }
     {
@@ -318,6 +335,52 @@ void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
     post.name = "composite";
     compositePipeline = createPipeline(*gpu, post);
 
+    // Interface : atlas de police, pipeline et un tampon de sommets par frame.
+    fonts.bake();
+    fontTexture = gpu->createTexture({static_cast<uint32_t>(fonts.width),
+                                      static_cast<uint32_t>(fonts.height)},
+                                     VK_FORMAT_R8_UNORM, fonts.pixels.data(),
+                                     fonts.pixels.size(), "font atlas");
+    {
+        VkDescriptorSetAllocateInfo ai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        ai.descriptorPool = staticPool;
+        ai.descriptorSetCount = 1;
+        ai.pSetLayouts = &texturesLayout;
+        VK_CHECK(vkAllocateDescriptorSets(dev, &ai, &fontSet));
+        VkDescriptorImageInfo info{sampler, fontTexture.view,
+                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        VkWriteDescriptorSet writes[2]{};
+        for (uint32_t i = 0; i < 2; i++) {
+            writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[i].dstSet = fontSet;
+            writes[i].dstBinding = i;
+            writes[i].descriptorCount = 1;
+            writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[i].pImageInfo = &info;
+        }
+        vkUpdateDescriptorSets(dev, 2, writes, 0, nullptr);
+    }
+    PipelineDesc hud;
+    hud.vert = kHudVert;
+    hud.frag = kHudFrag;
+    hud.layout = postLayout;
+    hud.vertexStride = sizeof(HudVertex);
+    hud.attributes = {
+        {0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(HudVertex, pos)},
+        {1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(HudVertex, uv)},
+        {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(HudVertex, color)},
+        {3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(HudVertex, color2)},
+        {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(HudVertex, params)},
+        {5, 0, VK_FORMAT_R32_SFLOAT, offsetof(HudVertex, mode)},
+    };
+    hud.colorFormats = {outputFormat};
+    hud.blend = Blend::Premultiplied;
+    hud.name = "hud";
+    hudPipeline = createPipeline(*gpu, hud);
+    for (int i = 0; i < kFramesInFlight; i++)
+        hudBuffer[i] = gpu->createBuffer(kMaxHudVertices * sizeof(HudVertex),
+                                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, true, "hud");
+
     road = uploadMesh(*gpu, buildRoad(track), "road");
     rails = uploadMesh(*gpu, buildRails(track), "rails");
     city = uploadMesh(*gpu, buildCity(track), "city");
@@ -340,6 +403,9 @@ void Renderer::shutdown() {
     vkDestroyPipeline(dev, bloomDownPipeline, nullptr);
     vkDestroyPipeline(dev, bloomUpPipeline, nullptr);
     vkDestroyPipeline(dev, compositePipeline, nullptr);
+    vkDestroyPipeline(dev, hudPipeline, nullptr);
+    gpu->destroyImage(fontTexture);
+    for (int i = 0; i < kFramesInFlight; i++) gpu->destroyBuffer(hudBuffer[i]);
     for (int i = 0; i < kFramesInFlight; i++) gpu->destroyBuffer(globalsBuffer[i]);
     vkDestroyDescriptorPool(dev, staticPool, nullptr);
     vkDestroyDescriptorPool(dev, targetPool, nullptr);
@@ -562,8 +628,7 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
     float tanX = tanY * aspect;
 
     Globals scene;
-    scene.viewProj = projection(params.fovY, aspect, 0.3f) *
-                     glm::lookAt(params.camPos, params.camPos + forward, up);
+    scene.viewProj = viewProjection(params, aspect);
     scene.camPos = glm::vec4(params.camPos, params.time);
     scene.camRight = glm::vec4(right * tanX, 1.0f);
     scene.camUp = glm::vec4(up * tanY, 0.0f);
@@ -674,6 +739,25 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
                                 &compositeSet, 0, nullptr);
         vkCmdPushConstants(cmd, postLayout, kPushStages, 0, sizeof(push), &push);
         vkCmdDraw(cmd, 3, 1, 0, 0);
+
+        // Interface, par-dessus l'image finale et à la résolution native.
+        if (params.hud && !params.hud->verts.empty()) {
+            uint32_t count = std::min<uint32_t>(
+                static_cast<uint32_t>(params.hud->verts.size()), kMaxHudVertices);
+            Buffer& vb = hudBuffer[params.slot];
+            std::memcpy(vb.mapped, params.hud->verts.data(), count * sizeof(HudVertex));
+            vmaFlushAllocation(gpu->allocator, vb.alloc, 0, VK_WHOLE_SIZE);
+
+            push.params[0] = params.hud->screen.x;
+            push.params[1] = params.hud->screen.y;
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipeline);
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, postLayout, 0, 1,
+                                    &fontSet, 0, nullptr);
+            vkCmdPushConstants(cmd, postLayout, kPushStages, 0, sizeof(push), &push);
+            VkDeviceSize offset = 0;
+            vkCmdBindVertexBuffers(cmd, 0, 1, &vb.buffer, &offset);
+            vkCmdDraw(cmd, count, 1, 0, 0);
+        }
         vkCmdEndRendering(cmd);
     }
 }

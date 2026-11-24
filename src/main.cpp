@@ -25,6 +25,7 @@ struct Options {
     std::string out;     // chemin PNG ; contient %d pour écrire chaque image
     float fps = 60.0f;   // pas de temps du mode sans fenêtre
     float startTime = 0.0f;
+    bool hud = true;
     gfx::RenderSettings render;
 };
 
@@ -48,6 +49,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--fps")) o.fps = static_cast<float>(std::atof(value()));
         else if (!std::strcmp(a, "--time")) o.startTime = static_cast<float>(std::atof(value()));
         else if (!std::strcmp(a, "--scale")) o.render.renderScale = static_cast<float>(std::atof(value()));
+        else if (!std::strcmp(a, "--no-hud")) o.hud = false;
         else if (!std::strcmp(a, "--no-bloom")) o.render.bloom = false;
         else if (!std::strcmp(a, "--no-reflections")) o.render.reflections = false;
         else if (!std::strcmp(a, "--size")) {
@@ -174,7 +176,9 @@ int runHeadless(const Options& opt) {
         gfx::FrameTarget ft{target.view, extent, extent, 0};
         gfx::FrameParams params;
         params.slot = i % kFramesInFlight;
-        demo.fill(opt.startTime + static_cast<float>(i) / opt.fps, params);
+        demo.fill(opt.startTime + static_cast<float>(i) / opt.fps, renderer.fonts,
+                  {static_cast<float>(extent.width), static_cast<float>(extent.height)}, params);
+        if (!opt.hud) params.hud = nullptr;
         renderer.draw(cmd, ft, params);
 
         const bool save = !opt.out.empty() && (everyFrame || i == opt.frames - 1);
@@ -326,7 +330,11 @@ int runWindowed(const Options& opt) {
         params.slot = static_cast<int>(frameIndex % kFramesInFlight);
         demo.fill(opt.startTime +
                       static_cast<float>(static_cast<double>(SDL_GetTicksNS() - start) * 1e-9),
+                  renderer.fonts,
+                  {static_cast<float>(swapchain.logicalExtent.width),
+                   static_cast<float>(swapchain.logicalExtent.height)},
                   params);
+        if (!opt.hud) params.hud = nullptr;
         renderer.draw(cmd, ft, params);
 
         gfx::transition(cmd, swapchain.images[imageIndex],

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gfx/gpu.h"
+#include "gfx/hud.h"
 #include "gfx/mesh.h"
 #include "sim/track.h"
 
@@ -44,7 +45,13 @@ struct FrameParams {
     glm::vec3 planeNormal{0.0f, 1.0f, 0.0f};
     int shipCount = 0;
     ShipDraw ships[kMaxShips];
+    // Interface de l'image, facultative.
+    const HudBatch* hud = nullptr;
 };
+
+// Matrice vue-projection de la caméra d'une image, pour placer dans
+// l'interface des éléments attachés à des objets de la scène.
+glm::mat4 viewProjection(const FrameParams& params, float aspect);
 
 struct RenderSettings {
     float renderScale = 1.0f; // échelle de la 3D par rapport à la sortie
@@ -93,6 +100,13 @@ struct Renderer {
     VkDescriptorSet compositeSet = VK_NULL_HANDLE;
 
     Mesh road, rails, city, ship, trail;
+
+    FontAtlas fonts;
+    Image fontTexture;
+    VkDescriptorSet fontSet = VK_NULL_HANDLE;
+    VkPipeline hudPipeline = VK_NULL_HANDLE;
+    Buffer hudBuffer[kFramesInFlight];
+    static constexpr uint32_t kMaxHudVertices = 24000;
 
     void init(Gpu& gpu, VkFormat outputFormat, const sim::Track& track);
     void shutdown();

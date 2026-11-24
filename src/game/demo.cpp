@@ -1,5 +1,6 @@
 #include "game/demo.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace game {
@@ -11,6 +12,7 @@ const glm::vec3 kMagenta{1.0f, 0.08f, 0.75f};
 const glm::vec3 kPink{1.0f, 0.25f, 0.55f};
 
 struct ShipSetup {
+    const char* name;
     float ahead;   // mètres devant le joueur
     float lateral; // décalage latéral moyen
     float sway;    // amplitude du balancement latéral
@@ -20,17 +22,34 @@ struct ShipSetup {
 };
 
 const ShipSetup kShips[] = {
-    {0.0f, 0.0f, 0.6f, 0.0f, kMagenta, kCyan},     // joueur
-    {34.0f, -8.5f, 1.2f, 1.3f, kMagenta, kPink},   // SynthFox
-    {120.0f, -1.0f, 2.0f, 2.9f, kPink, kMagenta},  // KazeVR
-    {66.0f, 8.0f, 1.5f, 4.4f, kCyan, kCyan},       // NovaBlade
+    {"", 0.0f, 0.0f, 0.6f, 0.0f, kMagenta, kCyan},
+    {"SynthFox", 24.0f, -9.5f, 1.0f, 1.3f, kMagenta, kPink},
+    {"KazeVR", 70.0f, -1.5f, 1.5f, 2.9f, kPink, kMagenta},
+    {"NovaBlade", 36.0f, 9.0f, 1.0f, 4.4f, kCyan, kCyan},
 };
 
 } // namespace
 
-void Demo::init() { track = sim::Track::makeDemo(); }
+void Demo::init() {
+    track = sim::Track::makeDemo();
 
-void Demo::fill(float time, gfx::FrameParams& out) const {
+    // Tracé vu de dessus pour la minimap, normalisé en gardant les proportions.
+    glm::vec2 lo{1e9f}, hi{-1e9f};
+    const int count = static_cast<int>(track.frames.size());
+    const int stride = std::max(1, count / 140);
+    for (int i = 0; i < count; i += stride) {
+        glm::vec2 p{track.frames[i].pos.x, track.frames[i].pos.z};
+        minimap.push_back(p);
+        lo = glm::min(lo, p);
+        hi = glm::max(hi, p);
+    }
+    glm::vec2 center = (lo + hi) * 0.5f;
+    float extent = std::max(hi.x - lo.x, hi.y - lo.y) * 0.5f;
+    for (glm::vec2& p : minimap) p = (p - center) / extent;
+}
+
+void Demo::fill(float time, const gfx::FontAtlas& fonts, glm::vec2 screen,
+                gfx::FrameParams& out) {
     const float hover = 0.55f;
     float playerDist = 150.0f + speed * time;
 
@@ -38,6 +57,7 @@ void Demo::fill(float time, gfx::FrameParams& out) const {
     out.speed = speed;
     out.shipCount = 0;
 
+    HudState state;
     float playerLateral = 0.0f;
     for (const ShipSetup& setup : kShips) {
         float dist = playerDist + setup.ahead + std::sin(time * 0.6f + setup.phase) * 3.0f;
@@ -60,6 +80,21 @@ void Demo::fill(float time, gfx::FrameParams& out) const {
         ship.planeNormal = f.up;
         ship.trim = glm::vec4(setup.trim, 6.0f);
         ship.engine = glm::vec4(setup.engine, 9.0f);
+
+        if (setup.ahead > 0.0f) {
+            NameTag& tag = state.tags[state.tagCount++];
+            tag.worldPos = pos + f.up * 3.4f;
+            tag.name = setup.name;
+            tag.color = glm::vec4(glm::mix(setup.engine, glm::vec3(1.0f), 0.25f), 1.0f);
+        }
+    }
+
+    // Classement : le plus loin devant est premier.
+    for (int i = 0; i < state.tagCount; i++) {
+        int rank = 1;
+        for (int j = 0; j < state.tagCount; j++)
+            if (kShips[j + 1].ahead > kShips[i + 1].ahead) rank++;
+        state.tags[i].rank = rank;
     }
 
     // Caméra de poursuite : derrière et au-dessus du joueur, inclinée avec la
@@ -71,6 +106,19 @@ void Demo::fill(float time, gfx::FrameParams& out) const {
     out.fovY = 1.12f;
     out.planePoint = camFrame.pos;
     out.planeNormal = camFrame.up;
+
+    state.energy = 0.87f + 0.05f * std::sin(time * 0.7f);
+    state.position = state.tagCount + 1;
+    state.racers = state.tagCount + 1;
+    state.lap = 2;
+    state.laps = 3;
+    state.speedKmh = speed * 3.6f + 1.0f + 6.0f * std::sin(time * 1.3f);
+    state.minimap = &minimap;
+    state.progress = std::fmod(playerDist, track.length) / track.length;
+
+    hud.begin(fonts, screen.x, screen.y);
+    buildHud(hud, state, gfx::viewProjection(out, screen.x / screen.y));
+    out.hud = &hud;
 }
 
 } // namespace game

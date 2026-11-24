@@ -93,6 +93,18 @@ foreach(src ${SHADER_SOURCES})
     VERBATIM)
   list(APPEND SHADER_OUTPUTS ${out})
 endforeach()
+# Polices incluses dans le binaire de la même façon.
+foreach(font Orbitron-Medium.ttf Orbitron-Bold.ttf)
+  set(out ${SHADER_OUT_DIR}/${font}.inc)
+  add_custom_command(
+    OUTPUT ${out}
+    COMMAND ${CMAKE_COMMAND} -DINPUT=${CMAKE_SOURCE_DIR}/assets/fonts/${font} -DOUTPUT=${out}
+            -P ${CMAKE_SOURCE_DIR}/cmake/embed.cmake
+    DEPENDS ${CMAKE_SOURCE_DIR}/assets/fonts/${font} ${CMAKE_SOURCE_DIR}/cmake/embed.cmake
+    COMMENT "embed ${font}"
+    VERBATIM)
+  list(APPEND SHADER_OUTPUTS ${out})
+endforeach()
 add_custom_target(shaders DEPENDS ${SHADER_OUTPUTS})
 
 set(GAME_SOURCES
@@ -105,6 +117,8 @@ set(GAME_SOURCES
   src/gfx/capture.cpp
   src/gfx/mesh.cpp
   src/gfx/geometry.cpp
+  src/gfx/hud.cpp
+  src/game/hud.cpp
   src/sim/track.cpp
   src/game/demo.cpp)
 

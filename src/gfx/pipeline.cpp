@@ -66,6 +66,11 @@ VkPipeline createPipeline(Gpu& gpu, const PipelineDesc& desc) {
             blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
             blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        } else if (desc.blend == Blend::Premultiplied) {
+            blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+            blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+            blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         } else {
             blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
             blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;

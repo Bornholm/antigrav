@@ -15,6 +15,30 @@ Ce que le mockup impose au moteur :
 - un HUD net à la résolution native : énergie, position, tour, vitesse, minimap, noms des adversaires
 - cinq boutons tactiles : gauche, droite, boost, missile, bouclier
 
+## État d'avancement
+
+Mis à jour le 24 novembre 2026.
+
+| Phase | État | Détail |
+|---|---|---|
+| 0, socle | Linux fait, Android à faire | Build CMake, Vulkan 1.3, fenêtre et mode sans fenêtre, validation propre. Le projet Android n'est pas encore construit. |
+| 1, rendu | Fait sur Linux | Les quatre passes, piste, ville, vaisseaux, HUD. À valider sur le Pixel. |
+| 2, course solo | En cours | Simulation à pas fixe, commandes, IA, tours, départ, arrivée. Manquent le son et la manette. |
+| 3, multijoueur | Pas commencé | |
+| 4, contenu | Pas commencé | Les boutons missile et bouclier sont dessinés, sans effet. |
+
+Mesures sur la machine de développement, GPU Intel Arrow Lake, par image :
+
+| Résolution de la 3D | Temps GPU | Reflet | Scène | Bloom | Composition |
+|---|---|---|---|---|---|
+| 1920 par 1080 | 2,2 ms | 0,24 | 1,43 | 0,26 | 0,27 |
+| 3120 par 1440, celle du Pixel | 4,1 ms | 0,37 | 2,70 | 0,49 | 0,53 |
+| 2184 par 1008, échelle 0,7 | 2,4 ms | 0,24 | 1,43 | 0,26 | 0,48 |
+
+Ces chiffres viennent du mode sans fenêtre, où le GPU tourne à pleine fréquence. En fenêtre à 60 Hz, le même rendu prend environ 5 ms parce que le GPU baisse sa fréquence. Aucune mesure n'existe encore sur le Pixel.
+
+Jamais exécuté à ce jour : tout le chemin Android, soit la rotation de l'écran appliquée par le jeu, la mise en arrière-plan et le tactile réel.
+
 ## Hypothèses
 
 Elles viennent de moi, pas de vous. Corrigez celles qui sont fausses, elles changent le planning.
@@ -204,6 +228,7 @@ antigrav/
 - L'origine des modèles 3D et de la musique.
 - Un téléphone bas de gamme de référence, si la v1 doit tourner ailleurs que sur du haut de gamme.
 - Le niveau d'API Android minimal, à fixer en phase 0.
+- Le découpage de la piste en tronçons. Aujourd'hui tout le circuit est dessiné à chaque image, soit environ 70 000 triangles pour les murets. C'est sans effet mesurable sur le GPU Intel, à revoir si le Pixel le demande.
 
 ## Outillage de capture
 

@@ -111,8 +111,26 @@ jobs:
             -o .cache/sdl/SDL3-$SDL_VERSION.tar.gz \
             https://www.libsdl.org/release/SDL3-$SDL_VERSION.tar.gz
 
+      # Sans le secret, par exemple sur une pull request venue d'un fork,
+      # l'APK est signé avec la clé de debug du runner.
+      - name: Préparer la clé de signature
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/antigrav.keystore"
+            echo "ANTIGRAV_KEYSTORE=$RUNNER_TEMP/antigrav.keystore" >> "$GITHUB_ENV"
+            echo "Signature avec la clé fixe."
+          else
+            echo "::notice::Secret ANDROID_KEYSTORE_BASE64 absent, signature avec la clé de debug du runner."
+          fi
+
       - name: Compiler l'APK
         working-directory: android
+        env:
+          ANTIGRAV_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANTIGRAV_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANTIGRAV_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle assembleDebug
 
       - name: Renommer l'APK

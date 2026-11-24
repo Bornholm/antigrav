@@ -6,6 +6,11 @@ plugins {
 // CMake la récupère lui-même.
 def sdlArchive = rootProject.file('../.cache/sdl/SDL3-3.4.16.tar.gz')
 
+// Clé de signature fixe, fournie par l'environnement. Sans elle, Gradle signe
+// avec la clé de debug de la machine, différente d'un poste à l'autre.
+def keystorePath = System.getenv('ANTIGRAV_KEYSTORE')
+def fixedKey = keystorePath != null && !keystorePath.isEmpty() && file(keystorePath).exists()
+
 android {
     namespace 'dev.antigrav.game'
     compileSdk 36
@@ -42,11 +47,26 @@ android {
         }
     }
 
+    signingConfigs {
+        if (fixedKey) {
+            fixed {
+                storeFile file(keystorePath)
+                storePassword System.getenv('ANTIGRAV_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANTIGRAV_KEY_ALIAS')
+                keyPassword System.getenv('ANTIGRAV_KEY_PASSWORD') ?: System.getenv('ANTIGRAV_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (fixedKey) {
+                signingConfig signingConfigs.fixed
+            }
+        }
         release {
             minifyEnabled false
-            // Signature de débogage en attendant une vraie clé de publication.
-            signingConfig signingConfigs.debug
+            signingConfig fixedKey ? signingConfigs.fixed : signingConfigs.debug
         }
     }
 

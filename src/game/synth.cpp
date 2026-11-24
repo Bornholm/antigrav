@@ -37,12 +37,9 @@ void Synth::render(float* out, int frames) {
     uint32_t beeps = beepCount_.load();
     if (beeps != beepSeen_) {
         beepSeen_ = beeps;
-        const int kind = beepKind_.load();
-        bool go = kind == 1;
-        beepFreq_ = kind == 3 ? 2640.0f : kind == 2 ? 1760.0f : go ? 660.0f : 440.0f;
-        beepLength_ = kind >= 2 ? 0.035f : go ? 0.45f : 0.13f;
-        // Les clics doivent percer la musique : plus forts que les bips.
-        beepLevel_ = kind == 3 ? 0.55f : kind == 2 ? 0.38f : 0.20f;
+        bool go = beepKind_.load() == 1;
+        beepFreq_ = go ? 660.0f : 440.0f;
+        beepLength_ = go ? 0.45f : 0.13f;
         beepTime_ = 0.0f;
         beepPhase_ = 0.0f;
     }
@@ -103,11 +100,11 @@ void Synth::render(float* out, int frames) {
         if (beepTime_ < beepLength_) {
             beepPhase_ += beepFreq_ * dt;
             if (beepPhase_ >= 1.0f) beepPhase_ -= 1.0f;
-            float envelope = std::min(1.0f, beepTime_ * 2000.0f) *
+            float envelope = std::min(1.0f, beepTime_ * 200.0f) *
                              std::min(1.0f, (beepLength_ - beepTime_) * 40.0f);
             // Carré adouci, dans le même registre numérique.
             float wave = 0.6f * std::sin(beepPhase_ * kTau) + (beepPhase_ < 0.5f ? 0.2f : -0.2f);
-            beep = wave * envelope * beepLevel_;
+            beep = wave * envelope * 0.20f;
             beepTime_ += dt;
         }
 

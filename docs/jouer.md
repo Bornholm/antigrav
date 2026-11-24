@@ -5,7 +5,6 @@ Chaque piste est générée à partir d'un morceau de musique. La course va de s
 ## Jouer en rythme
 
 - **Accord.** Lancer le boost pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. « EN RYTHME » s'affiche. Un accord est possible toutes les deux secondes environ.
-- **Clic.** Un clic marque chaque temps du morceau, plus aigu sur le premier temps de la mesure. L'option `--no-click` le coupe.
 - **Plaques.** Chaque plaque de boost prise rend aussi un peu d'énergie.
 - **Jauge.** Elle ne se recharge presque plus seule. Boost, missile et bouclier se paient surtout en jouant en rythme.
 

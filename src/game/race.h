@@ -27,8 +27,6 @@ struct Race : sim::Session {
     Synth* synth = nullptr;
     // Texte de mesures à afficher en bas de l'écran, fourni par la boucle principale.
     const char* statsLine = "";
-    bool beatClick = true;  // clic sur chaque temps du morceau, pour jouer en rythme
-    float clickTime = 0.0f; // instant du morceau au dernier pas, pour repérer les temps franchis
     bool pinToSync = false; // tient le vaisseau local sur le point de synchronisation
     bool showHud = true;
 

@@ -15,8 +15,7 @@ class Synth {
     static constexpr int kSampleRate = 48000;
 
     void setEngine(float speed, bool boosting, bool scraping);
-    // kind 0 : bip du compte à rebours. kind 1 : signal du départ. kind 2 :
-    // clic d'un temps du morceau. kind 3 : clic du premier temps de la mesure.
+    // kind 0 : bip du compte à rebours. kind 1 : signal du départ.
     void beep(int kind);
     void setVolume(float volume) { volume_.store(volume); }
 
@@ -41,7 +40,7 @@ class Synth {
     float crushPhase_ = 0.0f, crushHold_[2] = {};
     uint32_t noise_ = 0x1234567u;
     uint32_t beepSeen_ = 0;
-    float beepPhase_ = 0.0f, beepTime_ = 1e9f, beepFreq_ = 0.0f, beepLength_ = 0.0f, beepLevel_ = 0.2f;
+    float beepPhase_ = 0.0f, beepTime_ = 1e9f, beepFreq_ = 0.0f, beepLength_ = 0.0f;
 
     float nextNoise();
 };

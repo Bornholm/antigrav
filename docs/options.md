@@ -11,7 +11,7 @@
 | `--scale N` | échelle de la 3D par rapport à la sortie, 0.7 par exemple |
 | `--stats` | affiche les temps GPU et le nombre d'images par seconde |
 | `--no-vsync` | ne pas attendre l'écran, pour mesurer |
-| `--no-bloom`, `--no-reflections`, `--no-hud`, `--no-audio`, `--no-music`, `--no-click` | couper un effet |
+| `--no-bloom`, `--no-reflections`, `--no-hud`, `--no-audio`, `--no-music` | couper un effet |
 | `--validation`, `--no-validation` | couches de validation Vulkan |
 | `--headless` | rendre sans fenêtre |
 | `--frames N` | s'arrêter après N images |

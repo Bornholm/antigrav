@@ -4,8 +4,6 @@
 
 <h1 align="center">Antigrav</h1>
 
-<p align="center"><em>Course antigravité néon, pour Android et Linux.</em></p>
-
 ![Une course sur le circuit Néon City](docs/course.jpg)
 
 Antigrav est un jeu de course à plus de 1 000 km/h sur trois circuits. On choisit parmi quatre vaisseaux, on gère une jauge d'énergie qui alimente le boost, le missile et le bouclier, et on court contre sept IA au plus ou contre d'autres joueurs en réseau local.

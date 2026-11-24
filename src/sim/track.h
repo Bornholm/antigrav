@@ -20,6 +20,10 @@ struct TrackFrame {
     float time = 0.0f;
 };
 
+// Au-delà de cet écart entre deux temps, soit sous 100 battements par minute,
+// la grille de frappe ajoute les demi-temps.
+constexpr float kPulseSplit = 0.6f;
+
 // Après une plaque, aucune barrière dans son couloir pendant cette durée, sur
 // cette demi-largeur autour de son axe.
 constexpr float kClearAfterPad = 1.5f;  // secondes
@@ -50,8 +54,13 @@ struct Track {
     std::vector<Feature> features;
     std::vector<float> beats; // instants des temps du morceau, croissants
     std::vector<bool> downbeats; // vrai pour le premier temps d'une mesure
+    // Grille de frappe : les instants où un appui de boost compte comme un
+    // accord. Ce sont les temps, plus les demi-temps quand le tempo est lent,
+    // pour qu'on puisse toujours taper à une cadence confortable.
+    std::vector<float> pulses;
 
-    // Vrai si l'instant tombe sur un temps, à la tolérance près.
+    // Vrai si l'instant tombe sur la grille de frappe, à la tolérance près.
+    // La tolérance se resserre quand les frappes sont rapprochées.
     bool onBeat(float time, float tolerance) const;
 
     // id : indice du morceau, de 0 à kTrackCount - 1. Voir sim/content.h.

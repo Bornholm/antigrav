@@ -76,26 +76,33 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
                           : std::min(1.25f, 1.0f - kDraft * gap / kWindow);
     }
 
-    // Boost lancé sur un temps : un accord. Il ne coûte rien pendant un
-    // instant, pousse plus fort et rend un peu d'énergie.
+    // Frappe du boost sur la grille : un accord. Il donne un court boost
+    // gratuit et renforcé, qui tient sans garder le bouton enfoncé : battre la
+    // mesure suffit à rester en boost. Une frappe à côté casse la série et
+    // coupe l'élan. Garder le bouton enfoncé reste possible, mais se paie en
+    // énergie.
     const bool pressed = in.boost && !v.boostHeld;
     v.boostHeld = in.boost;
     v.accord = std::max(0.0f, v.accord - dt);
     v.accordCooldown = std::max(0.0f, v.accordCooldown - dt);
-    if (pressed && !stunned && v.accordCooldown <= 0.0f &&
-        track.onBeat(clock.own ? f.time : clock.raceTime, kBeatTolerance)) {
-        v.accord = kAccordTime;
+    if (pressed && !stunned && v.accordCooldown <= 0.0f) {
+        if (track.onBeat(clock.own ? f.time : clock.raceTime, kBeatTolerance)) {
+            v.accord = kAccordTime;
+            v.combo++;
+            v.energy = std::min(1.0f, v.energy + kAccordEnergy);
+        } else {
+            v.accord = 0.0f;
+            v.combo = 0;
+        }
         v.accordCooldown = kAccordCooldown;
-        v.combo++;
-        v.energy = std::min(1.0f, v.energy + kAccordEnergy);
     }
-    // Un appui à côté du temps casse la série, un choc aussi.
-    else if (pressed && v.accordCooldown <= 0.0f) v.combo = 0;
-    if (stunned) v.combo = 0;
-    if (stunned || !in.boost) v.accord = 0.0f;
+    if (stunned) {
+        v.combo = 0;
+        v.accord = 0.0f;
+    }
     const bool accord = v.accord > 0.0f;
 
-    v.boosting = in.boost && (v.energy > 0.0f || accord) && !stunned;
+    v.boosting = (accord || (in.boost && v.energy > 0.0f)) && !stunned;
     // Les vitesses suivent celle du point de synchronisation : un vaisseau
     // en croisière avance avec la musique.
     const float base = f.pace / kSyncEdge * band;
@@ -398,16 +405,15 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     const float beatTime = songTime(world, track, v);
     const bool onBeat = track.onBeat(beatTime, kBeatTolerance * 0.6f);
     const bool inRhythm = chance(index, static_cast<uint32_t>(beatTime * 0.5f) + 7919u, 3u) < profile.rhythm;
-    if (v.accord > 0.0f) {
-        in.boost = true; // tient l'accord jusqu'au bout
-    } else if (inRhythm && v.stunTime <= 0.0f) {
-        if (in.boost && !v.boostHeld && !onBeat) in.boost = false; // attend le temps
-        if (!in.boost && onBeat && v.accordCooldown <= 0.0f && straight) in.boost = true;
+    if (inRhythm && v.stunTime <= 0.0f) {
+        // Il bat la mesure : une frappe par temps de la grille, rien entre.
+        // L'accord tient le boost, inutile de payer en énergie.
+        in.boost = onBeat;
     }
 
     // Parade : une décharge arrive par-derrière. S'il a du rythme, il place
     // un accord sur le temps pour l'absorber.
-    if (inRhythm && onBeat && v.accordCooldown <= 0.0f && v.stunTime <= 0.0f) {
+    if (onBeat && v.stunTime <= 0.0f && chance(index, static_cast<uint32_t>(beatTime * 2.0f) + 31u, 5u) < profile.rhythm) {
         for (const Missile& m : world.missiles) {
             if (!m.active || m.owner == index) continue;
             const float behind = v.dist - m.dist;

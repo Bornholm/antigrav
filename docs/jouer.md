@@ -20,11 +20,13 @@ Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis vo
 
 ## Jouer en rythme
 
-- **Accord.** Enfoncer le BOOST pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. Le signal est une lumière sur le dos du vaisseau : elle monte à l'approche du temps et culmine dessus, c'est là qu'il faut appuyer. Elle est jaune quand un accord est possible, bleu pâle pendant les deux secondes de délai qui suivent un accord, verte sur un accord réussi, rouge sur un appui raté. « EN RYTHME », « TROP TÔT » ou « TROP TARD » s'affiche au-dessus du vaisseau.
+- **Accord.** Frapper le BOOST pile sur un temps donne un accord : un court boost gratuit, qui tient sans garder le bouton enfoncé, et un peu d'énergie. Il suffit donc de battre la mesure pour rester en boost. Chaque frappe juste compte, il n'y a pas de délai entre deux accords. Une frappe à côté du temps coupe l'élan et remet la série à zéro. Garder le bouton enfoncé reste possible, mais ce boost-là se paie en énergie.
+- **Cadence.** On frappe sur les temps du morceau. Sous 100 battements par minute, la grille ajoute les demi-temps, pour qu'on puisse toujours taper à une cadence confortable : un morceau à 82 BPM se frappe à 164.
+- **Signal.** Une lumière sur le dos du vaisseau monte à l'approche de chaque frappe et culmine dessus. Elle est jaune en temps normal, verte tant que la série tient, rouge sur une frappe ratée. « EN RYTHME », « TROP TÔT » ou « TROP TARD » s'affiche au-dessus du vaisseau.
 - **Plaques.** Chaque plaque jaune recharge la jauge de 12 %.
 - **Jauge.** Elle ne se recharge presque plus seule : ce sont les plaques et les accords qui la remplissent. Elle sert au boost et à l'armure.
 - **Armure.** Si la jauge est au moins à un tiers quand le vaisseau touche une barrière, elle encaisse le choc et perd ce tiers. Sinon c'est le crash. Il faut donc choisir entre dépenser en boost et garder de quoi encaisser.
-- **Décharge.** Quatre accords d'affilée, comptés par les pastilles sous le vaisseau, déclenchent une décharge qui part seule sur le vaisseau de devant. En tête de course, la série rend de l'énergie à la place. Un appui à côté du temps remet la série à zéro.
+- **Décharge.** Huit accords d'affilée, comptés par les pastilles sous le vaisseau, déclenchent une décharge qui part seule sur le vaisseau de devant. En tête de course, la série rend de l'énergie à la place. Un appui à côté du temps remet la série à zéro.
 - **Parade.** Quand une décharge arrive, le jeu prévient. Réussir un accord à ce moment l'absorbe et rend de l'énergie. Sinon le vaisseau perd le contrôle une demi-seconde.
 
 Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'avance du vaisseau sur la musique. Un élastique freine qui prend de l'avance et aspire qui traîne, donc le peloton reste groupé autour de la musique.

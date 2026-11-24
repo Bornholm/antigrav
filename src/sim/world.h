@@ -24,7 +24,7 @@ constexpr float kArmorCost = 0.33f;     // énergie que coûte une barrière enc
 constexpr float kArmorFlash = 0.5f;     // secondes d'affichage de la bulle d'armure
 // Décharge : gagnée en enchaînant des accords, elle part seule sur le vaisseau
 // de devant. Sa cible la pare en étant elle-même en plein accord.
-constexpr int kComboSize = 4;           // accords d'affilée pour une décharge
+constexpr int kComboSize = 8;           // accords d'affilée pour une décharge
 constexpr float kStunDuration = 0.6f;   // secondes sans contrôle après une décharge
 constexpr float kAbsorbGain = 0.25f;    // énergie rendue par une décharge parée
 constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand sa décharge touche
@@ -39,14 +39,14 @@ constexpr float kBarrierEnergy = 0.15f;
 // Le point de synchronisation avance à la vitesse d'un vaisseau bien piloté,
 // qui prend ses plaques et place ses accords : c'est kSyncEdge fois la
 // vitesse de croisière. Rouler sans rien faire, c'est prendre du retard.
-constexpr float kSyncEdge = 1.09f;
+constexpr float kSyncEdge = 1.15f;
 constexpr float kWindow = 2.0f;          // secondes d'écart au point de synchronisation qui servent d'échelle
 constexpr float kLeadDrag = 0.10f;       // part de vitesse perdue à kWindow d'avance
 constexpr float kDraft = 0.16f;          // part de vitesse gagnée à kWindow de retard
 constexpr float kBeatTolerance = 0.075f; // secondes autour d'un temps où un appui compte
-constexpr float kAccordTime = 0.55f;     // secondes de boost gratuit et renforcé après un appui en rythme
-constexpr float kAccordCooldown = 1.8f;  // secondes avant le prochain accord possible
-constexpr float kAccordEnergy = 0.05f;   // énergie rendue par un accord
+constexpr float kAccordTime = 0.45f;     // secondes de boost gratuit et renforcé après une frappe en rythme
+constexpr float kAccordCooldown = 0.14f; // secondes pendant lesquelles un second appui est ignoré : anti-rebond
+constexpr float kAccordEnergy = 0.012f;  // énergie rendue par un accord
 constexpr float kPadEnergy = 0.12f;      // énergie rendue par une plaque
 
 struct Input {

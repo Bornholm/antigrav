@@ -349,9 +349,12 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     }
     finishFrames(track);
     placeFeatures(track, p, beats, seed);
-    for (const music::Beat& b : beats) {
-        track.beats.push_back(b.time);
-        track.downbeats.push_back(b.bar == 0);
+    for (size_t i = 0; i < beats.size(); i++) {
+        track.beats.push_back(beats[i].time);
+        track.downbeats.push_back(beats[i].bar == 0);
+        track.pulses.push_back(beats[i].time);
+        if (i + 1 < beats.size() && beats[i + 1].time - beats[i].time > kPulseSplit)
+            track.pulses.push_back(0.5f * (beats[i].time + beats[i + 1].time));
     }
     return track;
 }
@@ -428,9 +431,13 @@ glm::vec3 Track::point(float distance, float lateral, float height) const {
 float Track::ahead(float from, float to) const { return to >= from ? to - from : 1e9f; }
 
 bool Track::onBeat(float time, float tolerance) const {
-    auto next = std::lower_bound(beats.begin(), beats.end(), time);
-    if (next != beats.end() && *next - time <= tolerance) return true;
-    return next != beats.begin() && time - *(next - 1) <= tolerance;
+    auto next = std::lower_bound(pulses.begin(), pulses.end(), time);
+    // Avec des frappes rapprochées, la fenêtre se resserre : sinon taper au
+    // hasard tomberait juste une fois sur deux.
+    if (next != pulses.end() && next != pulses.begin())
+        tolerance = std::min(tolerance, 0.18f * (*next - *(next - 1)));
+    if (next != pulses.end() && *next - time <= tolerance) return true;
+    return next != pulses.begin() && time - *(next - 1) <= tolerance;
 }
 
 float Track::distAt(float time) const {

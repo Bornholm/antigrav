@@ -79,12 +79,12 @@ void Race::update(float dt, const Controls& input) {
         const bool pressed = local.boost && !boostWas;
         boostWas = local.boost;
         if (pressed && !autopilot && world.countdown <= 0.0f && !me.finished && me.stunTime <= 0.0f &&
-            me.accordCooldown <= 0.0f && !track.beats.empty()) {
+            me.accordCooldown <= 0.0f && !track.pulses.empty()) {
             const float now = sim::songTime(world, track, me);
-            auto next = std::lower_bound(track.beats.begin(), track.beats.end(), now);
-            const float toNext = next != track.beats.end() ? *next - now : 1e9f;
-            const float sincePrev = next != track.beats.begin() ? now - *(next - 1) : 1e9f;
-            if (std::min(toNext, sincePrev) > sim::kBeatTolerance) {
+            auto next = std::lower_bound(track.pulses.begin(), track.pulses.end(), now);
+            const float toNext = next != track.pulses.end() ? *next - now : 1e9f;
+            const float sincePrev = next != track.pulses.begin() ? now - *(next - 1) : 1e9f;
+            if (!track.onBeat(now, sim::kBeatTolerance)) {
                 missKind = toNext < sincePrev ? 1 : 2;
                 missTime = 0.7f;
             }
@@ -304,13 +304,13 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.combo = player.combo;
     // Anneau de rythme : part de l'intervalle qui reste avant le prochain temps.
     state.beatPhase = -1.0f;
-    if (world.countdown <= 0.0f && !player.finished && !track.beats.empty()) {
+    if (world.countdown <= 0.0f && !player.finished && !track.pulses.empty()) {
         const float now = sim::songTime(world, track, player) + accumulator;
-        auto next = std::lower_bound(track.beats.begin(), track.beats.end(), now);
-        if (next != track.beats.end() && next != track.beats.begin())
+        auto next = std::lower_bound(track.pulses.begin(), track.pulses.end(), now);
+        if (next != track.pulses.end() && next != track.pulses.begin())
             state.beatPhase = std::clamp((*next - now) / std::max(0.05f, *next - *(next - 1)), 0.0f, 1.0f);
     }
-    state.cooldown = std::clamp(player.accordCooldown / sim::kAccordCooldown, 0.0f, 1.0f);
+    state.cooldown = 0.0f;
     // Lumière de rythme sur le dos du vaisseau. Elle monte à l'approche du
     // temps et culmine dessus : il faut appuyer quand elle est au plus fort.
     // Jaune quand un accord est possible, bleu pâle pendant le délai, vert sur
@@ -320,13 +320,10 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         const float charge = near * near * near;
         glm::vec3 tint{1.0f, 0.78f, 0.22f};
         float level = 0.06f + 1.5f * charge;
-        if (player.accordCooldown > 0.0f) {
-            tint = {0.35f, 0.75f, 1.0f};
-            level = 0.06f + 0.35f * charge;
-        }
         if (player.accord > 0.0f) {
             tint = {0.35f, 1.0f, 0.45f};
-            level = 0.9f + 1.8f * player.accord / sim::kAccordTime;
+            // Série en cours : le vaisseau reste vert et repique à chaque frappe.
+            level = 0.5f + 1.6f * player.accord / sim::kAccordTime + 0.8f * charge;
         } else if (missTime > 0.0f) {
             tint = {1.0f, 0.12f, 0.08f};
             level = 2.0f * missTime / 0.7f;

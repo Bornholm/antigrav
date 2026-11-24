@@ -481,10 +481,10 @@ void testRhythm() {
     track.features.clear();
     const float beat = track.beats[20], next = track.beats[21];
 
-    // Un boost lancé sur un temps est un accord : gratuit un instant, plus
-    // vif, et il rend de l'énergie. Lancé entre deux temps, c'est un boost
-    // ordinaire.
-    auto boostAt = [&](float time) {
+    // Une frappe du boost sur un temps est un accord : un court boost gratuit
+    // qui tient sans garder le bouton, et un peu d'énergie. Une frappe entre
+    // deux temps ne donne rien et casse la série.
+    auto tapAt = [&](float time) {
         sim::World world;
         world.ownClock = true;
         world.count = 1;
@@ -492,19 +492,52 @@ void testRhythm() {
         v.dist = track.distAt(time) - sim::kCruiseSpeed * sim::kFixedDt;
         v.speed = sim::kCruiseSpeed;
         v.energy = 0.5f;
-        sim::Input boost;
-        boost.boost = true;
-        for (int s = 0; s < 24; s++) sim::step(world, track, &boost);
+        v.combo = 3;
+        for (int s = 0; s < 12; s++) {
+            sim::Input in;
+            in.boost = s < 2; // frappe brève
+            sim::step(world, track, &in);
+        }
         return v;
     };
-    sim::Vehicle onBeat = boostAt(beat), offBeat = boostAt(0.5f * (beat + next));
+    sim::Vehicle onBeat = tapAt(beat), offBeat = tapAt(0.5f * (beat + next));
     CHECK(onBeat.accord > 0.0f && offBeat.accord == 0.0f);
-    CHECK(onBeat.energy > 0.5f);
-    CHECK(offBeat.energy < 0.5f);
+    CHECK(onBeat.boosting && !offBeat.boosting);
+    CHECK(onBeat.combo == 4 && offBeat.combo == 0);
+    CHECK(onBeat.energy > 0.5f + sim::kAccordEnergy * 0.8f);
     CHECK(onBeat.speed > offBeat.speed + 5.0f);
-    CHECK(onBeat.accordCooldown > 1.0f);
 
-    // Marteler le boost ne donne pas un accord à chaque temps.
+    // Battre la mesure : une frappe par temps. La série monte, et au bout de
+    // kComboSize accords elle se décharge. Seul en piste, elle rend de l'énergie.
+    {
+        sim::World world;
+        world.ownClock = true;
+        world.count = 1;
+        sim::Vehicle& v = world.vehicles[0];
+        v.dist = track.distAt(beat) - 200.0f;
+        v.speed = sim::kCruiseSpeed;
+        v.energy = 0.3f;
+        int accords = 0, discharges = 0, held = 0;
+        for (int s = 0; s < 60 * 8; s++) {
+            sim::Input in;
+            const bool on = track.onBeat(track.at(v.dist).time, sim::kBeatTolerance * 0.5f);
+            held = on ? held + 1 : 0;
+            in.boost = on && held <= 2;
+            const bool before = v.accord > 0.0f;
+            const int comboBefore = v.combo;
+            const float accordBefore = v.accord;
+            sim::step(world, track, &in);
+            if (v.accord > accordBefore || (!before && v.accord > 0.0f)) accords++;
+            if (comboBefore >= sim::kComboSize && v.combo < sim::kComboSize) discharges++;
+        }
+        CHECK(accords >= 12);
+        CHECK(discharges >= 1);
+        CHECK(v.energy > 0.3f + sim::kLeaderGain * 0.9f);
+        // Il est resté en boost presque tout du long, sans payer.
+        CHECK(v.speed > sim::kCruiseSpeed + 30.0f);
+    }
+
+    // Marteler le bouton au hasard ne construit pas de série.
     {
         sim::World world;
         world.ownClock = true;
@@ -513,15 +546,27 @@ void testRhythm() {
         v.dist = track.distAt(beat) - 400.0f;
         v.speed = sim::kCruiseSpeed;
         v.energy = 0.5f;
-        int accords = 0;
-        for (int s = 0; s < 60 * 6; s++) {
+        int best = 0;
+        for (int s = 0; s < 60 * 8; s++) {
             sim::Input in;
-            in.boost = s % 4 < 2;
-            bool before = v.accord > 0.0f;
+            in.boost = s % 5 < 2;
             sim::step(world, track, &in);
-            if (!before && v.accord > 0.0f) accords++;
+            best = std::max(best, v.combo);
         }
-        CHECK(accords >= 2 && accords <= 4);
+        CHECK(best < sim::kComboSize);
+    }
+
+    // Tempo lent : la grille de frappe ajoute les demi-temps, pour qu'on
+    // puisse taper à une cadence confortable.
+    {
+        const sim::Track slow = sim::generateTrack(sim::metronome(82.0f, 60.0f), 15.0f, 5u);
+        const sim::Track fast = sim::generateTrack(sim::metronome(128.0f, 60.0f), 15.0f, 5u);
+        CHECK(slow.pulses.size() > slow.beats.size() * 2 - 3);
+        CHECK(fast.pulses.size() == fast.beats.size());
+        const float b0 = slow.beats[10], b1 = slow.beats[11];
+        CHECK(slow.onBeat(b0, sim::kBeatTolerance));
+        CHECK(slow.onBeat(0.5f * (b0 + b1), sim::kBeatTolerance));
+        CHECK(!slow.onBeat(b0 + 0.25f * (b1 - b0), sim::kBeatTolerance));
     }
 
     // Horloge commune : l'élastique freine qui devance la musique et aspire

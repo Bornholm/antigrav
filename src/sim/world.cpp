@@ -99,8 +99,9 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
     v.boosting = in.boost && (v.energy > 0.0f || accord) && !stunned;
     // Les vitesses suivent celle du point de synchronisation : un vaisseau
     // en croisière avance avec la musique.
-    const float pace = f.pace / kCruiseSpeed * band;
-    float cruise = f.pace * band * stats.topSpeed;
+    const float base = f.pace / kSyncEdge * band;
+    const float pace = base / kCruiseSpeed;
+    float cruise = base * stats.topSpeed;
     float target = v.boosting ? kBoostSpeed * pace * stats.topSpeed * (accord ? 1.05f : 1.0f) : cruise;
     if (stunned) target = cruise * 0.55f;
     float delta = target - v.speed;
@@ -236,7 +237,7 @@ void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track, const
 }
 
 float cruiseSpeed(const Vehicle& vehicle, const Track& track) {
-    return track.at(vehicle.dist).pace * shipStats(vehicle.ship).topSpeed;
+    return track.at(vehicle.dist).pace / kSyncEdge * shipStats(vehicle.ship).topSpeed;
 }
 
 void step(World& world, const Track& track, const Input* inputs) {

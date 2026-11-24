@@ -27,15 +27,15 @@ int failures = 0;
 // qui raisonnent sur la vitesse de croisière de référence.
 sim::Track flatTrack() {
     sim::Track track = sim::Track::make(0);
-    for (sim::TrackFrame& f : track.frames) f.pace = sim::kCruiseSpeed;
+    for (sim::TrackFrame& f : track.frames) f.pace = sim::kCruiseSpeed * sim::kSyncEdge;
     return track;
 }
 
 void testTrackGeometry() {
     for (int id = 0; id < sim::kTrackCount; id++) {
         sim::Track track = sim::Track::make(id);
-        // 100 secondes de morceau entre 900 et 1 300 km/h.
-        CHECK(track.length > 24000.0f && track.length < 37000.0f);
+        // 100 secondes de morceau entre 970 et 1 400 km/h.
+        CHECK(track.length > 26000.0f && track.length < 40000.0f);
         CHECK(track.halfWidth == sim::trackInfo(id).halfWidth);
         CHECK(std::abs(track.duration - 100.0f) < 0.01f);
 
@@ -54,7 +54,7 @@ void testTrackGeometry() {
                 CHECK(std::abs(gap - track.step) < track.step * 0.05f);
                 CHECK(next.time > f.time);
             }
-            CHECK(f.pace >= 240.0f && f.pace <= 365.0f);
+            CHECK(f.pace >= 260.0f && f.pace <= 395.0f);
             // Aucun virage plus serré que 120 m de rayon, aucune pente raide.
             CHECK(std::abs(f.curvature) < 1.0f / 120.0f);
             CHECK(std::abs(f.tangent.y) < 0.12f);

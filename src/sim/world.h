@@ -33,7 +33,11 @@ constexpr float kBarrierStun = 0.6f;     // secondes sans contrôle
 constexpr float kBarrierEnergy = 0.15f;
 
 // Course calée sur la musique.
-constexpr float kWindow = 3.0f;          // secondes d'écart au point de synchronisation qui servent d'échelle
+// Le point de synchronisation avance à la vitesse d'un vaisseau bien piloté,
+// qui prend ses plaques et place ses accords : c'est kSyncEdge fois la
+// vitesse de croisière. Rouler sans rien faire, c'est prendre du retard.
+constexpr float kSyncEdge = 1.12f;
+constexpr float kWindow = 2.0f;          // secondes d'écart au point de synchronisation qui servent d'échelle
 constexpr float kLeadDrag = 0.10f;       // part de vitesse perdue à kWindow d'avance
 constexpr float kDraft = 0.16f;          // part de vitesse gagnée à kWindow de retard
 constexpr float kBeatTolerance = 0.075f; // secondes autour d'un temps où un appui compte

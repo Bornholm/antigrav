@@ -59,7 +59,7 @@ std::vector<Phrase> makePhrases(const music::Partition& p, const std::vector<mus
     for (size_t i = 0; i + 1 < cuts.size(); i++) {
         const float start = cuts[i], end = cuts[i + 1];
         const float energy = smoothEnergy(p, 0.5f * (start + end), 0.5f * (end - start));
-        const float length = (250.0f + 110.0f * energy) * (end - start);
+        const float length = (270.0f + 120.0f * energy) * (end - start);
         const int slot = static_cast<int>(i);
         // Un passage intense tourne serré, un passage calme file presque droit.
         float amplitude = (0.0008f + 0.0024f * energy) * (0.6f + 0.4f * featureRoll(seed, slot, 11u));
@@ -226,7 +226,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         float time, pace, dist;
     };
     std::vector<Sample> dense;
-    auto paceAt = [&](float time) { return 250.0f + 110.0f * smoothEnergy(p, time, 1.0f); };
+    auto paceAt = [&](float time) { return 270.0f + 120.0f * smoothEnergy(p, time, 1.0f); };
     const float startPace = paceAt(0.0f);
     // La piste part vers -z : la ligne droite de départ est donc en z positif.
     for (float d = -kLead; d < 0.0f; d += kStep)

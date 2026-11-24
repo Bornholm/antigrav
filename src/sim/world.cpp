@@ -14,20 +14,28 @@ constexpr float kSteerSpeed = 27.0f;  // vitesse latérale à fond de braquage, 
 constexpr float kSteerResponse = 9.0f;
 constexpr float kDrift = 0.040f;      // part de l'accélération centrifuge subie
 constexpr float kScrub = 1.6f;        // vitesse perdue par mètre de glissade
-constexpr float kBoostDrain = 1.0f / 5.0f;   // énergie par seconde
-// La jauge se recharge surtout par le rythme : plaques et accords. La
-// recharge passive n'est qu'un filet.
-constexpr float kEnergyRegen = 0.4f / 24.0f;
-
 struct Clock {
     float raceTime;
     bool own;
 };
 
+// Choc subi par un vaisseau : tir, mine, onde ou barrière. Un bouclier
+// l'encaisse et s'éteint. Renvoie vrai si le vaisseau a vraiment été touché.
+bool hit(Vehicle& v, float loss, float stun) {
+    if (v.shieldTime > 0.0f) {
+        v.shieldTime = 0.0f;
+        return false;
+    }
+    const ShipStats& stats = shipStats(v.ship);
+    v.speed *= 1.0f - loss / stats.sturdy;
+    v.stunTime = std::max(v.stunTime, stun / stats.sturdy);
+    v.turboTime = 0.0f;
+    return true;
+}
+
 // Effet des éléments de piste sur un vaisseau qui vient d'avancer de `before`
 // à v.dist.
-void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float before) {
-
+void applyFeatures(Vehicle& v, const Track& track, float before) {
     float moved = v.dist - before;
     for (const Feature& f : track.features) {
         if (f.type == FeatureType::Barrier) {
@@ -35,24 +43,13 @@ void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float
             // teste le franchissement, pas la présence.
             if (track.ahead(before, f.dist) >= moved) continue;
             if (std::abs(v.lateral - f.lateral) > f.halfWidth + kHitRadius) continue;
-            if (v.energy >= kArmorCost) {
-                // Armure : la jauge encaisse le choc à la place du vaisseau.
-                v.energy -= kArmorCost;
-                v.shieldTime = kArmorFlash;
-                continue;
-            }
-            v.combo = 0;
-            v.speed *= 1.0f - kBarrierLoss / stats.sturdy;
-            v.stunTime = std::max(v.stunTime, kBarrierStun / stats.sturdy);
-            v.energy = std::max(0.0f, v.energy - kBarrierEnergy);
+            hit(v, kBarrierLoss, kBarrierStun);
             continue;
         }
-        if (track.ahead(f.dist, v.dist) > f.length) continue;
-        if (std::abs(v.lateral - f.lateral) > f.halfWidth) continue;
-        if (f.type == FeatureType::EnergyPad) {
-            // Une plaque recharge la jauge, une fois, à l'entrée.
-            if (before < f.dist) v.energy = std::min(1.0f, v.energy + kPadEnergy);
-        }
+        // Boîte à bonus : il suffit de passer dessus les mains vides.
+        if (before >= f.dist || track.ahead(f.dist, v.dist) > f.length) continue;
+        if (std::abs(v.lateral - f.lateral) > f.halfWidth + kShipHalfWidth * 0.5f) continue;
+        if (v.item == Item::None) v.boxHit = true;
     }
 }
 
@@ -76,76 +73,17 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
                           : std::min(1.25f, 1.0f - kDraft * gap / kWindow);
     }
 
-    // Frappe du boost. On juge la régularité du joueur, pas son alignement
-    // sur le morceau : une frappe est juste quand elle tombe une période après
-    // la précédente. Elle donne alors un court boost gratuit, qui tient
-    // jusqu'à la frappe suivante sans garder le bouton enfoncé. Les deux
-    // premières frappes posent la cadence. Une frappe irrégulière casse la
-    // série et pose une nouvelle cadence.
-    const bool pressed = in.boost && !v.boostHeld;
-    v.boostHeld = in.boost;
-    v.accord = std::max(0.0f, v.accord - dt);
-    v.accordCooldown = std::max(0.0f, v.accordCooldown - dt);
-    v.sinceTap = std::min(10.0f, v.sinceTap + dt);
-    // Cadence abandonnée : il faudra la reposer.
-    if (v.tapPeriod > 0.0f && v.sinceTap > 2.6f * v.tapPeriod) {
-        v.tapPeriod = 0.0f;
-        v.combo = 0;
-    }
-    if (pressed && !stunned && v.accordCooldown <= 0.0f) {
-        const float gap = v.sinceTap;
-        v.sinceTap = 0.0f;
-        v.accordCooldown = kAccordCooldown;
-        v.tapCount++;
-        const float period = v.tapPeriod;
-        // Une frappe sautée reste dans le rythme : deux périodes font l'affaire.
-        const bool regular = period > 0.0f && (std::abs(gap - period) <= kTapTolerance * period ||
-                                               std::abs(gap - 2.0f * period) <= kTapTolerance * period);
-        // La cadence doit tenir à un temps, un demi-temps ou deux temps du morceau.
-        bool onTempo = !track.tempoKnown;
-        if (period > 0.0f && !onTempo) {
-            const float beat = track.beatPeriod(clock.own ? f.time : clock.raceTime);
-            for (float ratio : {0.5f, 1.0f, 2.0f})
-                onTempo = onTempo || std::abs(period - ratio * beat) <= kTempoTolerance * ratio * beat;
-        }
-        if (regular && onTempo) {
-            v.tapVerdict = kTapGood;
-            v.accord = std::min(1.2f, period * 1.3f);
-            v.combo++;
-            v.energy = std::min(1.0f, v.energy + kAccordEnergy * period);
-            // La cadence suit doucement le joueur, sans se laisser entraîner.
-            if (std::abs(gap - period) <= kTapTolerance * period) v.tapPeriod = 0.75f * period + 0.25f * gap;
-        } else if (regular) {
-            v.tapVerdict = kTapOffTempo;
-            v.accord = 0.0f;
-            v.combo = 0;
-        } else {
-            v.tapVerdict = period <= 0.0f ? kTapStart : gap < period ? kTapEarly : kTapLate;
-            v.accord = 0.0f;
-            v.combo = 0;
-            // Nouvelle référence, si l'écart ressemble à une cadence.
-            v.tapPeriod = gap >= kMinTapPeriod && gap <= kMaxTapPeriod ? gap : 0.0f;
-        }
-    }
-    if (stunned) {
-        v.combo = 0;
-        v.accord = 0.0f;
-    }
-    const bool accord = v.accord > 0.0f;
-
-    v.boosting = (accord || (in.boost && v.energy > 0.0f)) && !stunned;
     // Les vitesses suivent celle du point de synchronisation : un vaisseau
     // en croisière avance avec la musique.
+    v.turboTime = std::max(0.0f, v.turboTime - dt);
+    v.boosting = v.turboTime > 0.0f && !stunned;
     const float base = f.pace / kSyncEdge * band;
-    const float pace = base / kCruiseSpeed;
     float cruise = base * stats.topSpeed;
-    float target = v.boosting ? kBoostSpeed * pace * stats.topSpeed * (accord ? 1.05f : 1.0f) : cruise;
+    float target = v.boosting ? cruise * kTurboSpeed : cruise;
     if (stunned) target = cruise * 0.55f;
     float delta = target - v.speed;
-    float gain = (v.boosting ? kBoostAccel * (accord ? 1.6f : 1.0f) : kAccel) * stats.accel;
+    float gain = (v.boosting ? kBoostAccel : kAccel) * stats.accel;
     v.speed += std::clamp(delta, -(stunned ? 4.0f : 1.0f) * kDecel * dt, gain * dt);
-
-    v.energy += (v.boosting ? (accord ? 0.0f : -kBoostDrain) : kEnergyRegen * stats.regen) * dt;
 
     // Braquage, plus la dérive vers l'extérieur du virage.
     float steerSpeed = kSteerSpeed * stats.handling;
@@ -156,7 +94,7 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
     // des virages qu'un vaisseau rapide en ligne droite.
     v.speed -= std::abs(drift) * kScrub * dt;
 
-    // Murets : rebond mou, perte de vitesse et d'énergie.
+    // Murets : rebond mou et perte de vitesse.
     float limit = track.halfWidth - kShipHalfWidth;
     v.scraping = false;
     if (std::abs(v.lateral) > limit) {
@@ -164,45 +102,94 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
         v.lateral = side * limit;
         if (v.lateralVel * side > 0.0f) v.lateralVel *= -0.35f;
         v.speed -= v.speed * (0.55f / stats.sturdy) * dt;
-        v.energy -= 0.12f * dt;
         v.scraping = true;
     }
-    v.energy = std::clamp(v.energy, 0.0f, 1.0f);
 
     // À l'intérieur d'un virage, la même vitesse couvre plus de piste.
     float pathScale = 1.0f / std::max(0.5f, 1.0f - f.curvature * v.lateral);
     float before = v.dist;
     v.dist += v.speed * pathScale * dt;
-    applyFeatures(v, stats, track, before);
+    applyFeatures(v, track, before);
 
     float rollTarget = -steer * 0.38f - f.curvature * v.speed * 0.25f;
     v.roll += (rollTarget - v.roll) * std::min(1.0f, 7.0f * dt);
 }
 
-// Série d'accords complète : la décharge part seule sur le vaisseau de devant.
-// En tête de course il n'y a personne à viser, la série rend de l'énergie.
-void useItems(World& world, int index) {
-    Vehicle& v = world.vehicles[index];
-    if (v.combo < kComboSize || v.finished) return;
-    v.combo = 0;
-    bool someoneAhead = false;
-    for (int i = 0; i < world.count; i++)
-        someoneAhead = someoneAhead || (i != index && world.vehicles[i].dist > v.dist + 10.0f &&
-                                        world.vehicles[i].dist < v.dist + 900.0f);
-    if (!someoneAhead) {
-        v.energy = std::min(1.0f, v.energy + kLeaderGain);
-        return;
+// Tirage pseudo-aléatoire reproductible : dépend du pilote et de l'instant,
+// jamais d'un état global, donc deux exécutions donnent la même course.
+float chance(int index, uint32_t slot, uint32_t salt) {
+    uint32_t h = static_cast<uint32_t>(index) * 0x9E3779B1u ^ slot * 0x85EBCA77u ^ salt * 0xC2B2AE3Du;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    return static_cast<float>(h & 0xFFFFFFu) / 16777216.0f;
+}
+
+// Bonus donné par une boîte. Le dernier reçoit de quoi remonter, tirs et
+// turbos ; le premier, de quoi se défendre, mines et boucliers.
+Item rollItem(const World& world, int index) {
+    const float back = world.count > 1 ? static_cast<float>(rankOf(world, index) - 1) / static_cast<float>(world.count - 1) : 0.5f;
+    const float weights[static_cast<int>(Item::Count)] = {
+        0.0f,
+        1.0f + 3.0f * back, // tir
+        3.0f - 2.0f * back, // mine
+        2.0f,               // onde
+        1.0f + 3.0f * back, // turbo
+        3.0f - 2.0f * back, // bouclier
+    };
+    float total = 0.0f;
+    for (float w : weights) total += w;
+    float pick = chance(index, world.tick, 77u) * total;
+    for (int i = 1; i < static_cast<int>(Item::Count); i++) {
+        pick -= weights[i];
+        if (pick <= 0.0f) return static_cast<Item>(i);
     }
-    for (Missile& m : world.missiles) {
-        if (m.active) continue;
-        m = Missile{};
-        m.active = true;
-        m.owner = index;
-        m.dist = v.dist + 7.0f;
-        m.lateral = v.lateral;
-        m.speed = v.speed + 170.0f;
-        m.life = 4.5f;
+    return Item::Shield;
+}
+
+// Appui sur le bouton : le bonus porté part. Seul le front montant compte.
+void useItems(World& world, int index, const Input& in) {
+    Vehicle& v = world.vehicles[index];
+    // Boîte franchie au pas précédent : le bonus arrive ici, où l'on connaît
+    // le classement.
+    if (v.boxHit) {
+        v.boxHit = false;
+        if (v.item == Item::None) v.item = rollItem(world, index);
+    }
+    const bool pressed = in.use && !v.useHeld;
+    v.useHeld = in.use;
+    if (!pressed || v.item == Item::None || v.finished || v.stunTime > 0.0f) return;
+    const Item item = v.item;
+    v.item = Item::None;
+
+    auto spawn = [&](bool mine) {
+        for (Missile& m : world.missiles) {
+            if (m.active) continue;
+            m = Missile{};
+            m.active = true;
+            m.mine = mine;
+            m.owner = index;
+            m.dist = mine ? v.dist - 9.0f : v.dist + 7.0f;
+            m.lateral = v.lateral;
+            m.speed = mine ? 0.0f : v.speed + 170.0f;
+            m.life = mine ? kMineLife : 4.5f;
+            return;
+        }
+    };
+    switch (item) {
+    case Item::Shot: spawn(false); break;
+    case Item::Mine: spawn(true); break;
+    case Item::Pulse:
+        for (int i = 0; i < world.count; i++) {
+            Vehicle& other = world.vehicles[i];
+            if (i == index || other.finished) continue;
+            if (std::abs(other.dist - v.dist) > kPulseRange || std::abs(other.lateral - v.lateral) > kPulseWidth) continue;
+            hit(other, kHitLoss, kStunDuration);
+        }
         break;
+    case Item::Turbo: v.turboTime = kTurboTime; break;
+    case Item::Shield: v.shieldTime = kShieldTime; break;
+    default: break;
     }
 }
 
@@ -210,32 +197,33 @@ void stepMissiles(World& world, const Track& track, float dt) {
     const float limit = track.halfWidth - 1.0f;
     for (Missile& m : world.missiles) {
         if (!m.active) continue;
-
-        // Cible : le vaisseau le plus proche devant, autre que le tireur.
-        const Vehicle* target = nullptr;
-        float best = 900.0f;
-        for (int i = 0; i < world.count; i++) {
-            if (i == m.owner) continue;
-            float ahead = world.vehicles[i].dist - m.dist;
-            if (ahead > -4.0f && ahead < best) {
-                best = ahead;
-                target = &world.vehicles[i];
-            }
-        }
-        if (target) {
-            float delta = target->lateral - m.lateral;
-            m.lateral += std::clamp(delta, -34.0f * dt, 34.0f * dt);
-        }
-        m.lateral = std::clamp(m.lateral, -limit, limit);
-        float before = m.dist;
-        m.dist += m.speed * dt;
         m.life -= dt;
-        // Une barrière arrête un missile : on peut s'abriter derrière.
-        for (const Feature& f : track.features) {
-            if (f.type != FeatureType::Barrier) continue;
-            if (track.ahead(before, f.dist) < m.dist - before &&
-                std::abs(m.lateral - f.lateral) < f.halfWidth)
-                m.life = 0.0f;
+        if (!m.mine) {
+            // Cible : le vaisseau le plus proche devant, autre que le tireur.
+            const Vehicle* target = nullptr;
+            float best = 900.0f;
+            for (int i = 0; i < world.count; i++) {
+                if (i == m.owner) continue;
+                float ahead = world.vehicles[i].dist - m.dist;
+                if (ahead > -4.0f && ahead < best) {
+                    best = ahead;
+                    target = &world.vehicles[i];
+                }
+            }
+            if (target) {
+                float delta = target->lateral - m.lateral;
+                m.lateral += std::clamp(delta, -34.0f * dt, 34.0f * dt);
+            }
+            m.lateral = std::clamp(m.lateral, -limit, limit);
+            float before = m.dist;
+            m.dist += m.speed * dt;
+            // Une barrière arrête un tir : on peut s'abriter derrière.
+            for (const Feature& f : track.features) {
+                if (f.type != FeatureType::Barrier) continue;
+                if (track.ahead(before, f.dist) < m.dist - before &&
+                    std::abs(m.lateral - f.lateral) < f.halfWidth)
+                    m.life = 0.0f;
+            }
         }
         if (m.life <= 0.0f) {
             m.active = false;
@@ -243,24 +231,12 @@ void stepMissiles(World& world, const Track& track, float dt) {
         }
 
         for (int i = 0; i < world.count; i++) {
-            if (i == m.owner) continue;
+            if (i == m.owner) continue; // celui qui l'a lancé ne craint rien
             Vehicle& v = world.vehicles[i];
             if (std::abs(v.dist - m.dist) > 6.5f || std::abs(v.lateral - m.lateral) > 3.8f)
                 continue;
             m.active = false;
-            // Parade : la cible est en plein accord. Elle absorbe la décharge
-            // et en récupère l'énergie.
-            if (v.accord > 0.0f) {
-                v.energy = std::min(1.0f, v.energy + kAbsorbGain);
-                v.shieldTime = kArmorFlash;
-            } else {
-                const ShipStats& stats = shipStats(v.ship);
-                v.stunTime = kStunDuration / stats.sturdy;
-                v.speed *= 1.0f - 0.4f / stats.sturdy;
-                v.energy = std::max(0.0f, v.energy - 0.10f);
-                Vehicle& shooter = world.vehicles[m.owner];
-                shooter.energy = std::min(1.0f, shooter.energy + kHitGain);
-            }
+            hit(v, kHitLoss, kStunDuration);
             break;
         }
     }
@@ -290,7 +266,7 @@ void step(World& world, const Track& track, const Input* inputs) {
     for (int i = 0; i < world.count; i++) {
         Vehicle& v = world.vehicles[i];
         float before = v.dist;
-        useItems(world, i);
+        useItems(world, i, inputs[i]);
         stepVehicleDt(v, inputs[i], track, clock, kFixedDt);
         if (!v.finished && v.dist >= finishDist) {
             v.finished = true;
@@ -329,20 +305,6 @@ void step(World& world, const Track& track, const Input* inputs) {
         world.vehicles[i].lateral = std::clamp(world.vehicles[i].lateral, -limit, limit);
 }
 
-namespace {
-
-// Tirage pseudo-aléatoire reproductible : dépend du pilote et de l'instant,
-// jamais d'un état global, donc deux exécutions donnent la même course.
-float chance(int index, uint32_t slot, uint32_t salt) {
-    uint32_t h = static_cast<uint32_t>(index) * 0x9E3779B1u ^ slot * 0x85EBCA77u ^ salt * 0xC2B2AE3Du;
-    h ^= h >> 15;
-    h *= 0x2C1B3C6Du;
-    h ^= h >> 12;
-    return static_cast<float>(h & 0xFFFFFFu) / 16777216.0f;
-}
-
-} // namespace
-
 Input autopilot(const World& world, int index, const Track& track, const AiProfile& profile,
                 float laneOffset) {
     const Vehicle& v = world.vehicles[index];
@@ -375,12 +337,12 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     line = std::clamp(line, -limit, limit);
 
     float steerSpeed = kSteerSpeed * stats.handling;
-    // Éléments de piste : viser la plaque d'énergie atteignable la plus proche,
-    // puis s'écarter des barrières, qui ont le dernier mot.
+    // Éléments de piste : les mains vides, viser la boîte à bonus atteignable
+    // la plus proche. Puis s'écarter des barrières, qui ont le dernier mot.
     const float look = v.speed * profile.foresight;
     float padAhead = look;
     for (const Feature& f : track.features) {
-        if (f.type != FeatureType::EnergyPad) continue;
+        if (f.type != FeatureType::ItemBox || v.item != Item::None) continue;
         float ahead = track.ahead(v.dist, f.dist);
         if (ahead >= padAhead) continue;
         float reach = steerSpeed * 0.8f * ahead / std::max(v.speed, 1.0f) + f.halfWidth * 0.5f;
@@ -396,11 +358,11 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     };
     float nearest = look;
     for (const Feature& f : track.features)
-        if (f.type != FeatureType::EnergyPad) nearest = std::min(nearest, hazardAhead(f));
+        if (f.type != FeatureType::ItemBox) nearest = std::min(nearest, hazardAhead(f));
     bool dodging = false;
     for (int pass = 0; pass < 2; pass++) {
         for (const Feature& f : track.features) {
-            if (f.type == FeatureType::EnergyPad) continue;
+            if (f.type == FeatureType::ItemBox) continue;
             float ahead = hazardAhead(f);
             if (ahead >= look || ahead > nearest + 40.0f) continue;
             float margin = f.halfWidth +
@@ -427,31 +389,30 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     uint32_t slot = world.tick / 30u;
     bool whim = profile.erratic > 0.0f && chance(index, slot, 1u) < profile.erratic;
 
-    bool straight = std::abs(here.curvature) < 0.0006f && std::abs(ahead.curvature) < 0.0008f;
-    in.boost = straight && (v.boosting ? v.energy > profile.boostStop : v.energy > profile.boostStart);
-    if (whim && v.energy > 0.3f) in.boost = chance(index, slot, 2u) < 0.5f;
-
-    // Sens du rythme : selon son talent, il attend le temps pour lancer un
-    // boost, et place des accords même sans vouloir accélérer longtemps.
-    const float beatTime = songTime(world, track, v);
-    const bool onBeat = track.onBeat(beatTime, kBeatTolerance * 0.6f);
-    // Il bat la mesure par plages de six secondes : poser une cadence prend
-    // deux frappes, des plages trop courtes ne rapporteraient rien.
-    const bool inRhythm = chance(index, static_cast<uint32_t>(beatTime / 6.0f) + 7919u, 3u) < profile.rhythm;
-    if (inRhythm && v.stunTime <= 0.0f) {
-        // Il bat la mesure : une frappe par temps de la grille, rien entre.
-        // L'accord tient le boost, inutile de payer en énergie.
-        in.boost = onBeat;
-    }
-
-    // Parade : une décharge arrive par-derrière. S'il a du rythme, il place
-    // un accord sur le temps pour l'absorber.
-    if (onBeat && v.stunTime <= 0.0f && chance(index, static_cast<uint32_t>(beatTime * 2.0f) + 31u, 5u) < profile.rhythm) {
-        for (const Missile& m : world.missiles) {
-            if (!m.active || m.owner == index) continue;
-            const float behind = v.dist - m.dist;
-            if (behind > 0.0f && behind < 140.0f) in.boost = true;
+    // Bonus : chacun a son moment. Les décisions sont prises par tranches,
+    // et la personnalité règle l'empressement.
+    if (v.item != Item::None && v.stunTime <= 0.0f) {
+        bool wanted = false;
+        const bool straight = std::abs(here.curvature) < 0.0006f && std::abs(ahead.curvature) < 0.0008f;
+        for (int i = 0; i < world.count && !wanted; i++) {
+            if (i == index) continue;
+            const Vehicle& other = world.vehicles[i];
+            const float along = other.dist - v.dist, across = std::abs(other.lateral - v.lateral);
+            if (v.item == Item::Shot) wanted = along > 20.0f && along < 500.0f;
+            if (v.item == Item::Mine) wanted = along < -10.0f && along > -160.0f && across < 9.0f;
+            if (v.item == Item::Pulse) wanted = std::abs(along) < kPulseRange * 0.7f && across < kPulseWidth * 0.8f;
         }
+        if (v.item == Item::Turbo) wanted = straight;
+        if (v.item == Item::Shield) {
+            // Levé quand un tir arrive, ou devant une barrière qu'il ne pourra pas éviter.
+            for (const Missile& m : world.missiles)
+                wanted = wanted || (m.active && !m.mine && m.owner != index && v.dist - m.dist > 0.0f && v.dist - m.dist < 220.0f);
+            wanted = wanted || (dodging && nearest < v.speed * 0.25f);
+        }
+        if (whim && chance(index, slot, 6u) < 0.3f) wanted = true;
+        // Un appui d'un seul pas : la simulation ne lit que le front montant.
+        const bool moment = world.tick % 20u == static_cast<uint32_t>(index) % 20u;
+        in.use = wanted && moment && chance(index, slot, 4u) < profile.trigger;
     }
     return in;
 }

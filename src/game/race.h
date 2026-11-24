@@ -27,11 +27,6 @@ struct Race : sim::Session {
     Synth* synth = nullptr;
     // Texte de mesures à afficher en bas de l'écran, fourni par la boucle principale.
     const char* statsLine = "";
-    // Verdict de la dernière frappe du boost, voir sim::TapVerdict, et le temps
-    // d'affichage qui reste.
-    uint8_t tapSeen = 0;
-    int missKind = 0;
-    float missTime = 0.0f;
     float beatKick = 0.0f; // secousse de la caméra sur le temps, selon la hargne du morceau
     float bands[8] = {}; // niveaux de la musique, lissés pour l'affichage
     bool keepSong = false; // le morceau vient de l'hôte : ne pas le réanalyser

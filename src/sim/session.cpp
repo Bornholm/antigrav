@@ -35,11 +35,9 @@ void Session::start(const RaceConfig& cfg, int local) {
         if (cfg.gridStart) {
             v.dist = -40.0f - 24.0f * static_cast<float>(i / 2) - (i % 2 ? 8.0f : 0.0f);
             v.speed = 0.0f;
-            v.energy = 1.0f;
         } else {
             v.dist = 150.0f + 26.0f * static_cast<float>(cfg.racerCount - 1 - i);
             v.speed = cruiseSpeed(v, track);
-            v.energy = 0.87f;
         }
     }
     previous = world;

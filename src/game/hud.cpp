@@ -57,42 +57,6 @@ void drawStandings(gfx::HudBatch& hud, const HudState& s) {
     hud.line({30.0f, 174.0f}, {236.0f, 174.0f}, 2.0f, alpha(kCyan, 0.85f), 0.5f);
 }
 
-void drawEnergy(gfx::HudBatch& hud, const HudState& s) {
-    hud.anchor = Anchor::Center;
-    hud.vAnchor = gfx::VAnchor::Top;
-    const float top = 40.0f, bottom = 86.0f, mid = 63.0f;
-    const vec2 a{498.0f, top}, b{1146.0f, top}, c{1132.0f, bottom}, d{498.0f, bottom},
-        tip{480.0f, mid};
-    hud.quad(a, b, c, d, kPanel);
-    hud.tri(a, d, tip, kPanel);
-    polyline(hud, {a, b, c, d, tip, a}, 2.0f, kCyan, 0.35f);
-
-    // Éclair.
-    hud.tri({529.0f, 45.0f}, {511.0f, 66.0f}, {523.0f, 66.0f}, kCyan);
-    hud.tri({516.0f, 82.0f}, {534.0f, 60.0f}, {521.0f, 60.0f}, kCyan);
-
-    hud.text(FontId::Medium, tr("ÉNERGIE"), {550.0f, 71.0f}, 22.0f, kWhite);
-
-    // Jauge en segments inclinés.
-    const int segments = 15;
-    const float x0 = 680.0f, x1 = 1036.0f;
-    const float pitch = (x1 - x0) / segments;
-    const float width = pitch - 4.5f, skew = 7.0f;
-    float filled = std::clamp(s.energy, 0.0f, 1.0f) * segments;
-    for (int i = 0; i < segments; i++) {
-        float x = x0 + pitch * static_cast<float>(i);
-        float level = std::clamp(filled - static_cast<float>(i), 0.0f, 1.0f);
-        vec4 color = glm::mix(vec4(0.12f, 0.35f, 0.55f, 0.30f), vec4(0.15f, 0.92f, 1.0f, 1.0f),
-                              level);
-        hud.quad({x + skew, 52.0f}, {x + skew + width, 52.0f}, {x + width, 74.0f}, {x, 74.0f},
-                 color);
-    }
-
-    char buf[16];
-    std::snprintf(buf, sizeof(buf), "%d %%", static_cast<int>(std::lround(s.energy * 100.0f)));
-    hud.text(FontId::Medium, buf, {1058.0f, 71.0f}, 22.0f, kWhite);
-}
-
 void drawSpeed(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Center;
     hud.vAnchor = gfx::VAnchor::Bottom;
@@ -148,7 +112,7 @@ void drawMinimap(gfx::HudBatch& hud, const HudState& s) {
 void drawSongBar(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Center;
     hud.vAnchor = gfx::VAnchor::Top;
-    const float x0 = 560.0f, x1 = 1040.0f, y = 96.0f;
+    const float x0 = 440.0f, x1 = 1120.0f, y = 62.0f;
     hud.line({x0, y}, {x1, y}, 3.0f, alpha(kWhite, 0.28f));
     for (int i = 0; i < s.markCount; i++) {
         if (i == s.localMark) continue;
@@ -188,54 +152,35 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
                  9.0f * k, kWhite);
     }
     {
-        bool down = shapeOf(Button::Boost, c, r) || s.boosting;
-        // Pendant le délai entre deux accords, le bouton s'éteint et se
-        // rallume peu à peu : un appui n'y donnerait pas d'accord.
-        const bool ready = s.cooldown <= 0.0f;
-        const vec4 rim = ready ? kYellow : alpha(kYellow, 0.35f);
-        vec4 fill = down ? vec4(0.55f, 0.38f, 0.05f, 0.6f) : vec4(0.10f, 0.07f, 0.03f, 0.5f);
-        hud.circle(c, r, fill, rim, down ? 7.0f : 5.0f);
-        if (!ready) hud.circle(c, r * (1.0f - s.cooldown), alpha(kYellow, 0.10f), alpha(kYellow, 0.5f), 2.0f);
-        polyline(hud, {c + vec2(-32.0f, -22.0f), c + vec2(0.0f, -50.0f), c + vec2(32.0f, -22.0f)},
-                 10.0f, kYellow, 0.4f);
-        polyline(hud, {c + vec2(-32.0f, 2.0f), c + vec2(0.0f, -26.0f), c + vec2(32.0f, 2.0f)},
-                 10.0f, kYellow, 0.4f);
-        hud.text(FontId::Bold, tr("BOOST"), c + vec2(0.0f, 46.0f), 28.0f, kWhite, Align::Center);
+        // Bouton du bonus : il porte le nom de ce qu'on tient, et s'éteint
+        // quand on n'a rien.
+        static const char* const kItemNames[] = {"", "TIR", "MINE", "ONDE", "TURBO", "BOUCLIER"};
+        static const vec4 kItemColors[] = {
+            kWhite, vec4(1.0f, 0.35f, 0.75f, 1.0f), vec4(1.0f, 0.30f, 0.20f, 1.0f),
+            vec4(0.55f, 0.45f, 1.0f, 1.0f), kYellow, kCyan,
+        };
+        const bool down = shapeOf(Button::Use, c, r);
+        const int item = std::clamp(s.item, 0, 5);
+        const vec4 tint = item ? kItemColors[item] : alpha(kWhite, 0.35f);
+        hud.circle(c, r, down && item ? alpha(tint, 0.35f) : vec4(0.06f, 0.05f, 0.09f, 0.5f), tint, item ? (down ? 7.0f : 5.0f) : 2.5f);
+        if (item) {
+            hud.circle(c, r * 0.78f, vec4(0.0f), alpha(tint, 0.45f), 2.0f);
+            hud.text(FontId::Bold, tr(kItemNames[item]), c + vec2(0.0f, 12.0f), item == 5 ? 26.0f : 34.0f, kWhite, Align::Center, 0.2f,
+                     alpha(tint, 0.6f));
+        }
     }
 }
 
-// Retour de rythme, accroché au vaisseau du joueur : c'est là qu'il regarde.
-// Le signal lui-même est une lumière sur le dos du vaisseau, voir Race::fill.
-// Ici, seulement les pastilles de la série et le verdict de l'appui.
-void drawRhythm(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
-    if (s.beatPhase < 0.0f) return;
+// Alerte accrochée au vaisseau du joueur : c'est là qu'il regarde.
+void drawAlerts(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
+    if (!s.incoming) return;
     const glm::vec4 clip = viewProj * glm::vec4(s.shipPos, 1.0f);
     if (clip.w <= 0.5f) return;
     hud.anchor = Anchor::Left;
     hud.vAnchor = gfx::VAnchor::Top;
     const vec2 c = (vec2(clip.x, clip.y) / clip.w * 0.5f + 0.5f) * hud.screen / hud.scale;
-    const float core = 74.0f;
-
-    // Série d'accords : la décharge part quand les pastilles sont toutes allumées.
-    const float step = 17.0f, x0 = c.x - step * 0.5f * static_cast<float>(s.comboSize - 1);
-    for (int i = 0; i < s.comboSize; i++) {
-        const vec2 p{x0 + step * static_cast<float>(i), c.y + core + 26.0f};
-        const bool lit = i < s.combo;
-        hud.circle(p, 5.5f, lit ? kMagenta : vec4(0.10f, 0.03f, 0.09f, 0.45f), alpha(kMagenta, lit ? 1.0f : 0.45f), 1.6f);
-    }
-
-    const vec2 label = c + vec2(0.0f, -core - 44.0f);
-    // Verdict de la dernière frappe, jugée sur la régularité du joueur.
-    if (s.miss == sim::kTapGood) {
-        hud.text(FontId::Bold, tr("EN RYTHME"), label, 30.0f + 6.0f * s.missFade, alpha(vec4(0.45f, 1.0f, 0.5f, 1.0f), 0.3f + 0.7f * s.missFade),
-                 Align::Center, 0.2f, alpha(vec4(0.45f, 1.0f, 0.5f, 1.0f), 0.4f * s.missFade));
-    } else if (s.miss == sim::kTapEarly || s.miss == sim::kTapLate || s.miss == sim::kTapOffTempo) {
-        const char* word = s.miss == sim::kTapEarly ? "TROP TÔT" : s.miss == sim::kTapLate ? "TROP TARD" : "HORS TEMPO";
-        hud.text(FontId::Bold, tr(word), label, 28.0f, alpha(vec4(1.0f, 0.45f, 0.35f, 1.0f), s.missFade), Align::Center);
-    }
-    if (s.incoming)
-        hud.text(FontId::Bold, tr("DÉCHARGE ! PAREZ EN RYTHME"), label + vec2(0.0f, -40.0f), 28.0f, kMagenta, Align::Center,
-                 0.2f, alpha(kMagenta, 0.5f));
+    hud.text(FontId::Bold, tr(s.shielded ? "TIR EN APPROCHE" : "TIR EN APPROCHE !"), c + vec2(0.0f, -120.0f), 28.0f,
+             s.shielded ? kCyan : kMagenta, Align::Center, 0.2f, alpha(s.shielded ? kCyan : kMagenta, 0.5f));
 }
 
 void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
@@ -319,9 +264,6 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         hud.text(FontId::Medium, tr("ÉCART"), {34.0f, 244.0f}, 20.0f, alpha(kWhite, 0.75f));
         hud.text(FontId::Bold, buf, {146.0f, 245.0f}, 24.0f, s.gap >= 0.0f ? vec4(0.45f, 1.0f, 0.5f, 1.0f) : kMagenta);
     }
-    // Armure : la jauge peut encaisser une barrière.
-    hud.text(FontId::Medium, tr("ARMURE"), {34.0f, 280.0f}, 20.0f, alpha(kWhite, 0.75f));
-    hud.text(FontId::Bold, tr(s.armored ? "PRÊTE" : "VIDE"), {146.0f, 281.0f}, 24.0f, s.armored ? kCyan : alpha(kWhite, 0.4f));
 
     hud.anchor = Anchor::Center;
     hud.vAnchor = gfx::VAnchor::Middle;
@@ -359,12 +301,11 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
 void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewProj) {
     drawNameTags(hud, state, viewProj);
     drawStandings(hud, state);
-    drawEnergy(hud, state);
     drawSpeed(hud, state);
     drawMinimap(hud, state);
     drawSongBar(hud, state);
     drawButtons(hud, state);
-    drawRhythm(hud, state, viewProj);
+    drawAlerts(hud, state, viewProj);
     drawRaceFlow(hud, state);
 }
 

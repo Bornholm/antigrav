@@ -105,7 +105,7 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
         case SDL_SCANCODE_SPACE:
         case SDL_SCANCODE_UP:
         case SDL_SCANCODE_W:
-            keyBoost = down;
+            keyUse = down;
             break;
         default:
             break;
@@ -139,7 +139,7 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
             padRight = down;
             break;
         case SDL_GAMEPAD_BUTTON_SOUTH:
-            padBoost = down;
+            padUse = down;
             break;
         default:
             break;
@@ -193,7 +193,7 @@ Controls InputReader::read(glm::vec2 screen) const {
             c.pressed[static_cast<int>(p.pos.x < split ? Button::Left : Button::Right)] = true;
         }
     }
-    for (int b = static_cast<int>(Button::Boost); b < static_cast<int>(Button::Count); b++) {
+    for (int b = static_cast<int>(Button::Use); b < static_cast<int>(Button::Count); b++) {
         ButtonShape shape = buttonShape(static_cast<Button>(b), screen);
         for (const Pointer& p : pointers) {
             if (!p.active) continue;
@@ -204,7 +204,7 @@ Controls InputReader::read(glm::vec2 screen) const {
     auto on = [&](Button b) -> bool& { return c.pressed[static_cast<int>(b)]; };
     on(Button::Left) |= keyLeft || padLeft;
     on(Button::Right) |= keyRight || padRight;
-    on(Button::Boost) |= keyBoost || padBoost || padTrigger;
+    on(Button::Use) |= keyUse || padUse || padTrigger;
     c.steer = (on(Button::Right) ? 1.0f : 0.0f) - (on(Button::Left) ? 1.0f : 0.0f);
     // Le stick donne un braquage progressif, que les boutons n'ont pas.
     if (c.steer == 0.0f) c.steer = padSteer;

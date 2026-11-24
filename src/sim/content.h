@@ -17,7 +17,6 @@ struct ShipStats {
     float accel;     // accélération, boost compris
     float handling;  // vitesse de déplacement latéral
     float grip;      // résistance à la dérive en virage, plus grand = dérive moins
-    float regen;     // recharge de la jauge d'énergie
     float sturdy;    // résistance aux impacts : réduit l'étourdissement et les pertes
 };
 const ShipStats& shipStats(int ship);
@@ -35,14 +34,12 @@ void setCustomTrackInfo(const char* name, const char* tagline);
 struct AiProfile {
     const char* name;
     float lineGain;    // à quel point il coupe l'intérieur des virages
-    float boostStart;  // énergie à partir de laquelle il lance un boost
-    float boostStop;   // énergie à laquelle il le coupe : sa réserve
     bool ram;          // se rabat sur les adversaires à sa hauteur
     bool block;        // ferme la porte à celui qui le suit
     float weave;       // amplitude de ses changements de couloir, en mètres
     float erratic;     // part de décisions prises au hasard
     float foresight;   // secondes d'avance avec lesquelles il lit les éléments de piste
-    float rhythm;      // part des occasions où il joue en rythme, de 0 à 1
+    float trigger;     // empressement à déclencher un bonus quand l'occasion se présente, de 0 à 1
 };
 const AiProfile& aiProfile(int profile);
 

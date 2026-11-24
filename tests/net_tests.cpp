@@ -94,9 +94,9 @@ void playRace(float dropRate, int latencyTicks) {
         now += sim::kFixedDt;
         sim::Input hostInput, clientInput;
         hostInput.steer = 0.5f * std::sin(static_cast<float>(t) * 0.02f);
-        hostInput.boost = (t / 240) % 2 == 0;
+        hostInput.use = t % 240 == 0;
         clientInput.steer = 0.6f * std::sin(static_cast<float>(t) * 0.031f + 1.0f);
-        clientInput.boost = (t / 200) % 2 == 1;
+        clientInput.use = t % 200 == 100;
 
         client.clientTick(clientSession, clientInput);
         if (t >= latencyTicks) {

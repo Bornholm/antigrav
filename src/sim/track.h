@@ -31,9 +31,9 @@ constexpr float kClearHalfWidth = 5.0f; // mètres
 
 // Élément posé sur la piste. Tous agissent selon la seule position du
 // vaisseau, sans état propre : la prédiction réseau les rejoue telle quelle.
-enum class FeatureType { EnergyPad, Barrier };
+enum class FeatureType { ItemBox, Barrier };
 struct Feature {
-    FeatureType type = FeatureType::EnergyPad;
+    FeatureType type = FeatureType::ItemBox;
     float dist = 0.0f;      // début de l'élément le long de la piste
     float length = 0.0f;    // longueur, ou épaisseur pour une barrière
     float lateral = 0.0f;   // centre, en décalage par rapport à l'axe

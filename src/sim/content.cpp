@@ -10,11 +10,11 @@ namespace sim {
 // l'emporter nettement sur l'ensemble des circuits.
 const ShipStats& shipStats(int ship) {
     static const ShipStats stats[kShipCount] = {
-        //  nom         accroche                          vit.   acc.   mani.  adh.   rech.  solid.
-        {"Flèche", "Équilibrée, sans point faible", 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f},
-        {"Manta", "Agile, tient les virages", 0.992f, 1.000f, 1.250f, 1.800f, 1.050f, 0.900f},
-        {"Aiguille", "Pointe de vitesse, dérive fort", 1.008f, 0.950f, 0.900f, 0.750f, 0.950f, 0.850f},
-        {"Jumeau", "Lourd, repart vite, encaisse", 0.997f, 1.150f, 0.920f, 1.000f, 0.950f, 1.500f},
+        //  nom         accroche                          vit.   acc.   mani.  adh.   solid.
+        {"Flèche", "Équilibrée, sans point faible", 1.000f, 1.000f, 1.000f, 1.000f, 1.000f},
+        {"Manta", "Agile, tient les virages", 0.992f, 1.000f, 1.250f, 1.800f, 0.900f},
+        {"Aiguille", "Pointe de vitesse, dérive fort", 1.008f, 0.950f, 0.900f, 0.750f, 0.850f},
+        {"Jumeau", "Lourd, repart vite, encaisse", 0.997f, 1.150f, 0.920f, 1.000f, 1.500f},
     };
     return stats[ship < 0 || ship >= kShipCount ? 0 : ship];
 }
@@ -41,11 +41,11 @@ void setCustomTrackInfo(const char* name, const char* tagline) {
 
 const AiProfile& aiProfile(int profile) {
     static const AiProfile profiles[kProfileCount] = {
-        //  nom          ligne   boost: dép.  arrêt  rab.   bloque zigzag hasard anticip. rythme
-        {"Agressif", 3800.0f, 0.75f, 0.30f, true, false, 0.0f, 0.00f, 1.0f, 0.66f},
-        {"Défensif", 3900.0f, 0.68f, 0.36f, false, true, 0.0f, 0.00f, 1.2f, 0.66f},
-        {"Pilote", 4300.0f, 0.65f, 0.06f, false, false, 0.0f, 0.00f, 1.3f, 0.66f},
-        {"Imprévisible", 3400.0f, 0.70f, 0.20f, false, false, 5.0f, 0.15f, 0.9f, 0.60f},
+        //  nom          ligne   rab.   bloque zigzag hasard anticip. empress.
+        {"Agressif", 3800.0f, true, false, 0.0f, 0.00f, 1.0f, 0.90f},
+        {"Défensif", 3900.0f, false, true, 0.0f, 0.00f, 1.2f, 0.80f},
+        {"Pilote", 4300.0f, false, false, 0.0f, 0.00f, 1.3f, 0.80f},
+        {"Imprévisible", 3400.0f, false, false, 5.0f, 0.15f, 0.9f, 0.70f},
     };
     return profiles[profile < 0 || profile >= kProfileCount ? 0 : profile];
 }

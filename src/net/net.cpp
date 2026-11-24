@@ -14,7 +14,7 @@ namespace net {
 
 namespace {
 
-const uint32_t kMagic = 0x34474141u; // "AAG4"
+const uint32_t kMagic = 0x35474141u; // "AAG5"
 constexpr double kTimeout = 5.0;      // secondes sans nouvelles avant de couper
 
 enum Type : uint8_t {
@@ -74,7 +74,7 @@ struct StartPacket {
 };
 struct WireInput {
     float steer;
-    uint8_t flags; // bit 0 boost
+    uint8_t flags; // bit 0 bonus
 };
 struct InputPacket {
     Header h;
@@ -82,13 +82,12 @@ struct InputPacket {
     WireInput input;
 };
 struct WireVehicle {
-    float dist, lateral, lateralVel, speed, energy, roll, finishTime, shieldTime, stunTime;
-    float accord, accordCooldown, sinceTap, tapPeriod;
-    uint8_t combo, tapCount, tapVerdict;
-    uint8_t flags; // bit 0 boost, 1 frottement, 2 arrivé, 5 boost tenu
+    float dist, lateral, lateralVel, speed, roll, finishTime, shieldTime, turboTime, stunTime;
+    uint8_t item;
+    uint8_t flags; // bit 0 turbo, 1 frottement, 2 arrivé, 3 bouton tenu, 4 boîte franchie
 };
 struct WireMissile {
-    uint8_t active;
+    uint8_t active; // bit 0 actif, bit 1 mine
     uint8_t owner;
     float dist, lateral, speed, life;
 };
@@ -109,14 +108,14 @@ struct SnapshotPacket {
 WireInput packInput(const sim::Input& in) {
     WireInput w;
     w.steer = in.steer;
-    w.flags = static_cast<uint8_t>(in.boost ? 1 : 0);
+    w.flags = static_cast<uint8_t>(in.use ? 1 : 0);
     return w;
 }
 
 sim::Input unpackInput(const WireInput& w) {
     sim::Input in;
     in.steer = std::clamp(w.steer, -1.0f, 1.0f);
-    in.boost = w.flags & 1;
+    in.use = w.flags & 1;
     return in;
 }
 
@@ -382,25 +381,19 @@ void Net::hostSendSnapshot(const sim::Session& session) {
         o.lateral = v.lateral;
         o.lateralVel = v.lateralVel;
         o.speed = v.speed;
-        o.energy = v.energy;
         o.roll = v.roll;
         o.finishTime = v.finishTime;
-        o.accord = v.accord;
-        o.accordCooldown = v.accordCooldown;
-        o.sinceTap = v.sinceTap;
-        o.tapPeriod = v.tapPeriod;
-        o.tapCount = v.tapCount;
-        o.tapVerdict = v.tapVerdict;
         o.shieldTime = v.shieldTime;
+        o.turboTime = v.turboTime;
         o.stunTime = v.stunTime;
-        o.flags = static_cast<uint8_t>((v.boosting ? 1 : 0) | (v.scraping ? 2 : 0) |
-                                       (v.finished ? 4 : 0) | (v.boostHeld ? 32 : 0));
-        o.combo = static_cast<uint8_t>(std::clamp(v.combo, 0, 255));
+        o.item = static_cast<uint8_t>(v.item);
+        o.flags = static_cast<uint8_t>((v.boosting ? 1 : 0) | (v.scraping ? 2 : 0) | (v.finished ? 4 : 0) |
+                                       (v.useHeld ? 8 : 0) | (v.boxHit ? 16 : 0));
         packet.inputs[i] = packInput(session.lastInputs[i]);
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {
         const sim::Missile& m = w.missiles[i];
-        packet.missiles[i] = {static_cast<uint8_t>(m.active), static_cast<uint8_t>(m.owner),
+        packet.missiles[i] = {static_cast<uint8_t>((m.active ? 1 : 0) | (m.mine ? 2 : 0)), static_cast<uint8_t>(m.owner),
                               m.dist, m.lateral, m.speed, m.life};
     }
     for (const Peer& p : peers) {
@@ -427,27 +420,23 @@ void Net::reconcile(sim::Session& session, const void* data) {
         v.lateral = o.lateral;
         v.lateralVel = o.lateralVel;
         v.speed = o.speed;
-        v.energy = o.energy;
         v.roll = o.roll;
         v.finishTime = o.finishTime;
-        v.accord = o.accord;
-        v.accordCooldown = o.accordCooldown;
-        v.sinceTap = o.sinceTap;
-        v.tapPeriod = o.tapPeriod;
-        v.tapCount = o.tapCount;
-        v.tapVerdict = o.tapVerdict;
         v.shieldTime = o.shieldTime;
+        v.turboTime = o.turboTime;
         v.stunTime = o.stunTime;
+        v.item = o.item < static_cast<uint8_t>(sim::Item::Count) ? static_cast<sim::Item>(o.item) : sim::Item::None;
         v.boosting = o.flags & 1;
         v.scraping = o.flags & 2;
         v.finished = o.flags & 4;
-        v.combo = o.combo;
-        v.boostHeld = o.flags & 32;
+        v.useHeld = o.flags & 8;
+        v.boxHit = o.flags & 16;
         if (i != session.localIndex) session.remoteInputs[i] = unpackInput(s.inputs[i]);
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {
         const WireMissile& m = s.missiles[i];
-        w.missiles[i].active = m.active != 0;
+        w.missiles[i].active = m.active & 1;
+        w.missiles[i].mine = m.active & 2;
         w.missiles[i].owner = std::min<int>(m.owner, sim::kMaxVehicles - 1);
         w.missiles[i].dist = m.dist;
         w.missiles[i].lateral = m.lateral;

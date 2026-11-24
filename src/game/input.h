@@ -6,7 +6,7 @@ union SDL_Event;
 
 namespace game {
 
-enum class Button { Left, Right, Boost, Count };
+enum class Button { Left, Right, Use, Count };
 
 // Centre et rayon d'un bouton tactile, en pixels. Sert à la fois au dessin de
 // l'interface et aux tests de contact, pour que les deux ne divergent jamais.
@@ -44,10 +44,10 @@ struct InputReader {
         glm::vec2 pos{0.0f};
     };
     Pointer pointers[kMaxPointers];
-    bool keyLeft = false, keyRight = false, keyBoost = false;
-    // Manette : stick gauche ou croix pour tourner, A ou gâchette droite pour le boost.
+    bool keyLeft = false, keyRight = false, keyUse = false;
+    // Manette : stick gauche ou croix pour tourner, A ou gâchette droite pour le bonus.
     float padSteer = 0.0f;
-    bool padLeft = false, padRight = false, padBoost = false, padTrigger = false;
+    bool padLeft = false, padRight = false, padUse = false, padTrigger = false;
 
     UiInput ui;
 

@@ -170,21 +170,19 @@ MeshData buildFeatures(const sim::Track& track) {
         const float d0 = f.dist, d1 = f.dist + f.length;
         const float l0 = f.lateral - f.halfWidth, l1 = f.lateral + f.halfWidth;
 
-        if (f.type == sim::FeatureType::EnergyPad) {
-            flat(d0, d1, l0, l1, 0.05f, glm::vec4(kPad, 0.10f));
-            flat(d0, d1, l0, l0 + 0.25f, 0.07f, glm::vec4(kPad, 5.0f));
-            flat(d0, d1, l1 - 0.25f, l1, 0.07f, glm::vec4(kPad, 5.0f));
-            // Chevrons pointés vers l'avant.
-            const int chevrons = 5;
-            const float pitch = f.length / chevrons, depth = 3.2f, thick = 2.2f;
-            for (int c = 0; c < chevrons; c++) {
-                float base = d0 + pitch * static_cast<float>(c) + 0.8f;
-                for (float side : {-1.0f, 1.0f}) {
-                    float edge = f.lateral + side * (f.halfWidth - 0.7f);
-                    quad({base, edge, 0.09f}, {base + thick, edge, 0.09f},
-                         {base + depth + thick, f.lateral, 0.09f}, {base + depth, f.lateral, 0.09f},
-                         glm::vec4(kPad, 6.0f));
-                }
+        if (f.type == sim::FeatureType::ItemBox) {
+            // Boîte à bonus : un losange lumineux dressé au-dessus d'un socle
+            // au sol, bien différent d'une plaque d'accélération.
+            const float mid = 0.5f * (d0 + d1);
+            flat(mid - 5.0f, mid + 5.0f, l0, l1, 0.05f, glm::vec4(kPad, 0.10f));
+            flat(mid - 5.0f, mid + 5.0f, l0, l0 + 0.25f, 0.07f, glm::vec4(kPad, 3.5f));
+            flat(mid - 5.0f, mid + 5.0f, l1 - 0.25f, l1, 0.07f, glm::vec4(kPad, 3.5f));
+            const float c = f.lateral, low = 0.6f, high = 4.2f, half = 1.9f, middle = 0.5f * (low + high);
+            // Contour épais, puis cœur plus clair, visibles des deux côtés.
+            for (float face : {mid, mid + 0.4f}) {
+                quad({face, c - half, middle}, {face, c, low}, {face, c + half, middle}, {face, c, high}, glm::vec4(kPad, 5.0f));
+                quad({face + 0.05f, c - half * 0.5f, middle}, {face + 0.05f, c, low + 0.9f}, {face + 0.05f, c + half * 0.5f, middle},
+                     {face + 0.05f, c, high - 0.9f}, glm::vec4(1.0f, 1.0f, 0.9f, 9.0f));
             }
         } else {
             // Barrière : bloc sombre, bandes lumineuses face au pilote.

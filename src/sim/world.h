@@ -17,89 +17,70 @@ constexpr float kShipHalfWidth = 3.2f;
 // tir : les ailes passent au travers, ce qui laisse une chance d'esquiver.
 constexpr float kHitRadius = 0.9f;
 
-// La jauge d'énergie alimente le boost et sert d'armure : assez pleine, elle
-// encaisse une barrière à la place du vaisseau.
-constexpr int kMaxMissiles = 16;
-constexpr float kArmorCost = 0.33f;     // énergie que coûte une barrière encaissée
-constexpr float kArmorFlash = 0.5f;     // secondes d'affichage de la bulle d'armure
-// Décharge : gagnée en enchaînant des accords, elle part seule sur le vaisseau
-// de devant. Sa cible la pare en étant elle-même en plein accord.
-constexpr int kComboSize = 12;          // accords d'affilée pour une décharge
-constexpr float kStunDuration = 0.6f;   // secondes sans contrôle après une décharge
-constexpr float kAbsorbGain = 0.25f;    // énergie rendue par une décharge parée
-constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand sa décharge touche
-constexpr float kLeaderGain = 0.20f;    // énergie rendue quand il n'y a personne devant à viser
+constexpr int kMaxMissiles = 24;
+
+// Bonus ramassés sur la piste. Un vaisseau en porte un à la fois et le
+// déclenche d'un appui.
+enum class Item : uint8_t {
+    None = 0,
+    Shot,   // tir à tête chercheuse sur le vaisseau de devant
+    Mine,   // posée derrière soi, elle attend le suivant
+    Pulse,  // onde de choc sur les vaisseaux tout proches
+    Turbo,  // pointe de vitesse
+    Shield, // encaisse le prochain choc, barrière comprise
+    Count
+};
+constexpr float kStunDuration = 0.9f;  // secondes sans contrôle après un choc
+constexpr float kHitLoss = 0.40f;      // part de vitesse perdue sur un choc
+constexpr float kTurboTime = 2.6f;     // secondes
+constexpr float kTurboSpeed = 1.22f;   // vitesse en turbo, rapportée à la croisière
+constexpr float kShieldTime = 9.0f;    // secondes, ou jusqu'au premier choc
+constexpr float kMineLife = 30.0f;     // secondes
+constexpr float kPulseRange = 75.0f;   // portée de l'onde le long de la piste, en mètres
+constexpr float kPulseWidth = 16.0f;   // et en travers
 
 // Éléments de piste, voir sim::Feature.
 constexpr float kBarrierLoss = 0.55f;    // part de vitesse perdue contre une barrière
 constexpr float kBarrierStun = 0.6f;     // secondes sans contrôle
-constexpr float kBarrierEnergy = 0.15f;
 
 // Course calée sur la musique.
-// Le point de synchronisation avance à la vitesse d'un vaisseau bien piloté,
-// qui prend ses plaques et place ses accords : c'est kSyncEdge fois la
-// vitesse de croisière. Rouler sans rien faire, c'est prendre du retard.
-constexpr float kSyncEdge = 1.15f;
+// Le point de synchronisation avance à kSyncEdge fois la vitesse de
+// croisière : celle d'un vaisseau qui pilote proprement.
+constexpr float kSyncEdge = 0.93f;
 constexpr float kWindow = 2.0f;          // secondes d'écart au point de synchronisation qui servent d'échelle
 constexpr float kLeadDrag = 0.10f;       // part de vitesse perdue à kWindow d'avance
 constexpr float kDraft = 0.16f;          // part de vitesse gagnée à kWindow de retard
-constexpr float kBeatTolerance = 0.075f; // secondes autour d'un temps où les pilotes automatiques frappent
-// Rythme du joueur. Ce n'est pas l'alignement sur le morceau qui est jugé,
-// mais la régularité des frappes : une frappe est juste quand elle arrive une
-// période après la précédente. La cadence doit seulement rester cohérente
-// avec le tempo du morceau : un temps, un demi-temps ou deux temps.
-constexpr float kTapTolerance = 0.22f;   // écart admis sur la période, en part de celle-ci
-constexpr float kTempoTolerance = 0.16f; // écart admis entre la cadence et le tempo du morceau
-constexpr float kMinTapPeriod = 0.22f;   // secondes : plus vite, c'est du martelage
-constexpr float kMaxTapPeriod = 1.10f;   // secondes : plus lent, ce n'est plus une cadence
-constexpr float kAccordCooldown = 0.12f; // secondes pendant lesquelles un second appui est ignoré : anti-rebond
-constexpr float kAccordEnergy = 0.03f;   // énergie rendue par seconde de cadence tenue
-constexpr float kPadEnergy = 0.12f;      // énergie rendue par une plaque
-
-// Verdict de la dernière frappe du boost.
-enum TapVerdict : uint8_t {
-    kTapNone = 0,
-    kTapStart,   // pose la cadence, rien à juger encore
-    kTapGood,    // régulière : accord
-    kTapEarly,   // trop tôt par rapport à sa propre cadence
-    kTapLate,    // trop tard
-    kTapOffTempo // régulière, mais sans rapport avec le tempo du morceau
-};
 
 struct Input {
     float steer = 0.0f; // -1 à gauche, +1 à droite
-    bool boost = false;
+    bool use = false;   // déclenche le bonus porté, à l'appui
 };
 
 // État d'un vaisseau en coordonnées de piste. Structure plate : un état
-// complet se copie d'un bloc, ce dont la prédiction réseau aura besoin.
+// complet se copie d'un bloc, ce dont la prédiction réseau a besoin.
 struct Vehicle {
-    float dist = 0.0f;       // distance parcourue depuis le départ, tours compris
+    float dist = 0.0f;       // distance parcourue depuis le départ
     float lateral = 0.0f;    // décalage par rapport à l'axe, positif à droite
     float lateralVel = 0.0f;
     float speed = 0.0f;
-    float energy = 1.0f;
     float roll = 0.0f;       // inclinaison visuelle
     int ship = 0;            // modèle, voir shipStats
-    bool boosting = false;
+    bool boosting = false;   // en turbo
     bool scraping = false;   // frotte contre un muret
     bool finished = false;
     float finishTime = 0.0f; // temps de course au passage de la ligne
-    float shieldTime = 0.0f; // secondes d'affichage restantes de la bulle d'armure
+    float shieldTime = 0.0f; // secondes de bouclier restantes
+    float turboTime = 0.0f;  // secondes de turbo restantes
     float stunTime = 0.0f;   // secondes restantes sans contrôle après un choc
-    bool boostHeld = false;  // état précédent de la commande, pour détecter l'appui
-    int combo = 0;           // accords réussis d'affilée
-    float accord = 0.0f;         // secondes restantes du boost donné par la dernière frappe juste
-    float accordCooldown = 0.0f; // anti-rebond
-    float sinceTap = 10.0f;      // secondes depuis la dernière frappe
-    float tapPeriod = 0.0f;      // cadence du joueur, en secondes ; 0 tant qu'il n'en a pas posé
-    uint8_t tapCount = 0;        // change à chaque frappe, pour que l'affichage la remarque
-    uint8_t tapVerdict = 0;      // voir TapVerdict
+    Item item = Item::None;  // bonus porté
+    bool useHeld = false;    // état précédent de la commande, pour détecter l'appui
+    bool boxHit = false;     // vient de passer sur une boîte à bonus, à servir au prochain pas
 };
 
-// Décharge à tête chercheuse, elle aussi en coordonnées de piste.
+// Tir à tête chercheuse ou mine, eux aussi en coordonnées de piste.
 struct Missile {
     bool active = false;
+    bool mine = false; // immobile, elle attend qu'on lui roule dessus
     int owner = 0;
     float dist = 0.0f;
     float lateral = 0.0f;

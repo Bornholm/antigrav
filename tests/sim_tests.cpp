@@ -116,7 +116,7 @@ void testTrackEnds() {
     // Chaque plaque d'énergie tombe sur un temps du morceau.
     const music::Partition& song = sim::song(0);
     for (const sim::Feature& f : track.features) {
-        if (f.type != sim::FeatureType::EnergyPad) continue;
+        if (f.type != sim::FeatureType::ItemBox) continue;
         float time = track.at(f.dist + 0.5f * f.length).time;
         float best = 1e9f;
         for (const music::Beat& b : song.beats) best = std::min(best, std::abs(b.time - time));
@@ -159,7 +159,7 @@ void testDeterminism() {
         const sim::Vehicle& va = a.vehicles[i];
         const sim::Vehicle& vb = b.vehicles[i];
         CHECK(va.dist == vb.dist && va.lateral == vb.lateral && va.speed == vb.speed);
-        CHECK(va.lateralVel == vb.lateralVel && va.energy == vb.energy && va.roll == vb.roll);
+        CHECK(va.lateralVel == vb.lateralVel && va.item == vb.item && va.roll == vb.roll);
         CHECK(va.boosting == vb.boosting && va.scraping == vb.scraping);
     }
 }
@@ -181,7 +181,6 @@ void testAutopilotRuns() {
             for (int i = 0; i < world.count; i++) {
                 const sim::Vehicle& v = world.vehicles[i];
                 CHECK(std::abs(v.lateral) <= limit + 1e-3f);
-                CHECK(v.energy >= 0.0f && v.energy <= 1.0f);
                 CHECK(std::isfinite(v.dist) && std::isfinite(v.speed));
                 if (v.scraping) scrapeSteps++;
             }
@@ -193,7 +192,7 @@ void testAutopilotRuns() {
     }
 }
 
-void testWallAndBoost() {
+void testWall() {
     sim::Track track = flatTrack();
     track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
     sim::World world;
@@ -208,18 +207,6 @@ void testWallAndBoost() {
     for (int s = 0; s < 120; s++) sim::step(world, track, &hardRight);
     CHECK(world.vehicles[0].scraping);
     CHECK(world.vehicles[0].speed < sim::kCruiseSpeed);
-
-    // Le boost accélère, vide la jauge, puis s'arrête de lui-même.
-    world.vehicles[0] = sim::Vehicle{};
-    world.vehicles[0].dist = 200.0f;
-    world.vehicles[0].speed = sim::kCruiseSpeed;
-    sim::Input boost;
-    boost.boost = true;
-    for (int s = 0; s < 90; s++) sim::step(world, track, &boost);
-    CHECK(world.vehicles[0].speed > sim::kCruiseSpeed + 20.0f);
-    CHECK(world.vehicles[0].energy < 0.9f);
-    for (int s = 0; s < 60 * 8; s++) sim::step(world, track, &boost);
-    CHECK(world.vehicles[0].energy < 0.05f);
 }
 
 void testCountdownAndFinish() {
@@ -276,71 +263,102 @@ void testSynth() {
     CHECK(energy / buffer.size() > 1e-4);
 }
 
-// Décharge : une série d'accords complète la fait partir seule sur le vaisseau
-// de devant, qui la pare s'il est lui-même en plein accord.
-void testDischarge() {
+// Bonus : chacun des cinq fait ce qu'il doit, et un bouclier encaisse un choc.
+void testItems() {
     sim::Track track = flatTrack();
     track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
+
+    // Deux vaisseaux, le second `gap` mètres devant. Le premier déclenche son
+    // bonus au premier pas, puis la course tourne `steps` pas.
     struct Result {
-        bool stunned;
-        float minSpeed, shooterEnergy, targetEnergy;
-        int missiles;
-    };
-    auto setup = [&](bool parry) {
         sim::World world;
+        bool stunned = false;
+        float minSpeed = 1e9f, maxSpeed = 0.0f;
+    };
+    auto play = [&](sim::Item item, float gap, int steps, bool targetShielded = false) {
+        Result r;
+        sim::World& world = r.world;
         world.ownClock = true;
         world.count = 2;
         for (int i = 0; i < 2; i++) {
-            world.vehicles[i].dist = 300.0f + 80.0f * static_cast<float>(i);
+            world.vehicles[i].dist = 300.0f + gap * static_cast<float>(i);
             world.vehicles[i].speed = sim::kCruiseSpeed;
-            world.vehicles[i].energy = 0.5f;
         }
-        world.vehicles[0].combo = sim::kComboSize;
-        sim::Input inputs[2];
-        if (parry) {
-            // La cible tient un accord pendant toute l'approche.
-            world.vehicles[1].accord = 10.0f;
-            world.vehicles[1].boostHeld = true;
-            inputs[1].boost = true;
-        }
-        Result r{false, sim::kCruiseSpeed, 0.0f, 0.0f, 0};
-        for (int s = 0; s < 120; s++) {
+        world.vehicles[0].item = item;
+        if (targetShielded) world.vehicles[1].shieldTime = 5.0f;
+        for (int s = 0; s < steps; s++) {
+            sim::Input inputs[2];
+            inputs[0].use = true; // gardé enfoncé : un seul déclenchement
             sim::step(world, track, inputs);
-            if (s == 0)
-                for (const sim::Missile& m : world.missiles) r.missiles += m.active;
-            r.minSpeed = std::min(r.minSpeed, world.vehicles[1].speed);
             r.stunned = r.stunned || world.vehicles[1].stunTime > 0.0f;
+            r.minSpeed = std::min(r.minSpeed, world.vehicles[1].speed);
+            r.maxSpeed = std::max(r.maxSpeed, world.vehicles[0].speed);
         }
-        CHECK(world.vehicles[0].combo == 0);
-        r.shooterEnergy = world.vehicles[0].energy;
-        r.targetEnergy = world.vehicles[1].energy;
         return r;
     };
+    auto activeMissiles = [](const sim::World& world) {
+        int count = 0;
+        for (const sim::Missile& m : world.missiles) count += m.active;
+        return count;
+    };
 
-    Result hit = setup(false);
-    CHECK(hit.missiles == 1);
-    CHECK(hit.stunned);
-    CHECK(hit.minSpeed < sim::kCruiseSpeed * 0.8f);
-    CHECK(hit.shooterEnergy > 0.5f + sim::kHitGain * 0.8f);
-
-    Result parried = setup(true);
-    CHECK(parried.missiles == 1);
-    CHECK(!parried.stunned);
-    CHECK(parried.minSpeed > sim::kCruiseSpeed * 0.95f);
-    CHECK(parried.shooterEnergy < 0.6f);
-
-    // En tête, personne à viser : la série rend de l'énergie.
-    sim::World world;
-    world.ownClock = true;
-    world.count = 1;
-    world.vehicles[0].speed = sim::kCruiseSpeed;
-    world.vehicles[0].energy = 0.5f;
-    world.vehicles[0].combo = sim::kComboSize;
-    sim::Input in;
-    sim::step(world, track, &in);
-    CHECK(world.vehicles[0].energy > 0.5f + sim::kLeaderGain * 0.9f);
-    CHECK(world.vehicles[0].combo == 0);
-    for (const sim::Missile& m : world.missiles) CHECK(!m.active);
+    // Tir : il rattrape le vaisseau de devant, l'étourdit et le ralentit.
+    {
+        Result r = play(sim::Item::Shot, 80.0f, 120);
+        CHECK(r.stunned);
+        CHECK(r.minSpeed < sim::kCruiseSpeed * 0.8f);
+        CHECK(r.world.vehicles[0].item == sim::Item::None);
+        CHECK(activeMissiles(r.world) == 0);
+        // Sur un bouclier, le tir s'éteint et le bouclier avec.
+        r = play(sim::Item::Shot, 80.0f, 120, true);
+        CHECK(!r.stunned && r.minSpeed > sim::kCruiseSpeed * 0.95f);
+        CHECK(r.world.vehicles[1].shieldTime == 0.0f);
+    }
+    // Mine : posée derrière soi, elle ne gêne pas celui de devant.
+    {
+        Result r = play(sim::Item::Mine, 80.0f, 60);
+        CHECK(!r.stunned);
+        CHECK(activeMissiles(r.world) == 1);
+        // Mais celui qui suit roule dessus. Son poseur ne craint rien.
+        sim::World world;
+        world.ownClock = true;
+        world.count = 2;
+        world.vehicles[0].dist = 400.0f;
+        world.vehicles[1].dist = 300.0f;
+        world.vehicles[0].speed = world.vehicles[1].speed = sim::kCruiseSpeed;
+        world.vehicles[0].item = sim::Item::Mine;
+        bool follower = false, owner = false;
+        for (int s = 0; s < 60; s++) {
+            sim::Input inputs[2];
+            inputs[0].use = s == 0;
+            sim::step(world, track, inputs);
+            follower = follower || world.vehicles[1].stunTime > 0.0f;
+            owner = owner || world.vehicles[0].stunTime > 0.0f;
+        }
+        CHECK(follower && !owner);
+        CHECK(activeMissiles(world) == 0);
+    }
+    // Onde : touche les voisins proches, pas les lointains.
+    CHECK(play(sim::Item::Pulse, 40.0f, 10).stunned);
+    CHECK(!play(sim::Item::Pulse, sim::kPulseRange + 60.0f, 10).stunned);
+    // Turbo : une pointe de vitesse, qui retombe.
+    {
+        Result r = play(sim::Item::Turbo, 500.0f, 60);
+        CHECK(r.maxSpeed > sim::kCruiseSpeed * 1.12f);
+        CHECK(r.world.vehicles[0].boosting);
+        r = play(sim::Item::Turbo, 500.0f, 60 * 6);
+        CHECK(!r.world.vehicles[0].boosting);
+        CHECK(std::abs(r.world.vehicles[0].speed - sim::kCruiseSpeed) < 8.0f);
+    }
+    // Bouclier : levé pour un temps.
+    {
+        Result r = play(sim::Item::Shield, 500.0f, 30);
+        CHECK(r.world.vehicles[0].shieldTime > sim::kShieldTime - 1.0f);
+        r = play(sim::Item::Shield, 500.0f, static_cast<int>(60 * (sim::kShieldTime + 1.0f)));
+        CHECK(r.world.vehicles[0].shieldTime == 0.0f);
+    }
+    // Sans bonus, le bouton ne fait rien.
+    CHECK(activeMissiles(play(sim::Item::None, 80.0f, 30).world) == 0);
 }
 
 // Avance un vaisseau seul, en ligne droite, jusqu'à la distance donnée.
@@ -360,21 +378,21 @@ void testFeatures() {
     start.dist = 100.0f;
     start.speed = sim::kCruiseSpeed;
 
-    // Plaque d'énergie : recharge la jauge sans changer la vitesse.
-    track.features = {{sim::FeatureType::EnergyPad, 200.0f, 36.0f, 0.0f, 3.6f}};
-    start.energy = 0.5f;
-    sim::Vehicle v = driveTo(track, start, 240.0f);
-    CHECK(v.energy > 0.5f + sim::kPadEnergy * 0.9f);
+    // Boîte à bonus : passer dessus les mains vides donne un bonus.
+    track.features = {{sim::FeatureType::ItemBox, 200.0f, 36.0f, 0.0f, 3.6f}};
+    sim::Vehicle v = driveTo(track, start, 260.0f);
+    CHECK(v.item != sim::Item::None);
     CHECK(std::abs(v.speed - sim::kCruiseSpeed) < 3.0f);
-    // À côté de la plaque, rien.
+    // À côté de la boîte, rien.
     sim::Vehicle aside = start;
     aside.lateral = 8.0f;
-    CHECK(driveTo(track, aside, 240.0f).energy < 0.51f);
-    // Jauge trop basse pour l'armure : les chocs qui suivent sont de vrais chocs.
-    start.energy = 0.2f;
-    aside.energy = 0.2f;
-    sim::Vehicle armored = start;
-    armored.energy = 1.0f;
+    CHECK(driveTo(track, aside, 260.0f).item == sim::Item::None);
+    // On ne porte qu'un bonus : la boîte ne remplace pas celui qu'on tient.
+    sim::Vehicle holding = start;
+    holding.item = sim::Item::Mine;
+    CHECK(driveTo(track, holding, 260.0f).item == sim::Item::Mine);
+    sim::Vehicle shielded = start;
+    shielded.shieldTime = 5.0f;
 
     // Barrière : choc et perte de contrôle. Le pas de simulation est plus long
     // que la barrière, elle ne doit pas être traversée pour autant.
@@ -390,12 +408,11 @@ void testFeatures() {
     CHECK(driveTo(track, grazing, 210.0f).stunTime == 0.0f);
     grazing.lateral = 4.0f + sim::kHitRadius - 0.3f;
     CHECK(driveTo(track, grazing, 210.0f).stunTime > 0.0f);
-    // Armure : une jauge assez pleine encaisse le choc et y laisse un tiers.
-    v = driveTo(track, armored, 210.0f);
+    // Le bouclier encaisse la barrière et s'éteint.
+    v = driveTo(track, shielded, 210.0f);
     CHECK(v.stunTime == 0.0f);
-    CHECK(v.shieldTime > 0.0f);
+    CHECK(v.shieldTime == 0.0f);
     CHECK(v.speed > sim::kCruiseSpeed * 0.95f);
-    CHECK(std::abs(v.energy - (1.0f - sim::kArmorCost)) < 0.02f);
 
     // Une barrière arrête un missile.
     {
@@ -409,7 +426,7 @@ void testFeatures() {
         world.vehicles[0].lateral = world.vehicles[1].lateral = 8.0f;
         track.features = {{sim::FeatureType::Barrier, 200.0f, 3.0f, 0.0f, 4.0f}};
         // Le tireur passe à côté de la barrière, le missile vise à travers.
-        world.missiles[0] = {true, 0, 150.0f, 0.0f, 500.0f, 3.0f};
+        world.missiles[0] = {true, false, 0, 150.0f, 0.0f, 500.0f, 3.0f};
         world.vehicles[1].lateral = 0.0f;
         world.vehicles[1].dist = 215.0f;
         sim::Input inputs[2];
@@ -444,7 +461,7 @@ void testFeatures() {
         // Une barrière ne suit jamais une plaque : après une plaque, son
         // couloir reste libre une seconde et demie.
         for (const sim::Feature& pad : t.features) {
-            if (pad.type != sim::FeatureType::EnergyPad) continue;
+            if (pad.type != sim::FeatureType::ItemBox) continue;
             for (const sim::Feature& f : t.features) {
                 if (f.type != sim::FeatureType::Barrier) continue;
                 const float after = f.dist - (pad.dist + pad.length);
@@ -476,132 +493,9 @@ void testFeatures() {
 }
 
 // Règles de la course calée sur la musique.
-void testRhythm() {
+void testPace() {
     sim::Track track = flatTrack();
     track.features.clear();
-    const float beat = track.beats[20], next = track.beats[21];
-
-    // C'est la régularité du joueur qui est jugée, pas son alignement sur le
-    // morceau. Joue des frappes aux instants donnés, en secondes depuis le
-    // début de l'essai, et renvoie le vaisseau et ses verdicts.
-    struct Played {
-        sim::Vehicle v;
-        std::vector<int> verdicts;
-        int discharges = 0;
-    };
-    const float period = next - beat;
-    auto play = [&](const std::vector<float>& taps, float seconds) {
-        sim::World world;
-        world.ownClock = true;
-        world.count = 1;
-        sim::Vehicle& v = world.vehicles[0];
-        v.dist = track.distAt(beat);
-        v.speed = sim::kCruiseSpeed;
-        v.energy = 0.3f;
-        Played out;
-        size_t at = 0;
-        int hold = 0;
-        for (int s = 0; static_cast<float>(s) * sim::kFixedDt < seconds; s++) {
-            const float t = static_cast<float>(s) * sim::kFixedDt;
-            if (at < taps.size() && t >= taps[at]) {
-                hold = 2;
-                at++;
-            }
-            sim::Input in;
-            in.boost = hold-- > 0;
-            const uint8_t before = v.tapCount;
-            const int comboBefore = v.combo;
-            sim::step(world, track, &in);
-            if (v.tapCount != before) out.verdicts.push_back(v.tapVerdict);
-            if (comboBefore >= sim::kComboSize && v.combo < sim::kComboSize) out.discharges++;
-        }
-        out.v = v;
-        return out;
-    };
-    auto steady = [&](float interval, float offset, int count) {
-        std::vector<float> taps;
-        for (int i = 0; i < count; i++) taps.push_back(offset + interval * static_cast<float>(i));
-        return taps;
-    };
-    auto count = [](const Played& p, int verdict) { return static_cast<int>(std::count(p.verdicts.begin(), p.verdicts.end(), verdict)); };
-
-    // Frappes régulières au tempo du morceau, mais décalées d'un tiers de
-    // temps : toutes justes après les deux qui posent la cadence.
-    {
-        const Played p = play(steady(period, 0.3f + period / 3.0f, 18), 10.0f);
-        CHECK(p.verdicts.size() == 18);
-        CHECK(p.verdicts[0] == sim::kTapStart && p.verdicts[1] == sim::kTapStart);
-        CHECK(count(p, sim::kTapGood) == 16);
-        // La série complète s'est déchargée : seul en piste, elle rend de l'énergie.
-        CHECK(p.discharges == 1);
-        CHECK(p.v.energy > 0.3f + sim::kLeaderGain * 0.9f);
-        // En boost presque tout du long, sans garder le bouton enfoncé.
-        CHECK(p.v.speed > sim::kCruiseSpeed + 30.0f);
-    }
-    // Deux fois plus vite, ou deux fois plus lentement : toujours cohérent
-    // avec le morceau.
-    CHECK(count(play(steady(period * 0.5f, 0.2f, 20), 6.0f), sim::kTapGood) == 18);
-    CHECK(count(play(steady(period * 2.0f, 0.2f, 8), 9.0f), sim::kTapGood) == 6);
-    // Une petite irrégularité humaine passe.
-    {
-        std::vector<float> taps = steady(period, 0.4f, 12);
-        for (size_t i = 0; i < taps.size(); i++) taps[i] += (i % 2 ? 0.03f : -0.03f);
-        CHECK(count(play(taps, 7.0f), sim::kTapGood) >= 9);
-    }
-    // Régulier, mais à une cadence sans rapport avec le morceau : pas d'accord.
-    {
-        const Played p = play(steady(period * 1.3f, 0.3f, 10), 8.0f);
-        CHECK(count(p, sim::kTapGood) == 0);
-        CHECK(count(p, sim::kTapOffTempo) >= 6);
-        CHECK(p.v.combo == 0);
-    }
-    // Une frappe trop tôt ou trop tard casse la série, et le verdict dit de quel côté.
-    {
-        std::vector<float> taps = steady(period, 0.3f, 6);
-        taps.push_back(taps.back() + period * 0.6f);
-        Played p = play(taps, 5.0f);
-        CHECK(p.verdicts.back() == sim::kTapEarly && p.v.combo == 0);
-        taps.back() = taps[5] + period * 1.45f;
-        p = play(taps, 5.0f);
-        CHECK(p.verdicts.back() == sim::kTapLate && p.v.combo == 0);
-    }
-    // Sauter une frappe ne casse rien.
-    {
-        std::vector<float> taps = steady(period, 0.3f, 6);
-        taps.push_back(taps.back() + 2.0f * period);
-        const Played p = play(taps, taps.back() + 0.2f);
-        CHECK(p.verdicts.back() == sim::kTapGood && p.v.combo == 5);
-    }
-    // Marteler le bouton au hasard ne construit pas de série.
-    {
-        std::vector<float> taps;
-        uint32_t state = 7u;
-        for (float t = 0.2f; t < 8.0f;) {
-            state = state * 1664525u + 1013904223u;
-            t += 0.15f + 0.5f * static_cast<float>(state >> 8) / 16777216.0f;
-            taps.push_back(t);
-        }
-        const Played p = play(taps, 8.5f);
-        CHECK(p.discharges == 0);
-        CHECK(count(p, sim::kTapGood) < static_cast<int>(taps.size()) / 3);
-    }
-    // Arrêter de frapper fait oublier la cadence : il faut la reposer.
-    {
-        std::vector<float> taps = steady(period, 0.3f, 5);
-        taps.push_back(taps.back() + 4.0f);
-        const Played p = play(taps, 8.0f);
-        CHECK(p.verdicts.back() == sim::kTapStart);
-    }
-
-    // La grille de frappe des pilotes automatiques ajoute les demi-temps sur
-    // un tempo lent.
-    {
-        const sim::Track slow = sim::generateTrack(sim::metronome(82.0f, 60.0f), 15.0f, 5u);
-        const sim::Track fast = sim::generateTrack(sim::metronome(128.0f, 60.0f), 15.0f, 5u);
-        CHECK(slow.pulses.size() > slow.beats.size() * 2 - 3);
-        CHECK(fast.pulses.size() == fast.beats.size());
-        CHECK(slow.tempoKnown && std::abs(slow.beatPeriod(20.0f) - 60.0f / 82.0f) < 0.01f);
-    }
 
     // Horloge commune : l'élastique freine qui devance la musique et aspire
     // qui traîne. Horloge par joueur : pas d'élastique.
@@ -622,19 +516,6 @@ void testRhythm() {
     const float level = cruiseWithGap(0.0f, false);
     CHECK(level > cruiseWithGap(2.0f, false) + 5.0f && level < cruiseWithGap(-2.0f, false) - 5.0f);
     CHECK(std::abs(cruiseWithGap(2.0f, true) - cruiseWithGap(-2.0f, true)) < 6.0f);
-
-    // Une plaque rend de l'énergie, une fois.
-    track.features = {{sim::FeatureType::EnergyPad, 1000.0f, 36.0f, 0.0f, 3.6f}};
-    sim::World world;
-    world.ownClock = true;
-    world.count = 1;
-    world.vehicles[0].dist = 900.0f;
-    world.vehicles[0].speed = sim::kCruiseSpeed;
-    world.vehicles[0].energy = 0.5f;
-    sim::Input none;
-    for (int s = 0; s < 40; s++) sim::step(world, track, &none);
-    float gained = world.vehicles[0].energy - 0.5f;
-    CHECK(gained > sim::kPadEnergy * 0.9f && gained < sim::kPadEnergy + 0.03f);
 }
 
 void testRanking() {
@@ -656,13 +537,13 @@ int main() {
     testTrackEnds();
     testDeterminism();
     testAutopilotRuns();
-    testWallAndBoost();
+    testWall();
     testFeatures();
-    testRhythm();
+    testPace();
     testRanking();
     testCountdownAndFinish();
     testSynth();
-    testDischarge();
+    testItems();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");
     return failures == 0 ? 0 : 1;
 }

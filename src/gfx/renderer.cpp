@@ -57,10 +57,6 @@ const uint32_t kHudFrag[] =
 #include "hud_frag.inc"
     ;
 
-// Flottants 11 et 10 bits sans alpha : moitié moins de mémoire qu'un RGBA16F,
-// ce qui compte sur un GPU limité par sa bande passante.
-const VkFormat kHdrFormat = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
-const VkFormat kDepthFormat = VK_FORMAT_D32_SFLOAT;
 const VkSampleCountFlagBits kSamples = VK_SAMPLE_COUNT_4_BIT;
 
 // Miroir de shaders/common.glsl, disposition std140.
@@ -146,20 +142,18 @@ void pushScene(VkCommandBuffer cmd, VkPipelineLayout layout, const ScenePush& pu
     vkCmdPushConstants(cmd, layout, kPushStages, 0, sizeof(push), &push);
 }
 
-void beginColorPass(VkCommandBuffer cmd, VkImageView view, VkExtent2D extent,
-                    VkAttachmentLoadOp loadOp) {
-    VkRenderingAttachmentInfo color{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-    color.imageView = view;
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = loadOp;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    VkRenderingInfo info{VK_STRUCTURE_TYPE_RENDERING_INFO};
+void beginPass(VkCommandBuffer cmd, VkRenderPass pass, VkFramebuffer framebuffer,
+               VkExtent2D extent) {
+    // Une valeur par attachement possible : couleur, profondeur, résolution.
+    // Profondeur inversée, donc vidée à zéro.
+    VkClearValue clears[3]{};
+    VkRenderPassBeginInfo info{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+    info.renderPass = pass;
+    info.framebuffer = framebuffer;
     info.renderArea = {{0, 0}, extent};
-    info.layerCount = 1;
-    info.colorAttachmentCount = 1;
-    info.pColorAttachments = &color;
-    vkCmdBeginRendering(cmd, &info);
+    info.clearValueCount = 3;
+    info.pClearValues = clears;
+    vkCmdBeginRenderPass(cmd, &info, VK_SUBPASS_CONTENTS_INLINE);
     setViewport(cmd, extent);
 }
 
@@ -186,6 +180,45 @@ void Renderer::init(Gpu& gpuRef, VkFormat output) {
     sci.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     VK_CHECK(vkCreateSampler(dev, &sci, nullptr, &sampler));
+
+    // Flottants 11 et 10 bits sans alpha : moitié moins de mémoire qu'un
+    // RGBA16F, ce qui compte sur un GPU limité par sa bande passante. Les
+    // seconds choix couvrent les pilotes Vulkan 1.1 les moins complets.
+    hdrFormat = gpu->pickFormat(
+        {VK_FORMAT_B10G11R11_UFLOAT_PACK32, VK_FORMAT_R16G16B16A16_SFLOAT},
+        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT |
+            VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT);
+    depthFormat = gpu->pickFormat(
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_X8_D24_UNORM_PACK32, VK_FORMAT_D16_UNORM},
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+    PassDesc pass;
+    pass.color = hdrFormat;
+    pass.depth = depthFormat;
+    pass.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    pass.name = "reflection";
+    reflectionPass = createRenderPass(*gpu, pass);
+    pass.samples = kSamples;
+    pass.name = "scene";
+    scenePass = createRenderPass(*gpu, pass);
+
+    pass = PassDesc{};
+    pass.color = hdrFormat;
+    pass.name = "bloom down";
+    bloomDownPass = createRenderPass(*gpu, pass);
+    pass.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    pass.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    pass.name = "bloom up";
+    bloomUpPass = createRenderPass(*gpu, pass);
+
+    // L'appelant donne l'image de sortie prête à être écrite et la reprend
+    // dans le même état, pour la présenter ou la relire.
+    pass = PassDesc{};
+    pass.color = outputFormat;
+    pass.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    pass.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    pass.name = "output";
+    outputPass = createRenderPass(*gpu, pass);
 
     // Jeu 0 de la scène : les données globales de la vue, avec un décalage
     // dynamique pour passer de la vue normale à la vue en miroir.
@@ -310,33 +343,34 @@ void Renderer::init(Gpu& gpuRef, VkFormat output) {
             desc.vertexStride = sizeof(Vertex);
             desc.attributes = attributes;
         }
-        desc.colorFormats = {kHdrFormat};
-        desc.depthFormat = kDepthFormat;
         desc.depthTest = true;
         desc.depthWrite = def.depthWrite;
         desc.blend = def.blend;
         desc.name = def.name;
 
         desc.samples = kSamples;
+        desc.renderPass = scenePass;
         scenePipelines[static_cast<int>(def.material)] = createPipeline(*gpu, desc);
         desc.samples = VK_SAMPLE_COUNT_1_BIT;
+        desc.renderPass = reflectionPass;
         reflectionPipelines[static_cast<int>(def.material)] = createPipeline(*gpu, desc);
     }
 
     PipelineDesc post;
     post.vert = kFullscreenVert;
     post.layout = postLayout;
-    post.colorFormats = {kHdrFormat};
+    post.renderPass = bloomDownPass;
     post.frag = kBloomDownFrag;
     post.name = "bloom down";
     bloomDownPipeline = createPipeline(*gpu, post);
     post.frag = kBloomUpFrag;
     post.blend = Blend::Additive;
+    post.renderPass = bloomUpPass;
     post.name = "bloom up";
     bloomUpPipeline = createPipeline(*gpu, post);
     post.frag = kCompositeFrag;
     post.blend = Blend::Opaque;
-    post.colorFormats = {outputFormat};
+    post.renderPass = outputPass;
     post.name = "composite";
     compositePipeline = createPipeline(*gpu, post);
 
@@ -378,7 +412,7 @@ void Renderer::init(Gpu& gpuRef, VkFormat output) {
         {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(HudVertex, params)},
         {5, 0, VK_FORMAT_R32_SFLOAT, offsetof(HudVertex, mode)},
     };
-    hud.colorFormats = {outputFormat};
+    hud.renderPass = outputPass;
     hud.blend = Blend::Premultiplied;
     hud.name = "hud";
     hudPipeline = createPipeline(*gpu, hud);
@@ -425,6 +459,7 @@ void Renderer::loadTrack(const sim::Track& track, int trackId) {
 void Renderer::shutdown() {
     VkDevice dev = gpu->device;
     destroyTargets();
+    releaseOutputs();
     destroyMesh(*gpu, road);
     destroyMesh(*gpu, rails);
     destroyMesh(*gpu, gates);
@@ -444,6 +479,8 @@ void Renderer::shutdown() {
     vkDestroyPipeline(dev, bloomUpPipeline, nullptr);
     vkDestroyPipeline(dev, compositePipeline, nullptr);
     vkDestroyPipeline(dev, hudPipeline, nullptr);
+    for (VkRenderPass pass : {reflectionPass, scenePass, bloomDownPass, bloomUpPass, outputPass})
+        vkDestroyRenderPass(dev, pass, nullptr);
     if (queryPool) vkDestroyQueryPool(dev, queryPool, nullptr);
     gpu->destroyImage(fontTexture);
     for (int i = 0; i < kFramesInFlight; i++) gpu->destroyBuffer(hudBuffer[i]);
@@ -458,7 +495,31 @@ void Renderer::shutdown() {
     *this = Renderer{};
 }
 
+void Renderer::releaseOutputs() {
+    for (const OutputFramebuffer& o : outputs)
+        vkDestroyFramebuffer(gpu->device, o.framebuffer, nullptr);
+    outputs.clear();
+}
+
+VkFramebuffer Renderer::outputFramebuffer(const FrameTarget& target) {
+    for (const OutputFramebuffer& o : outputs)
+        if (o.view == target.view && o.extent.width == target.extent.width &&
+            o.extent.height == target.extent.height)
+            return o.framebuffer;
+    VkFramebuffer created = createFramebuffer(*gpu, outputPass, {&target.view, 1}, target.extent);
+    outputs.push_back({target.view, target.extent, created});
+    return created;
+}
+
 void Renderer::destroyTargets() {
+    VkDevice dev = gpu->device;
+    vkDestroyFramebuffer(dev, reflectionFramebuffer, nullptr);
+    vkDestroyFramebuffer(dev, sceneFramebuffer, nullptr);
+    for (VkFramebuffer& fb : bloomFramebuffer) {
+        vkDestroyFramebuffer(dev, fb, nullptr);
+        fb = VK_NULL_HANDLE;
+    }
+    reflectionFramebuffer = sceneFramebuffer = VK_NULL_HANDLE;
     gpu->destroyImage(reflectionColor);
     gpu->destroyImage(reflectionDepth);
     gpu->destroyImage(msaaColor);
@@ -478,12 +539,12 @@ void Renderer::createTargets(VkExtent2D extent) {
 
     ImageDesc desc;
     desc.extent = halved(extent, 1);
-    desc.format = kHdrFormat;
+    desc.format = hdrFormat;
     desc.usage = sampled;
     desc.name = "reflection color";
     reflectionColor = gpu->createImage(desc);
 
-    desc.format = kDepthFormat;
+    desc.format = depthFormat;
     desc.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     desc.transient = true;
     desc.name = "reflection depth";
@@ -494,7 +555,7 @@ void Renderer::createTargets(VkExtent2D extent) {
     desc.name = "msaa depth";
     msaaDepth = gpu->createImage(desc);
 
-    desc.format = kHdrFormat;
+    desc.format = hdrFormat;
     desc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     desc.name = "msaa color";
     msaaColor = gpu->createImage(desc);
@@ -510,6 +571,15 @@ void Renderer::createTargets(VkExtent2D extent) {
         desc.name = "bloom";
         bloom[i] = gpu->createImage(desc);
     }
+
+    const VkImageView reflectionViews[] = {reflectionColor.view, reflectionDepth.view};
+    reflectionFramebuffer =
+        createFramebuffer(*gpu, reflectionPass, reflectionViews, reflectionColor.extent);
+    const VkImageView sceneViews[] = {msaaColor.view, msaaDepth.view, sceneColor.view};
+    sceneFramebuffer = createFramebuffer(*gpu, scenePass, sceneViews, extent);
+    for (int i = 0; i < kBloomLevels; i++)
+        bloomFramebuffer[i] =
+            createFramebuffer(*gpu, bloomDownPass, {&bloom[i].view, 1}, bloom[i].extent);
 
     // Les jeux de descripteurs pointent sur les images, donc ils suivent.
     VkDevice dev = gpu->device;
@@ -663,34 +733,26 @@ void Renderer::drawBloom(VkCommandBuffer cmd) {
     for (int i = 0; i < kBloomLevels; i++) {
         VkExtent2D srcExtent = i == 0 ? sceneExtent : bloom[i - 1].extent;
         VkDescriptorSet src = i == 0 ? sceneSet : bloomSet[i - 1];
-        transition(cmd, bloom[i].image, VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        beginColorPass(cmd, bloom[i].view, bloom[i].extent, VK_ATTACHMENT_LOAD_OP_DONT_CARE);
+        beginPass(cmd, bloomDownPass, bloomFramebuffer[i], bloom[i].extent);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, postLayout, 0, 1, &src, 0,
                                 nullptr);
         pushPost(1.0f / static_cast<float>(srcExtent.width),
                  1.0f / static_cast<float>(srcExtent.height),
                  i == 0 ? settings.bloomThreshold : 0.0f);
         vkCmdDraw(cmd, 3, 1, 0, 0);
-        vkCmdEndRendering(cmd);
-        transition(cmd, bloom[i].image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        vkCmdEndRenderPass(cmd);
     }
 
     // Agrandissements, chacun ajouté au niveau au-dessus.
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bloomUpPipeline);
     for (int i = kBloomLevels - 2; i >= 0; i--) {
-        transition(cmd, bloom[i].image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        beginColorPass(cmd, bloom[i].view, bloom[i].extent, VK_ATTACHMENT_LOAD_OP_LOAD);
+        beginPass(cmd, bloomUpPass, bloomFramebuffer[i], bloom[i].extent);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, postLayout, 0, 1,
                                 &bloomSet[i + 1], 0, nullptr);
         pushPost(1.0f / static_cast<float>(bloom[i + 1].extent.width),
                  1.0f / static_cast<float>(bloom[i + 1].extent.height), 1.0f);
         vkCmdDraw(cmd, 3, 1, 0, 0);
-        vkCmdEndRendering(cmd);
-        transition(cmd, bloom[i].image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        vkCmdEndRenderPass(cmd);
     }
 }
 
@@ -718,8 +780,8 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
     uint32_t firstQuery = static_cast<uint32_t>(params.slot) * kTimestamps;
     auto stamp = [&](uint32_t index) {
         if (queryPool)
-            vkCmdWriteTimestamp2(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, queryPool,
-                                 firstQuery + index);
+            vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool,
+                                firstQuery + index);
     };
     if (queryPool) vkCmdResetQueryPool(cmd, queryPool, firstQuery, kTimestamps);
     stamp(0);
@@ -770,81 +832,19 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
     std::memcpy(static_cast<char*>(ubo.mapped) + globalsStride, &mirror, sizeof(mirror));
     vmaFlushAllocation(gpu->allocator, ubo.alloc, 0, VK_WHOLE_SIZE);
 
-    // Passe 1 : reflet, à demi-résolution.
-    {
-        transition(cmd, reflectionColor.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        transition(cmd, reflectionDepth.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-        VkRenderingAttachmentInfo color{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-        color.imageView = reflectionColor.view;
-        color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        VkRenderingAttachmentInfo depth{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-        depth.imageView = reflectionDepth.view;
-        depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-        depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depth.clearValue.depthStencil = {0.0f, 0};
-
-        VkRenderingInfo info{VK_STRUCTURE_TYPE_RENDERING_INFO};
-        info.renderArea = {{0, 0}, reflectionColor.extent};
-        info.layerCount = 1;
-        info.colorAttachmentCount = 1;
-        info.pColorAttachments = &color;
-        info.pDepthAttachment = &depth;
-        vkCmdBeginRendering(cmd, &info);
-        setViewport(cmd, reflectionColor.extent);
-        if (settings.reflections) drawWorld(cmd, params, true);
-        vkCmdEndRendering(cmd);
-
-        transition(cmd, reflectionColor.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    }
+    // Passe 1 : reflet, à demi-résolution. Chaque passe laisse son image
+    // prête à être lue par la suivante.
+    beginPass(cmd, reflectionPass, reflectionFramebuffer, reflectionColor.extent);
+    if (settings.reflections) drawWorld(cmd, params, true);
+    vkCmdEndRenderPass(cmd);
 
     stamp(1);
 
     // Passe 2 : scène en MSAA. Les images multi-échantillonnées et la
     // profondeur ne sont jamais conservées : seule la résolution est écrite.
-    {
-        transition(cmd, msaaColor.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        transition(cmd, msaaDepth.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
-        transition(cmd, sceneColor.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-        VkRenderingAttachmentInfo color{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-        color.imageView = msaaColor.view;
-        color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        color.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
-        color.resolveImageView = sceneColor.view;
-        color.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        color.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        VkRenderingAttachmentInfo depth{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-        depth.imageView = msaaDepth.view;
-        depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-        depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depth.clearValue.depthStencil = {0.0f, 0};
-
-        VkRenderingInfo info{VK_STRUCTURE_TYPE_RENDERING_INFO};
-        info.renderArea = {{0, 0}, sceneExtent};
-        info.layerCount = 1;
-        info.colorAttachmentCount = 1;
-        info.pColorAttachments = &color;
-        info.pDepthAttachment = &depth;
-        vkCmdBeginRendering(cmd, &info);
-        setViewport(cmd, sceneExtent);
-        drawWorld(cmd, params, false);
-        vkCmdEndRendering(cmd);
-
-        transition(cmd, sceneColor.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    }
+    beginPass(cmd, scenePass, sceneFramebuffer, sceneExtent);
+    drawWorld(cmd, params, false);
+    vkCmdEndRenderPass(cmd);
 
     stamp(2);
 
@@ -854,7 +854,7 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
 
     // Passe 4 : composition dans l'image de sortie.
     {
-        beginColorPass(cmd, target.view, target.extent, VK_ATTACHMENT_LOAD_OP_DONT_CARE);
+        beginPass(cmd, outputPass, outputFramebuffer(target), target.extent);
         PostPush push;
         rotationMatrix(target.rotation, push.rotation);
         push.params[0] = settings.bloom ? settings.bloomStrength : 0.0f;
@@ -883,7 +883,7 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
             vkCmdBindVertexBuffers(cmd, 0, 1, &vb.buffer, &offset);
             vkCmdDraw(cmd, count, 1, 0, 0);
         }
-        vkCmdEndRendering(cmd);
+        vkCmdEndRenderPass(cmd);
     }
     stamp(4);
     queryPending[params.slot] = true;

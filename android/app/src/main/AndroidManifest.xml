@@ -2,9 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     android:installLocation="auto">
 
-    <!-- Le moteur exige Vulkan 1.3 : les autres appareils ne voient pas le jeu sur le Play Store. -->
-    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x403000" android:required="true" />
-    <uses-feature android:name="android.hardware.vulkan.level" android:version="1" android:required="true" />
+    <!-- Le moteur exige Vulkan 1.1 : les autres appareils ne voient pas le jeu sur le Play Store. -->
+    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
+    <uses-feature android:name="android.hardware.vulkan.level" android:version="0" android:required="true" />
 
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />

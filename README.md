@@ -1,10 +1,10 @@
 # Antigrav
 
-Jeu de course antigravité néon pour Android et Linux, sur un moteur maison en C++20 et Vulkan 1.3. Le plan de développement est dans [PLAN.md](PLAN.md).
+Jeu de course antigravité néon pour Android et Linux, sur un moteur maison en C++20 et Vulkan 1.1. Le plan de développement est dans [PLAN.md](PLAN.md).
 
 ## Compiler sur Linux
 
-Il faut clang, CMake, Ninja, SDL3, glslc et un pilote Vulkan 1.3. Les autres dépendances sont téléchargées à la configuration.
+Il faut clang, CMake, Ninja, SDL3, glslc et un pilote Vulkan 1.1 ou plus récent. Les autres dépendances sont téléchargées à la configuration.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++

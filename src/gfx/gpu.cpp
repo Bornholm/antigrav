@@ -70,7 +70,7 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
     VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app.pApplicationName = "antigrav";
     app.pEngineName = "antigrav";
-    app.apiVersion = VK_API_VERSION_1_3;
+    app.apiVersion = VK_API_VERSION_1_1;
 
     VkInstanceCreateInfo ici{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     ici.pApplicationInfo = &app;
@@ -98,7 +98,7 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
 
     if (window) createSurface(window);
 
-    // Premier périphérique en Vulkan 1.3 avec une file graphique capable de
+    // Premier périphérique en Vulkan 1.1 avec une file graphique capable de
     // présenter sur la surface.
     uint32_t physCount = 0;
     vkEnumeratePhysicalDevices(instance, &physCount, nullptr);
@@ -109,7 +109,7 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
     for (VkPhysicalDevice candidate : physicals) {
         VkPhysicalDeviceProperties props;
         vkGetPhysicalDeviceProperties(candidate, &props);
-        if (props.apiVersion < VK_API_VERSION_1_3) {
+        if (props.apiVersion < VK_API_VERSION_1_1) {
             tooOld = props;
             continue;
         }
@@ -133,10 +133,10 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
         if (physical) break;
     }
     if (!physical && tooOld.apiVersion)
-        fatal("Ce jeu demande Vulkan 1.3. Le GPU de cet appareil, %s, s'arrête à Vulkan %u.%u.",
+        fatal("Ce jeu demande Vulkan 1.1. Le GPU de cet appareil, %s, s'arrête à Vulkan %u.%u.",
               tooOld.deviceName, VK_API_VERSION_MAJOR(tooOld.apiVersion),
               VK_API_VERSION_MINOR(tooOld.apiVersion));
-    if (!physical) fatal("Aucun GPU compatible Vulkan 1.3 trouvé");
+    if (!physical) fatal("Aucun GPU compatible Vulkan 1.1 trouvé");
     logInfo("GPU: %s, Vulkan %u.%u.%u", properties.deviceName,
             VK_API_VERSION_MAJOR(properties.apiVersion),
             VK_API_VERSION_MINOR(properties.apiVersion),
@@ -148,15 +148,10 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
     qci.queueCount = 1;
     qci.pQueuePriorities = &priority;
 
-    VkPhysicalDeviceVulkan13Features f13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
-    f13.dynamicRendering = VK_TRUE;
-    f13.synchronization2 = VK_TRUE;
-
     std::vector<const char*> deviceExts;
     if (surface) deviceExts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
     VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
-    dci.pNext = &f13;
     dci.queueCreateInfoCount = 1;
     dci.pQueueCreateInfos = &qci;
     dci.enabledExtensionCount = static_cast<uint32_t>(deviceExts.size());
@@ -170,7 +165,7 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
     aci.physicalDevice = physical;
     aci.device = device;
     aci.instance = instance;
-    aci.vulkanApiVersion = VK_API_VERSION_1_3;
+    aci.vulkanApiVersion = VK_API_VERSION_1_1;
     VK_CHECK(vmaImportVulkanFunctionsFromVolk(&aci, &vmaFuncs));
     aci.pVulkanFunctions = &vmaFuncs;
     VK_CHECK(vmaCreateAllocator(&aci, &allocator));
@@ -294,12 +289,10 @@ Image Gpu::createTexture(VkExtent2D extent, VkFormat format, const void* pixels,
                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     VK_CHECK(vkEndCommandBuffer(cmd));
-    VkCommandBufferSubmitInfo cmdInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO};
-    cmdInfo.commandBuffer = cmd;
-    VkSubmitInfo2 submit{VK_STRUCTURE_TYPE_SUBMIT_INFO_2};
-    submit.commandBufferInfoCount = 1;
-    submit.pCommandBufferInfos = &cmdInfo;
-    VK_CHECK(vkQueueSubmit2(queue, 1, &submit, VK_NULL_HANDLE));
+    VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cmd;
+    VK_CHECK(vkQueueSubmit(queue, 1, &submit, VK_NULL_HANDLE));
     VK_CHECK(vkQueueWaitIdle(queue));
 
     vkDestroyCommandPool(device, pool, nullptr);
@@ -357,31 +350,30 @@ void Gpu::setName(VkObjectType type, uint64_t handle, const char* name) {
 namespace {
 
 struct LayoutInfo {
-    VkPipelineStageFlags2 stage;
-    VkAccessFlags2 access;
+    VkPipelineStageFlags stage;
+    VkAccessFlags access;
 };
 
 LayoutInfo layoutInfo(VkImageLayout layout) {
     switch (layout) {
     case VK_IMAGE_LAYOUT_UNDEFINED:
-        return {VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0};
+        return {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0};
     case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-        return {VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT};
-    case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL:
+        return {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT};
     case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-        return {VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
-                    VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-                    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT};
+        return {VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT};
     case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-        return {VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT};
+        return {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT};
     case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-        return {VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT};
+        return {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT};
     case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-        return {VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT};
+        return {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT};
     case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
-        return {VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, 0};
+        return {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0};
     default:
         fatal("Disposition d'image non gérée: %d", static_cast<int>(layout));
     }
@@ -394,10 +386,8 @@ void transition(VkCommandBuffer cmd, VkImage image, VkImageLayout from, VkImageL
     LayoutInfo src = layoutInfo(from);
     LayoutInfo dst = layoutInfo(to);
 
-    VkImageMemoryBarrier2 barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
-    barrier.srcStageMask = src.stage;
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
     barrier.srcAccessMask = src.access;
-    barrier.dstStageMask = dst.stage;
     barrier.dstAccessMask = dst.access;
     barrier.oldLayout = from;
     barrier.newLayout = to;
@@ -405,11 +395,18 @@ void transition(VkCommandBuffer cmd, VkImage image, VkImageLayout from, VkImageL
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.image = image;
     barrier.subresourceRange = {aspect, 0, 1, 0, 1};
+    vkCmdPipelineBarrier(cmd, src.stage, dst.stage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+}
 
-    VkDependencyInfo dep{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-    dep.imageMemoryBarrierCount = 1;
-    dep.pImageMemoryBarriers = &barrier;
-    vkCmdPipelineBarrier2(cmd, &dep);
+// Premier format de la liste que le GPU accepte pour l'usage demandé.
+VkFormat Gpu::pickFormat(std::initializer_list<VkFormat> candidates,
+                         VkFormatFeatureFlags features) const {
+    for (VkFormat format : candidates) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(physical, format, &props);
+        if ((props.optimalTilingFeatures & features) == features) return format;
+    }
+    fatal("Ce GPU ne propose aucun des formats d'image dont le jeu a besoin");
 }
 
 } // namespace gfx

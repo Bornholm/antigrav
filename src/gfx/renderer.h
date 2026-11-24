@@ -9,6 +9,8 @@
 
 #include <glm/glm.hpp>
 
+#include <vector>
+
 namespace gfx {
 
 constexpr int kFramesInFlight = 2;
@@ -114,6 +116,28 @@ struct Renderer {
     VkDescriptorPool targetPool = VK_NULL_HANDLE;
 
     // Deux variantes par matériau : scène en MSAA, reflet sans MSAA.
+    // Formats retenus pour ce GPU, voir init.
+    VkFormat hdrFormat = VK_FORMAT_UNDEFINED;
+    VkFormat depthFormat = VK_FORMAT_UNDEFINED;
+
+    // Passes de rendu, et un framebuffer par cible. bloomUp relit le niveau
+    // qu'il complète, bloomDown l'écrase : même framebuffer, deux passes.
+    VkRenderPass reflectionPass = VK_NULL_HANDLE;
+    VkRenderPass scenePass = VK_NULL_HANDLE;
+    VkRenderPass bloomDownPass = VK_NULL_HANDLE;
+    VkRenderPass bloomUpPass = VK_NULL_HANDLE;
+    VkRenderPass outputPass = VK_NULL_HANDLE;
+    VkFramebuffer reflectionFramebuffer = VK_NULL_HANDLE;
+    VkFramebuffer sceneFramebuffer = VK_NULL_HANDLE;
+    VkFramebuffer bloomFramebuffer[kBloomLevels]{};
+    // Framebuffers des images de sortie, créés à la première utilisation.
+    struct OutputFramebuffer {
+        VkImageView view;
+        VkExtent2D extent;
+        VkFramebuffer framebuffer;
+    };
+    std::vector<OutputFramebuffer> outputs;
+
     VkPipeline scenePipelines[static_cast<int>(Material::Count)]{};
     VkPipeline reflectionPipelines[static_cast<int>(Material::Count)]{};
     VkPipeline bloomDownPipeline = VK_NULL_HANDLE;
@@ -158,6 +182,9 @@ struct Renderer {
     // de générer les maillages, donc à appeler entre deux courses.
     void loadTrack(const sim::Track& track, int trackId);
     void shutdown();
+    // À appeler avant de détruire les images de sortie, la swapchain par
+    // exemple : leurs framebuffers ne doivent pas leur survivre.
+    void releaseOutputs();
 
     // La cible doit être en disposition COLOR_ATTACHMENT_OPTIMAL.
     void draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameParams& params);
@@ -165,6 +192,7 @@ struct Renderer {
   private:
     void createTargets(VkExtent2D extent);
     void destroyTargets();
+    VkFramebuffer outputFramebuffer(const FrameTarget& target);
     void drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool reflection);
     void collectStats(int slot);
     void drawBloom(VkCommandBuffer cmd);

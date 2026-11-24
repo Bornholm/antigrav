@@ -175,27 +175,21 @@ VkCommandBuffer beginFrame(gfx::Gpu& gpu, FrameData& frame) {
 void submitFrame(gfx::Gpu& gpu, FrameData& frame, VkSemaphore wait, VkSemaphore signal) {
     VK_CHECK(vkEndCommandBuffer(frame.cmd));
 
-    VkCommandBufferSubmitInfo cmdInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO};
-    cmdInfo.commandBuffer = frame.cmd;
-    VkSemaphoreSubmitInfo waitInfo{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO};
-    waitInfo.semaphore = wait;
-    waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSemaphoreSubmitInfo signalInfo{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO};
-    signalInfo.semaphore = signal;
-
-    VkSubmitInfo2 submit{VK_STRUCTURE_TYPE_SUBMIT_INFO_2};
-    submit.commandBufferInfoCount = 1;
-    submit.pCommandBufferInfos = &cmdInfo;
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &frame.cmd;
     if (wait) {
-        submit.waitSemaphoreInfoCount = 1;
-        submit.pWaitSemaphoreInfos = &waitInfo;
+        submit.waitSemaphoreCount = 1;
+        submit.pWaitSemaphores = &wait;
+        submit.pWaitDstStageMask = &waitStage;
     }
     if (signal) {
-        submit.signalSemaphoreInfoCount = 1;
-        submit.pSignalSemaphoreInfos = &signalInfo;
+        submit.signalSemaphoreCount = 1;
+        submit.pSignalSemaphores = &signal;
     }
     VK_CHECK(vkResetFences(gpu.device, 1, &frame.fence));
-    VK_CHECK(vkQueueSubmit2(gpu.queue, 1, &submit, frame.fence));
+    VK_CHECK(vkQueueSubmit(gpu.queue, 1, &submit, frame.fence));
 }
 
 // Rendu dans une image hors écran, sans fenêtre. Le temps avance d'un pas fixe,
@@ -410,6 +404,7 @@ int runWindowed(const Options& opt) {
                 // swapchain doivent disparaître avant.
                 if (!background) {
                     VK_CHECK(vkDeviceWaitIdle(gpu.device));
+                    renderer.releaseOutputs();
                     swapchain.destroy(gpu);
                     gpu.destroySurface();
                     haveSwapchain = false;
@@ -437,6 +432,7 @@ int runWindowed(const Options& opt) {
 
         if (needResize || !haveSwapchain) {
             VK_CHECK(vkDeviceWaitIdle(gpu.device));
+            renderer.releaseOutputs();
             pixelSize(w, h);
             haveSwapchain = swapchain.create(gpu, w, h, opt.vsync);
             needResize = false;

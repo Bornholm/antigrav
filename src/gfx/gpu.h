@@ -1,5 +1,6 @@
 #pragma once
 
+#include <initializer_list>
 #include <volk.h>
 #include <vk_mem_alloc.h>
 
@@ -67,6 +68,8 @@ struct Gpu {
     void destroySurface();
 
     Image createImage(const ImageDesc& desc);
+    VkFormat pickFormat(std::initializer_list<VkFormat> candidates,
+                        VkFormatFeatureFlags features) const;
     void destroyImage(Image& image);
 
     // Texture à partir de pixels en mémoire, prête à être lue par un shader.

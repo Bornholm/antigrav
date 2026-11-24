@@ -89,7 +89,7 @@ foreach(src ${SHADER_SOURCES})
   set(out ${SHADER_OUT_DIR}/${sym}.inc)
   add_custom_command(
     OUTPUT ${out}
-    COMMAND ${GLSLC} --target-env=vulkan1.3 -O -mfmt=c
+    COMMAND ${GLSLC} --target-env=vulkan1.1 -O -mfmt=c
             -I ${CMAKE_SOURCE_DIR}/shaders -MD -MF ${out}.d -o ${out} ${src}
     DEPENDS ${src}
     DEPFILE ${out}.d

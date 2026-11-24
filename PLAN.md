@@ -21,7 +21,7 @@ Mis à jour le 24 novembre 2026.
 
 | Phase | État | Détail |
 |---|---|---|
-| 0, socle | Fait, Android non exécuté | Build CMake pour Linux, APK Android de 7 Mo construit par Gradle. Vulkan 1.3, fenêtre et mode sans fenêtre, validation propre sur Linux. |
+| 0, socle | Fait, Android non exécuté | Build CMake pour Linux, APK Android de 7 Mo construit par Gradle. Vulkan 1.1, fenêtre et mode sans fenêtre, validation propre sur Linux. |
 | 1, rendu | Fait sur Linux | Les quatre passes, HUD, trois thèmes visuels. À valider sur le Pixel. |
 | 2, course solo | Fait sur Linux | Simulation à pas fixe, clavier, souris, manette, tours, départ, arrivée, son synthétisé. |
 | 3, multijoueur | Fait, essayé en boucle locale | Découverte, salon, hôte autoritaire, prédiction et recalage côté client. Jamais essayé entre deux appareils sur un vrai Wi-Fi. |
@@ -106,7 +106,7 @@ Elles viennent de moi, pas de vous. Corrigez celles qui sont fausses, elles chan
 
 Aucun téléphone bas de gamme n'est visé pour la v1. Les deux GPU sont des puces intégrées limitées par le remplissage de pixels, donc les mêmes optimisations servent aux deux.
 
-Le moteur exige Vulkan 1.3. Il utilise le rendu dynamique et la synchronisation 2, ce qui raccourcit le code d'initialisation. Les téléphones restés à Vulkan 1.1 sont exclus.
+Le moteur se contente de Vulkan 1.1, pour tourner aussi sur les téléphones dont le pilote n'a jamais dépassé cette version, un Redmi Note 10 Pro par exemple. Il n'utilise donc ni le rendu dynamique ni la synchronisation 2 : passes de rendu et framebuffers classiques, sur un seul chemin de code quel que soit le GPU. Le coût à l'exécution est nul, l'image rendue est identique au pixel près. Si le GPU n'offre pas le format HDR 11-11-10 ou la profondeur 32 bits, le moteur se rabat sur RGBA16F et sur une profondeur 24 ou 16 bits.
 
 ## Stack
 

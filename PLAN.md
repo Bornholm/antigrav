@@ -21,13 +21,55 @@ Mis à jour le 24 novembre 2026.
 
 | Phase | État | Détail |
 |---|---|---|
-| 0, socle | Linux fait, Android à faire | Build CMake, Vulkan 1.3, fenêtre et mode sans fenêtre, validation propre. Le projet Android n'est pas encore construit. |
-| 1, rendu | Fait sur Linux | Les quatre passes, piste, ville, vaisseaux, HUD. À valider sur le Pixel. |
-| 2, course solo | Fait sur Linux | Simulation à pas fixe, clavier, souris, manette, IA, tours, départ, arrivée, son synthétisé. La manette et le tactile réel n'ont pas été essayés. |
-| 3, multijoueur | Pas commencé | |
-| 4, contenu | Commencé | Missile à tête chercheuse et bouclier, payés par la jauge d'énergie. Un seul circuit, un seul modèle de vaisseau, pas de menus. |
+| 0, socle | Fait, Android non exécuté | Build CMake pour Linux, APK Android de 7 Mo construit par Gradle. Vulkan 1.3, fenêtre et mode sans fenêtre, validation propre sur Linux. |
+| 1, rendu | Fait sur Linux | Les quatre passes, HUD, trois thèmes visuels. À valider sur le Pixel. |
+| 2, course solo | Fait sur Linux | Simulation à pas fixe, clavier, souris, manette, tours, départ, arrivée, son synthétisé. |
+| 3, multijoueur | Fait, essayé en boucle locale | Découverte, salon, hôte autoritaire, prédiction et recalage côté client. Jamais essayé entre deux appareils sur un vrai Wi-Fi. |
+| 4, contenu | Fait pour l'essentiel | Trois circuits, quatre vaisseaux, quatre personnalités d'IA, missile, bouclier, menus solo et multijoueur. |
+| 5, finition | Pas commencé | |
 
-Écart avec le plan initial : il n'y a pas de boîtes d'objets à ramasser. Le mockup montre une seule jauge et deux boutons fixes, donc boost, missile et bouclier puisent tous dans l'énergie. La distribution pondérée par la position n'a plus d'objet tant que ce choix tient.
+Jamais exécuté à ce jour : tout ce qui est propre à Android, soit la rotation de l'écran appliquée par le jeu, la mise en arrière-plan, le tactile réel et le verrou multicast. La manette n'a pas été essayée non plus.
+
+## Contenu
+
+| Circuit | Topologie | Thème |
+|---|---|---|
+| Néon City | Grandes courbes rapides, 10,7 km, piste de 30 m | Ville de nuit, cyan et magenta |
+| Canyon Solaire | Sinueux et vallonné, piste de 26 m | Défilé de pitons au crépuscule, ambre et rouge |
+| Station Orbitale | Huit dont une branche enjambe l'autre, piste de 34 m | Vide spatial, anneaux à traverser, vert et bleu |
+
+| Vaisseau | Caractère |
+|---|---|
+| Flèche | Équilibrée |
+| Manta | Maniable, dérive peu, plus fragile |
+| Aiguille | Meilleure pointe de vitesse, dérive fort, repart lentement |
+| Jumeau | Repart vite, encaisse les impacts, moins rapide en pointe |
+
+| Personnalité d'IA | Comportement |
+|---|---|
+| Agressif | Tire dès qu'il a une cible, se rabat sur ses voisins |
+| Défensif | Garde de l'énergie pour son bouclier, ferme la porte à celui qui le suit |
+| Pilote | Ne tire jamais, soigne sa trajectoire, dépense tout en boost |
+| Imprévisible | Change de couloir, tire et accélère par à-coups |
+
+## Équilibrage
+
+Boost, missile et bouclier puisent dans la même jauge d'énergie. Trois règles évitent qu'une stratégie écrase les autres :
+
+- Glisser en virage coûte de la vitesse, donc l'adhérence compense la pointe de vitesse.
+- Un missile qui touche rend 20 % d'énergie au tireur, donc attaquer n'est pas une perte sèche.
+- Un bouclier coûte 35 % et en rend 25 quand il absorbe un missile, donc se défendre au bon moment rapporte, mais se protéger à vide coûte cher.
+
+`build/balance` joue 864 courses entre pilotes automatiques et échoue si un vaisseau ou une personnalité gagne plus de 40 % ou moins de 10 % des courses. Dernière mesure, sur les trois circuits :
+
+| À personnalité égale | Victoires | À vaisseau égal | Victoires |
+|---|---|---|---|
+| Flèche | 26 % | Agressif | 18 % |
+| Manta | 22 % | Défensif | 15 % |
+| Aiguille | 26 % | Pilote | 37 % |
+| Jumeau | 25 % | Imprévisible | 31 % |
+
+Limite de cette mesure : elle oppose des IA entre elles. Elle ne dit rien d'une stratégie qu'un joueur humain inventerait et qu'aucune personnalité ne joue. « Pilote » reste la personnalité la plus efficace, dans la limite fixée.
 
 Mesures sur la machine de développement, GPU Intel Arrow Lake, par image :
 
@@ -38,8 +80,6 @@ Mesures sur la machine de développement, GPU Intel Arrow Lake, par image :
 | 2184 par 1008, échelle 0,7 | 2,4 ms | 0,24 | 1,43 | 0,26 | 0,48 |
 
 Ces chiffres viennent du mode sans fenêtre, où le GPU tourne à pleine fréquence. En fenêtre à 60 Hz, le même rendu prend environ 5 ms parce que le GPU baisse sa fréquence. Aucune mesure n'existe encore sur le Pixel.
-
-Jamais exécuté à ce jour : tout le chemin Android, soit la rotation de l'écran appliquée par le jeu, la mise en arrière-plan et le tactile réel.
 
 ## Hypothèses
 

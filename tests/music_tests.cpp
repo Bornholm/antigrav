@@ -121,6 +121,27 @@ void testSections() {
     CHECK(p.energyAt(48.0f) > 0.8f, "énergie %.2f dans la partie forte", p.energyAt(48.0f));
     CHECK(p.energyAt(16.0f) < 0.3f, "énergie %.2f dans la partie douce", p.energyAt(16.0f));
     CHECK(std::fabs(p.tempo - bpm) < 1.2f, "tempo %.2f malgré le changement de volume", p.tempo);
+
+    // Spectre réduit : huit bandes entre 0 et 1, plus hautes en moyenne dans
+    // la partie forte, et la nappe à 3 kHz ne ressort que là.
+    float loud[music::Partition::kSpectrumBands], sumLoud = 0.0f, sumQuiet = 0.0f, toneLoud = 0.0f, toneQuiet = 0.0f;
+    for (float t = 34.0f; t < 62.0f; t += 0.5f) {
+        p.spectrumAt(t, loud);
+        for (float v : loud) sumLoud += v;
+        toneLoud += loud[5];
+        p.spectrumAt(t - 30.0f, loud);
+        for (float v : loud) {
+            sumQuiet += v;
+            CHECK(v >= 0.0f && v <= 1.0f, "niveau de bande %.2f hors de 0 à 1", v);
+        }
+        toneQuiet += loud[5];
+    }
+    CHECK(sumLoud > sumQuiet * 1.5f, "spectre %.1f dans la partie forte, %.1f dans la douce", sumLoud, sumQuiet);
+    CHECK(toneLoud > toneQuiet * 2.0f, "bande de la nappe : %.1f contre %.1f", toneLoud, toneQuiet);
+    p.spectrumAt(-1.0f, loud);
+    CHECK(loud[0] == 0.0f, "spectre non nul avant le début");
+    p.spectrumAt(1e6f, loud);
+    CHECK(loud[0] == 0.0f, "spectre non nul après la fin");
 }
 
 void testDegenerate() {

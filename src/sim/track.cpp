@@ -242,7 +242,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         // L'énergie ne bouge qu'au dixième de seconde : inutile de la relire plus.
         if (i % 10 == 0) {
             fastPace = paceAt(time);
-            slowEnergy = smoothEnergy(p, time, 3.5f);
+            slowEnergy = smoothEnergy(p, time, 2.5f);
         }
         pace += (fastPace - pace) * 0.02f;
         dense.push_back({pos, time, pace, dist});
@@ -253,9 +253,10 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         const float s = std::sin(kPi * std::clamp((u - 0.2f) / 0.6f, 0.0f, 1.0f));
         const float moved = pace * dt;
         heading += ph.amplitude * s * s * moved;
-        // La piste plonge quand le morceau monte en intensité.
-        const float target = -140.0f * (slowEnergy - meanEnergy);
-        const float wanted = std::clamp((target - height) / 600.0f, -0.09f, 0.09f);
+        // La piste monte dans les passages intenses et redescend dans les
+        // passages calmes.
+        const float target = 320.0f * (slowEnergy - meanEnergy);
+        const float wanted = std::clamp((target - height) / 400.0f, -0.15f, 0.15f);
         slope += (wanted - slope) * std::min(1.0f, moved / 150.0f);
         const glm::vec3 dir = glm::normalize(glm::vec3(std::sin(heading), slope, -std::cos(heading)));
         pos += dir * moved;

@@ -408,7 +408,48 @@ std::vector<int> findBoundaries(const Frames& f, const std::vector<int>& barFram
     return bounds;
 }
 
+// Spectre réduit à huit bandes. Chaque bande est ramenée entre son niveau de
+// fond et ses pointes, pour que toutes bougent autant.
+std::vector<float> reducedSpectrum(const Frames& f, float duration) {
+    const int bands = Partition::kSpectrumBands, per = kBands / bands;
+    const int rows = std::max(1, int(duration * Partition::kSpectrumRate) + 1);
+    std::vector<float> out(size_t(rows) * size_t(bands), 0.0f);
+    if (f.count < 1) return out;
+    for (int r = 0; r < rows; ++r) {
+        const int a = std::clamp(int((float(r) / Partition::kSpectrumRate - f.offset) * f.rate), 0, f.count - 1);
+        const int b = std::clamp(int((float(r + 1) / Partition::kSpectrumRate - f.offset) * f.rate), a + 1, f.count);
+        for (int k = 0; k < bands; ++k) {
+            float best = 0.0f;
+            for (int t = a; t < b; ++t) {
+                float sum = 0.0f;
+                for (int j = 0; j < per; ++j) sum += f.bands[size_t(t) * kBands + size_t(k * per + j)];
+                best = std::max(best, sum / float(per));
+            }
+            out[size_t(r) * size_t(bands) + size_t(k)] = best;
+        }
+    }
+    for (int k = 0; k < bands; ++k) {
+        std::vector<float> column(static_cast<size_t>(rows));
+        for (int r = 0; r < rows; ++r) column[size_t(r)] = out[size_t(r) * size_t(bands) + size_t(k)];
+        const float low = percentile(column, 0.30f), high = percentile(column, 0.98f);
+        for (int r = 0; r < rows; ++r) {
+            float& v = out[size_t(r) * size_t(bands) + size_t(k)];
+            v = high - low > 1e-4f ? std::clamp((v - low) / (high - low), 0.0f, 1.0f) : 0.0f;
+        }
+    }
+    return out;
+}
+
 } // namespace
+
+void Partition::spectrumAt(float time, float* out) const {
+    const size_t rows = spectrum.size() / size_t(kSpectrumBands);
+    for (int k = 0; k < kSpectrumBands; ++k) out[k] = 0.0f;
+    if (rows == 0 || time < 0.0f) return;
+    const size_t r = size_t(time * kSpectrumRate);
+    if (r >= rows) return;
+    for (int k = 0; k < kSpectrumBands; ++k) out[k] = spectrum[r * size_t(kSpectrumBands) + size_t(k)];
+}
 
 float Partition::energyAt(float time) const {
     if (energy.empty()) return 0.0f;
@@ -432,6 +473,7 @@ Partition analyze(const float* mono, size_t count, int sampleRate, AnalysisTrace
         for (int g = 0; g < kBandCount; ++g) trace->flux[g] = f.flux[g];
     }
     p.energy = energyCurve(f, p.duration);
+    p.spectrum = reducedSpectrum(f, p.duration);
     if (f.count < 8) {
         p.sections.push_back({0.0f, p.duration, 0.0f, 0.0f, 0.0f});
         return p;

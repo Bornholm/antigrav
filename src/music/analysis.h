@@ -41,8 +41,16 @@ struct Partition {
     std::vector<Onset> onsets;
     std::vector<Section> sections;
     std::vector<float> energy; // 0 à 1, kEnergyRate points par seconde
+    // Niveau de huit bandes de fréquences, du grave à l'aigu, de 0 à 1 :
+    // kSpectrumRate lignes de kSpectrumBands valeurs par seconde. Sert à faire
+    // danser le décor.
+    static constexpr int kSpectrumBands = 8;
+    static constexpr float kSpectrumRate = 25.0f;
+    std::vector<float> spectrum;
 
     float energyAt(float time) const;
+    // Remplit `out` avec les kSpectrumBands niveaux à cet instant.
+    void spectrumAt(float time, float* out) const;
 };
 
 // Données intermédiaires, pour les images de contrôle.

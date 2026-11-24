@@ -101,6 +101,16 @@ void Race::update(float dt, const Controls& input) {
 
 void Race::updatePresentation(float dt) {
     const sim::Vehicle& player = world.vehicles[localIndex];
+
+    // Niveaux de la musique pour le décor : montée vive, descente plus lente,
+    // comme les barres d'un égaliseur.
+    float target[music::Partition::kSpectrumBands];
+    const bool playing = world.countdown <= 0.0f && world.raceTime < track.duration;
+    sim::song(config.track).spectrumAt(playing ? sim::songTime(world, track, player) : -1.0f, target);
+    for (int k = 0; k < music::Partition::kSpectrumBands; k++) {
+        const float rate = target[k] > bands[k] ? 30.0f : 5.0f;
+        bands[k] += (target[k] - bands[k]) * (1.0f - std::exp(-dt * rate));
+    }
     if (synth) synth->setEngine(player.speed, player.boosting, player.scraping);
 
     // Caméra : suit le joueur avec un léger retard, s'élargit avec la vitesse.
@@ -187,6 +197,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     const sim::Vehicle& player = world.vehicles[localIndex];
     out.speed = player.speed;
     out.trackDist = playerDist;
+    for (int k = 0; k < 8; k++) out.bands[k] = bands[k];
     // Battement : 1 sur chaque temps du morceau, plus fort sur le premier de
     // la mesure, puis retombe.
     {

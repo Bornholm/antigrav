@@ -52,6 +52,7 @@ struct FrameParams {
     // Distance du joueur le long de la piste : seuls les tronçons proches
     // sont dessinés.
     float trackDist = 0.0f;
+    float bands[8] = {}; // niveaux de la musique par bande de fréquences, de 0 à 1
     float pulse = 0.0f; // battement de la musique, 1 sur le temps puis retombe
     glm::vec3 camPos{0.0f};
     glm::vec3 camTarget{0.0f, 0.0f, -1.0f};

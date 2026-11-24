@@ -400,6 +400,7 @@ MeshData buildScenery(const sim::Track& track, const Theme& theme) {
     const int wanted = static_cast<int>(perKm * track.length / 1000.0f);
     int placed = 0;
     for (int attempt = 0; attempt < wanted * 40 && placed < wanted; attempt++) {
+        const size_t firstVertex = mesh.vertices.size();
         float x = rng.range(lo.x - margin, hi.x + margin);
         float z = rng.range(lo.z - margin, hi.z + margin);
         float trackY = 0.0f;
@@ -439,6 +440,11 @@ MeshData buildScenery(const sim::Track& track, const Theme& theme) {
             glm::vec3 tint = pick < 0.45f ? kCyan : (pick < 0.85f ? kMagenta : kThird);
             tower(x, z, width, depth, top, tint, seed, rng.next() < 0.22f);
         }
+        // Égaliseur : chaque objet suit une des huit bandes de la musique. Le
+        // shader lit dans height la bande et la hauteur au-dessus de la base.
+        const float band = static_cast<float>(placed % 8);
+        for (size_t v = firstVertex; v < mesh.vertices.size(); v++)
+            mesh.vertices[v].height = std::clamp(mesh.vertices[v].pos.y - baseY, 0.0f, 4000.0f) + 4096.0f * band;
         placed++;
     }
     return mesh;

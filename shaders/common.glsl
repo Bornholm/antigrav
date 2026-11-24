@@ -13,6 +13,8 @@ layout(set = 0, binding = 0) uniform Globals {
     vec4 skyZenith;
     vec4 skyMid;
     vec4 skyHaze;    // a style de ciel : 0 anneau, 1 soleil, 2 planète
+    vec4 bandsLow;   // niveaux de la musique par bande, du grave à l'aigu, de 0 à 1
+    vec4 bandsHigh;
 } g;
 
 layout(push_constant) uniform Push {

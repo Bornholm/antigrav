@@ -60,6 +60,7 @@ const uint32_t kHudFrag[] =
     ;
 
 const VkSampleCountFlagBits kSamples = VK_SAMPLE_COUNT_4_BIT;
+constexpr float kEqualizerStretch = 0.55f;
 
 // Miroir de shaders/common.glsl, disposition std140.
 struct Globals {
@@ -75,6 +76,8 @@ struct Globals {
     glm::vec4 skyZenith;
     glm::vec4 skyMid;
     glm::vec4 skyHaze;
+    glm::vec4 bandsLow;
+    glm::vec4 bandsHigh;
 };
 
 struct ScenePush {
@@ -687,6 +690,9 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     bindMesh(cmd, city);
     ScenePush cityPush;
     if (reflection) cityPush.model = mirrorMatrix(params.planePoint, params.planeNormal);
+    // Au-dessus de 1,5, colorB.w est l'amplitude de l'égaliseur : la part de
+    // hauteur qu'un bâtiment gagne quand sa bande est au maximum, plus 1,5.
+    cityPush.colorB.w = 1.5f + kEqualizerStretch;
     pushScene(cmd, sceneLayout, cityPush);
     drawNear(city, 2500.0f, 8000.0f);
 
@@ -841,6 +847,8 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
     scene.skyZenith = glm::vec4(theme.skyZenith, 0.0f);
     scene.skyMid = glm::vec4(theme.skyMid, 0.0f);
     scene.skyHaze = glm::vec4(theme.skyHaze, static_cast<float>(theme.sky));
+    scene.bandsLow = glm::vec4(params.bands[0], params.bands[1], params.bands[2], params.bands[3]);
+    scene.bandsHigh = glm::vec4(params.bands[4], params.bands[5], params.bands[6], params.bands[7]);
     scene.screen = glm::vec4(1.0f / static_cast<float>(sceneExtent.width),
                              1.0f / static_cast<float>(sceneExtent.height), params.speed, params.pulse);
 

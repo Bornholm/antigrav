@@ -119,6 +119,101 @@ MeshData buildRails(const sim::Track& track, const Theme& theme) {
     return mesh;
 }
 
+// Les éléments de piste gardent les mêmes couleurs sur tous les circuits : le
+// joueur doit les reconnaître avant d'avoir le temps de les regarder.
+MeshData buildFeatures(const sim::Track& track) {
+    MeshData mesh;
+    const glm::vec3 kPad{1.0f, 0.80f, 0.15f};
+    const glm::vec3 kDanger{1.0f, 0.07f, 0.10f};
+
+    // Quadrilatère entre quatre points donnés en distance, décalage, hauteur.
+    auto quad = [&](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
+                    const glm::vec3& d, const glm::vec4& color) {
+        uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
+        for (const glm::vec3& p : {a, b, c, d}) {
+            sim::TrackFrame f = track.at(p.x);
+            Vertex v;
+            v.pos = f.pos + f.right * p.y;
+            v.height = p.z;
+            v.normal = f.up;
+            v.kind = 0.0f;
+            v.uv = {0.0f, p.x};
+            v.color = color;
+            mesh.add(v);
+        }
+        mesh.quad(base, base + 1, base + 2, base + 3);
+    };
+    // Bande posée à plat, découpée assez fin pour suivre la piste.
+    auto flat = [&](float d0, float d1, float lat0, float lat1, float h, const glm::vec4& color) {
+        const int pieces = std::max(1, static_cast<int>(std::ceil((d1 - d0) / 6.0f)));
+        for (int i = 0; i < pieces; i++) {
+            float a = glm::mix(d0, d1, static_cast<float>(i) / pieces);
+            float b = glm::mix(d0, d1, static_cast<float>(i + 1) / pieces);
+            quad({a, lat0, h}, {a, lat1, h}, {b, lat1, h}, {b, lat0, h}, color);
+        }
+    };
+
+    for (const sim::Feature& f : track.features) {
+        const float d0 = f.dist, d1 = f.dist + f.length;
+        const float l0 = f.lateral - f.halfWidth, l1 = f.lateral + f.halfWidth;
+
+        if (f.type == sim::FeatureType::BoostPad) {
+            flat(d0, d1, l0, l1, 0.05f, glm::vec4(kPad, 0.10f));
+            flat(d0, d1, l0, l0 + 0.25f, 0.07f, glm::vec4(kPad, 5.0f));
+            flat(d0, d1, l1 - 0.25f, l1, 0.07f, glm::vec4(kPad, 5.0f));
+            // Chevrons pointés vers l'avant.
+            const int chevrons = 5;
+            const float pitch = f.length / chevrons, depth = 3.2f, thick = 2.2f;
+            for (int c = 0; c < chevrons; c++) {
+                float base = d0 + pitch * static_cast<float>(c) + 0.8f;
+                for (float side : {-1.0f, 1.0f}) {
+                    float edge = f.lateral + side * (f.halfWidth - 0.7f);
+                    quad({base, edge, 0.09f}, {base + thick, edge, 0.09f},
+                         {base + depth + thick, f.lateral, 0.09f}, {base + depth, f.lateral, 0.09f},
+                         glm::vec4(kPad, 6.0f));
+                }
+            }
+        } else if (f.type == sim::FeatureType::SlowField) {
+            flat(d0, d1, l0, l1, 0.05f, glm::vec4(kDanger, 0.12f));
+            flat(d0, d1, l0, l0 + 0.3f, 0.07f, glm::vec4(kDanger, 5.0f));
+            flat(d0, d1, l1 - 0.3f, l1, 0.07f, glm::vec4(kDanger, 5.0f));
+            // Hachures en travers, et une herse basse à l'entrée.
+            const int bars = static_cast<int>(f.length / 5.0f);
+            for (int b = 0; b < bars; b++) {
+                float at = d0 + 5.0f * static_cast<float>(b) + 1.0f;
+                quad({at, l0, 0.08f}, {at + 1.1f, l0, 0.08f}, {at + 3.6f, l1, 0.08f},
+                     {at + 2.5f, l1, 0.08f}, glm::vec4(kDanger, 2.6f));
+            }
+            for (float post : {l0, l1}) {
+                quad({d0, post - 0.2f, 0.0f}, {d0, post + 0.2f, 0.0f}, {d0, post + 0.2f, 2.4f},
+                     {d0, post - 0.2f, 2.4f}, glm::vec4(kDanger, 6.0f));
+                quad({d1, post - 0.2f, 0.0f}, {d1, post + 0.2f, 0.0f}, {d1, post + 0.2f, 2.4f},
+                     {d1, post - 0.2f, 2.4f}, glm::vec4(kDanger, 6.0f));
+            }
+        } else {
+            // Barrière : bloc sombre, bandes lumineuses face au pilote.
+            const float top = 3.4f;
+            const glm::vec4 body(kDanger, 0.012f), glow(kDanger, 7.0f);
+            quad({d0, l0, 0.0f}, {d0, l1, 0.0f}, {d0, l1, top}, {d0, l0, top}, body);
+            quad({d1, l0, 0.0f}, {d1, l1, 0.0f}, {d1, l1, top}, {d1, l0, top}, body);
+            quad({d0, l0, top}, {d0, l1, top}, {d1, l1, top}, {d1, l0, top}, body);
+            quad({d0, l0, 0.0f}, {d1, l0, 0.0f}, {d1, l0, top}, {d0, l0, top}, body);
+            quad({d0, l1, 0.0f}, {d1, l1, 0.0f}, {d1, l1, top}, {d0, l1, top}, body);
+            const float face = d0 - 0.06f;
+            for (float h : {0.35f, 1.55f, 2.75f})
+                quad({face, l0 + 0.3f, h}, {face, l1 - 0.3f, h}, {face, l1 - 0.3f, h + 0.5f},
+                     {face, l0 + 0.3f, h + 0.5f}, glow);
+            for (float edge : {l0, l1 - 0.3f})
+                quad({face, edge, 0.0f}, {face, edge + 0.3f, 0.0f}, {face, edge + 0.3f, top},
+                     {face, edge, top}, glow);
+            // Bandeau d'annonce au sol, cent mètres avant.
+            flat(d0 - 100.0f, d0 - 4.0f, l0, l0 + 0.3f, 0.07f, glm::vec4(kDanger, 3.0f));
+            flat(d0 - 100.0f, d0 - 4.0f, l1 - 0.3f, l1, 0.07f, glm::vec4(kDanger, 3.0f));
+        }
+    }
+    return mesh;
+}
+
 // Portiques lumineux au-dessus de la piste : celui de la ligne de départ, puis
 // un tous les 900 m environ. Ils rythment le défilement.
 MeshData buildGates(const sim::Track& track, const Theme& theme) {

@@ -134,7 +134,7 @@ struct Renderer {
     VkDescriptorSet compositeSet = VK_NULL_HANDLE;
 
     // Maillages du circuit chargé, puis ceux qui ne changent jamais.
-    Mesh road, rails, gates, city;
+    Mesh road, rails, gates, features, city;
     Mesh ships[sim::kShipCount], trails[sim::kShipCount];
     Mesh shield, missile;
     Theme theme = themeFor(0);

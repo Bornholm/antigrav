@@ -10,6 +10,8 @@ namespace gfx {
 MeshData buildRoad(const sim::Track& track);
 MeshData buildRails(const sim::Track& track, const Theme& theme);
 MeshData buildGates(const sim::Track& track, const Theme& theme);
+// Plaques de boost, champs de freinage et barrières du circuit.
+MeshData buildFeatures(const sim::Track& track);
 MeshData buildScenery(const sim::Track& track, const Theme& theme);
 
 // variant : modèle de vaisseau, de 0 à sim::kShipCount - 1.

@@ -411,12 +411,14 @@ void Renderer::loadTrack(const sim::Track& track, int trackId) {
     destroyMesh(*gpu, road);
     destroyMesh(*gpu, rails);
     destroyMesh(*gpu, gates);
+    destroyMesh(*gpu, features);
     destroyMesh(*gpu, city);
     theme = themeFor(trackId);
     loadedTrack = trackId;
     road = uploadMesh(*gpu, buildRoad(track), "road");
     rails = uploadMesh(*gpu, buildRails(track, theme), "rails");
     gates = uploadMesh(*gpu, buildGates(track, theme), "gates");
+    features = uploadMesh(*gpu, buildFeatures(track), "features");
     city = uploadMesh(*gpu, buildScenery(track, theme), "scenery");
 }
 
@@ -426,6 +428,7 @@ void Renderer::shutdown() {
     destroyMesh(*gpu, road);
     destroyMesh(*gpu, rails);
     destroyMesh(*gpu, gates);
+    destroyMesh(*gpu, features);
     destroyMesh(*gpu, city);
     for (int i = 0; i < sim::kShipCount; i++) {
         destroyMesh(*gpu, ships[i]);
@@ -567,6 +570,8 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     vkCmdDrawIndexed(cmd, rails.indexCount, 1, 0, 0, 0);
     bindMesh(cmd, gates);
     vkCmdDrawIndexed(cmd, gates.indexCount, 1, 0, 0, 0);
+    bindMesh(cmd, features);
+    vkCmdDrawIndexed(cmd, features.indexCount, 1, 0, 0, 0);
 
     // Missiles : même matériau lumineux que les rails.
     auto missileModel = [&](const MissileDraw& m) {

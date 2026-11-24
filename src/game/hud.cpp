@@ -217,11 +217,11 @@ void drawRhythm(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj
     const float core = 74.0f;
 
     // Série d'accords : la décharge part quand les pastilles sont toutes allumées.
-    const float step = 26.0f, x0 = c.x - step * 0.5f * static_cast<float>(s.comboSize - 1);
+    const float step = 17.0f, x0 = c.x - step * 0.5f * static_cast<float>(s.comboSize - 1);
     for (int i = 0; i < s.comboSize; i++) {
         const vec2 p{x0 + step * static_cast<float>(i), c.y + core + 26.0f};
         const bool lit = i < s.combo;
-        hud.circle(p, 7.5f, lit ? kMagenta : vec4(0.10f, 0.03f, 0.09f, 0.45f), alpha(kMagenta, lit ? 1.0f : 0.45f), 2.0f);
+        hud.circle(p, 5.5f, lit ? kMagenta : vec4(0.10f, 0.03f, 0.09f, 0.45f), alpha(kMagenta, lit ? 1.0f : 0.45f), 1.6f);
     }
 
     const vec2 label = c + vec2(0.0f, -core - 44.0f);

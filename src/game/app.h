@@ -9,6 +9,7 @@
 
 struct SDL_Window;
 
+#include <functional>
 #include <string>
 
 namespace game {
@@ -52,6 +53,11 @@ struct App {
     double now = 0.0;
     double lastDiscover = -10.0;
     uint32_t lastSnapshotTick = 0;
+    // Travail en attente derrière l'écran de chargement. Hors fenêtre, pour
+    // les captures et les essais, tout s'exécute sur-le-champ.
+    std::function<void()> pending;
+    int pendingFrames = 0;
+    bool deferLoads = false;
     bool confirmQuit = false; // demande de confirmation avant d'abandonner une course
     bool inRace = false; // une vraie course est en cours, pas la démonstration
     // Automatismes pour les essais sans interface : l'hôte lance dès que ce
@@ -76,6 +82,10 @@ struct App {
     void go(Screen next);
     void startAttract();
     void selectSong(int index);
+    void selectSongNow(int index);
+    // Lance un travail long derrière un écran de chargement : il s'exécute à
+    // l'image suivante, une fois le message affiché.
+    void later(std::function<void()> work);
     // Client : reçoit et installe le morceau de l'hôte.
     void receiveSong();
     void openSongDialog();

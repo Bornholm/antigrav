@@ -11,6 +11,10 @@
 
 #include <SDL3/SDL.h>
 
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -100,6 +104,52 @@ std::string baseName(const std::string& source) {
     return name;
 }
 
+// Nom de fichier d'un document Android, demandé au système. Vide ailleurs, ou
+// si le système ne le donne pas.
+std::string androidDisplayName(const std::string& uri) {
+#ifdef __ANDROID__
+    if (uri.rfind("content://", 0) != 0) return "";
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
+    if (!env || !activity) return "";
+    std::string out;
+    jclass cls = env->GetObjectClass(activity);
+    jmethodID method = env->GetMethodID(cls, "displayName", "(Ljava/lang/String;)Ljava/lang/String;");
+    if (method) {
+        jstring arg = env->NewStringUTF(uri.c_str());
+        jstring result = static_cast<jstring>(env->CallObjectMethod(activity, method, arg));
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+        } else if (result) {
+            if (const char* chars = env->GetStringUTFChars(result, nullptr)) {
+                out = chars;
+                env->ReleaseStringUTFChars(result, chars);
+            }
+        }
+        if (result) env->DeleteLocalRef(result);
+        env->DeleteLocalRef(arg);
+    } else if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(activity);
+    return out;
+#else
+    (void)uri;
+    return "";
+#endif
+}
+
+// Titre lu dans les étiquettes du fichier, d'après son début. Vide s'il n'en a pas.
+std::string taggedTitle(const std::string& path) {
+    SDL_IOStream* io = SDL_IOFromFile(path.c_str(), "rb");
+    if (!io) return "";
+    std::vector<unsigned char> head(256 * 1024);
+    const size_t got = SDL_ReadIO(io, head.data(), head.size());
+    SDL_CloseIO(io);
+    return music::titleOf(head.data(), got);
+}
+
 std::string displayName(const std::string& file) {
     const size_t dot = file.find_last_of('.');
     std::string name = dot == std::string::npos || dot == 0 ? file : file.substr(0, dot);
@@ -149,7 +199,9 @@ void SongLibrary::scan() {
             SDL_RemovePath((dir + found[i].file).c_str());
             continue;
         }
-        entries.push_back({displayName(found[i].file), dir + found[i].file});
+        // Le titre des étiquettes d'abord, le nom du fichier à défaut.
+        const std::string tagged = taggedTitle(dir + found[i].file);
+        entries.push_back({tagged.empty() ? displayName(found[i].file) : tagged, dir + found[i].file});
     }
 }
 
@@ -190,7 +242,9 @@ int SongLibrary::import(const std::string& source) {
         error = std::string(tr("Morceau refusé : ")) + tr(reason.c_str());
         return -1;
     }
-    const std::string file = baseName(source);
+    // Sur Android l'adresse ne porte pas le nom du fichier : on le demande au système.
+    const std::string named = androidDisplayName(source);
+    const std::string file = baseName(named.empty() ? source : named);
     const bool saved = !dir.empty() && SDL_SaveFile((dir + file).c_str(), data, size);
     SDL_free(data);
     if (!saved) {

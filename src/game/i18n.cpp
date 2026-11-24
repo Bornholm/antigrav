@@ -40,6 +40,7 @@ const Entry kEntries[] = {
     {"CHOISIR UN FICHIER", "CHOOSE A FILE", "ELEGIR UN ARCHIVO"},
     {"Ouvrir un fichier...", "Open a file...", "Abrir un archivo..."},
     {"RETOUR", "BACK", "VOLVER"},
+    {"CHARGEMENT...", "LOADING...", "CARGANDO..."},
     {"Musique", "Music", "Música"},
     {"Tous les fichiers", "All files", "Todos los archivos"},
     // Vaisseaux

@@ -1,6 +1,9 @@
 package dev.antigrav.game;
 
 import android.content.Context;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.OpenableColumns;
 import android.net.wifi.WifiManager;
 
 import org.libsdl.app.SDLActivity;
@@ -29,6 +32,24 @@ public class AntigravActivity extends SDLActivity {
         multicastLock = wifi.createMulticastLock("antigrav");
         multicastLock.setReferenceCounted(false);
         multicastLock.acquire();
+    }
+
+    /**
+     * Appelé depuis le C++ : nom de fichier d'un document choisi dans le
+     * sélecteur du système. Son adresse content:// ne le contient pas.
+     * Renvoie une chaîne vide si le système ne le donne pas.
+     */
+    public String displayName(String uri) {
+        try (Cursor cursor = getContentResolver().query(
+                Uri.parse(uri), new String[] {OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                String name = cursor.getString(0);
+                return name != null ? name : "";
+            }
+        } catch (Exception e) {
+            // Fournisseur de documents capricieux : on fera sans le nom.
+        }
+        return "";
     }
 
     @Override

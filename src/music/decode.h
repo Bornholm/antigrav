@@ -20,4 +20,8 @@ struct Audio {
 bool decodeFile(const std::string& path, Audio& out, std::string& error);
 bool decodeMemory(const unsigned char* data, size_t size, Audio& out, std::string& error);
 
+// Titre lu dans les étiquettes du fichier, sous la forme « Artiste - Titre »,
+// en UTF-8. Vide si le fichier n'en porte pas. Le début du fichier suffit.
+std::string titleOf(const unsigned char* data, size_t size);
+
 } // namespace music

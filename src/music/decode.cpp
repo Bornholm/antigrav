@@ -164,4 +164,148 @@ bool decodeFile(const std::string& path, Audio& out, std::string& error) {
     return decodeMemory(data.data(), data.size(), out, error);
 }
 
+namespace {
+
+void appendUtf8(std::string& out, uint32_t cp) {
+    if (cp == 0) return;
+    if (cp < 0x80) {
+        out += char(cp);
+    } else if (cp < 0x800) {
+        out += char(0xC0 | (cp >> 6));
+        out += char(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        out += char(0xE0 | (cp >> 12));
+        out += char(0x80 | ((cp >> 6) & 0x3F));
+        out += char(0x80 | (cp & 0x3F));
+    }
+}
+
+// Texte d'une trame ID3 : un octet d'encodage, puis le texte.
+std::string id3Text(const unsigned char* p, size_t size) {
+    std::string out;
+    if (size < 2) return out;
+    const int encoding = p[0];
+    p++;
+    size--;
+    if (encoding == 0) {
+        for (size_t i = 0; i < size && p[i]; i++) appendUtf8(out, p[i]); // Latin-1
+    } else if (encoding == 3) {
+        for (size_t i = 0; i < size && p[i]; i++) out += char(p[i]); // déjà en UTF-8
+    } else {
+        // UTF-16, avec marque d'ordre pour l'encodage 1, gros-boutiste pour le 2.
+        bool big = encoding == 2;
+        size_t i = 0;
+        if (size >= 2 && ((p[0] == 0xFF && p[1] == 0xFE) || (p[0] == 0xFE && p[1] == 0xFF))) {
+            big = p[0] == 0xFE;
+            i = 2;
+        }
+        for (; i + 1 < size; i += 2) {
+            const uint32_t cp = big ? uint32_t(p[i]) << 8 | p[i + 1] : uint32_t(p[i + 1]) << 8 | p[i];
+            if (cp == 0) break;
+            if (cp >= 0xD800 && cp <= 0xDFFF) continue; // hors du plan de base : ignoré
+            appendUtf8(out, cp);
+        }
+    }
+    return out;
+}
+
+void id3Tags(const unsigned char* data, size_t size, std::string& artist, std::string& title) {
+    if (size < 10 || std::memcmp(data, "ID3", 3) != 0) return;
+    const int version = data[3];
+    const size_t total = (size_t(data[6] & 0x7F) << 21 | size_t(data[7] & 0x7F) << 14 | size_t(data[8] & 0x7F) << 7 | size_t(data[9] & 0x7F)) + 10;
+    const size_t end = std::min(size, total);
+    size_t at = 10;
+    const size_t head = version == 2 ? 6 : 10;
+    while (at + head <= end) {
+        const unsigned char* f = data + at;
+        if (f[0] == 0) break; // remplissage
+        size_t length;
+        if (version == 2) length = size_t(f[3]) << 16 | size_t(f[4]) << 8 | f[5];
+        else if (version == 4) length = size_t(f[4] & 0x7F) << 21 | size_t(f[5] & 0x7F) << 14 | size_t(f[6] & 0x7F) << 7 | size_t(f[7] & 0x7F);
+        else length = size_t(f[4]) << 24 | size_t(f[5]) << 16 | size_t(f[6]) << 8 | f[7];
+        if (length == 0 || at + head + length > end) break;
+        const bool isTitle = version == 2 ? !std::memcmp(f, "TT2", 3) : !std::memcmp(f, "TIT2", 4);
+        const bool isArtist = version == 2 ? !std::memcmp(f, "TP1", 3) : !std::memcmp(f, "TPE1", 4);
+        if (isTitle) title = id3Text(f + head, length);
+        if (isArtist) artist = id3Text(f + head, length);
+        at += head + length;
+    }
+}
+
+// Commentaire Vorbis « CLÉ=valeur », sans tenir compte de la casse de la clé.
+void vorbisComment(const char* text, size_t length, std::string& artist, std::string& title) {
+    auto match = [&](const char* key) {
+        const size_t n = std::strlen(key);
+        if (length <= n || text[n] != '=') return false;
+        for (size_t i = 0; i < n; i++)
+            if ((text[i] | 0x20) != (key[i] | 0x20)) return false;
+        return true;
+    };
+    if (match("title")) title.assign(text + 6, length - 6);
+    if (match("artist")) artist.assign(text + 7, length - 7);
+}
+
+void flacTags(const unsigned char* data, size_t size, std::string& artist, std::string& title) {
+    size_t at = 4;
+    while (at + 4 <= size) {
+        const bool last = data[at] & 0x80;
+        const int type = data[at] & 0x7F;
+        const size_t length = size_t(data[at + 1]) << 16 | size_t(data[at + 2]) << 8 | data[at + 3];
+        at += 4;
+        if (at + length > size) return;
+        if (type == 4) {
+            const unsigned char* p = data + at;
+            const unsigned char* stop = p + length;
+            if (stop - p < 4) return;
+            const uint32_t vendor = read32(p);
+            p += 4;
+            if (size_t(stop - p) < size_t(vendor) + 4) return;
+            p += vendor;
+            const uint32_t count = read32(p);
+            p += 4;
+            for (uint32_t i = 0; i < count && stop - p >= 4; i++) {
+                const uint32_t n = read32(p);
+                p += 4;
+                if (size_t(stop - p) < n) return;
+                vorbisComment(reinterpret_cast<const char*>(p), n, artist, title);
+                p += n;
+            }
+            return;
+        }
+        at += length;
+        if (last) return;
+    }
+}
+
+} // namespace
+
+std::string titleOf(const unsigned char* data, size_t size) {
+    std::string artist, title;
+    if (size >= 3 && !std::memcmp(data, "ID3", 3)) {
+        id3Tags(data, size, artist, title);
+    } else if (size >= 4 && !std::memcmp(data, "fLaC", 4)) {
+        flacTags(data, size, artist, title);
+    } else if (size >= 4 && !std::memcmp(data, "OggS", 4)) {
+        int code = 0;
+        if (stb_vorbis* v = stb_vorbis_open_memory(data, int(size), &code, nullptr)) {
+            const stb_vorbis_comment comments = stb_vorbis_get_comment(v);
+            for (int i = 0; i < comments.comment_list_length; i++)
+                vorbisComment(comments.comment_list[i], std::strlen(comments.comment_list[i]), artist, title);
+            stb_vorbis_close(v);
+        }
+    }
+    // Les étiquettes peuvent contenir n'importe quoi : pas de caractère de contrôle.
+    auto clean = [](std::string& text) {
+        std::string out;
+        for (char c : text)
+            if (static_cast<unsigned char>(c) >= 32) out += c;
+        while (!out.empty() && out.back() == ' ') out.pop_back();
+        text = out;
+    };
+    clean(artist);
+    clean(title);
+    if (title.empty()) return "";
+    return artist.empty() ? title : artist + " - " + title;
+}
+
 } // namespace music

@@ -50,6 +50,23 @@ RaceConfig defaultConfig(int track, bool gridStart) {
     return config;
 }
 
+void Race::initBlank() {
+    sim::setSong(sim::kCustomTrack, sim::metronome(120.0f, 14.0f));
+    RaceConfig cfg = defaultConfig(sim::kCustomTrack, false);
+    cfg.racerCount = 1;
+    cfg.racers[0].profile = 2;
+    theme = 0;
+    songSerial = -2;
+    start(cfg, 0);
+    accumulator = 0.0f;
+    camLateral = world.vehicles[localIndex].lateral;
+    for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
+    minimap.clear();
+    autopilot = true;
+    orbit = true;
+    showHud = false;
+}
+
 void Race::init(const RaceConfig& cfg, int local) {
     // La piste se génère à partir de la partition du morceau.
     // Celle du morceau du joueur est déjà en place, posée par la bibliothèque.

@@ -14,6 +14,8 @@ Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis vo
 - **Formats.** MP3, Ogg Vorbis, FLAC et WAV. L'AAC, le M4A et l'Opus ne sont pas lus.
 - **Durée.** 30 secondes au moins. Au-delà de 8 minutes, seules les 8 premières servent.
 - **Derniers joués.** Le fichier ouvert est copié dans le dossier du jeu, qui garde les cinq derniers morceaux joués. Sur Linux, c'est `~/.local/share/antigrav/antigrav/songs`.
+- **Nom affiché.** Le titre et l'artiste lus dans les étiquettes du fichier, ou le nom du fichier s'il n'en a pas.
+- **Écoute.** Dans les réglages de partie, le morceau sélectionné se joue derrière le menu.
 - **Décor.** Il dépend du morceau : la station pour un tempo rapide, la ville pour un son brillant, le canyon sinon.
 - **Sans tempo net.** Si le jeu ne trouve pas de pulsation régulière, il cale la piste sur une grille fixe et sur l'intensité du morceau, et l'indique sous le titre.
 

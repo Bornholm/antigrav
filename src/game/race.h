@@ -49,6 +49,9 @@ struct Race : sim::Session {
     float smoothLateral[sim::kMaxVehicles] = {};
 
     void init(const RaceConfig& config, int localIndex);
+    // Piste courte et sans musique, prête en un instant : le fond de l'écran
+    // de chargement au lancement du jeu.
+    void initBlank();
     // Avance la simulation du temps écoulé depuis la dernière image.
     void update(float dt, const Controls& input);
     // Caméra, son et lissages, à appeler une fois par image.

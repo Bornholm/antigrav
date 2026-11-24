@@ -81,9 +81,26 @@ const char* App::songLabel(int index) const {
     return "Ouvrir un fichier...";
 }
 
-// Passe au morceau d'indice donné dans le sélecteur. Un morceau du joueur est
-// décodé et analysé ici.
+void App::later(std::function<void()> work) {
+    if (!deferLoads) {
+        work();
+        return;
+    }
+    pending = std::move(work);
+    pendingFrames = 0;
+}
+
+// Passe au morceau d'indice donné dans le sélecteur. Le libellé change tout
+// de suite, le chargement se fait derrière l'écran de chargement.
 void App::selectSong(int index) {
+    songIndex = index;
+    notice = "";
+    if (index >= songChoices() - 1) return; // l'entrée « ouvrir » ne charge rien
+    later([this, index] { selectSongNow(index); });
+}
+
+// Un morceau du joueur est décodé et analysé ici.
+void App::selectSongNow(int index) {
     songIndex = index;
     notice = "";
     if (index < sim::kTrackCount) {
@@ -125,7 +142,7 @@ void App::pollSongDialog() {
         dialogOpen = false;
         path = dialogPath;
     }
-    if (!path.empty()) importSong(path); // vide : annulé
+    if (!path.empty()) later([this, path] { importSong(path); }); // vide : annulé
 }
 
 bool App::importSong(const std::string& path) {
@@ -134,7 +151,7 @@ bool App::importSong(const std::string& path) {
         notice = songs.error.c_str();
         return false;
     }
-    selectSong(sim::kTrackCount + entry);
+    selectSongNow(sim::kTrackCount + entry);
     return track == sim::kCustomTrack;
 }
 
@@ -209,7 +226,13 @@ void App::init(int startTrack) {
         std::snprintf(settings.name, sizeof(settings.name), "%s", playerName);
         settings.save();
     }
-    startAttract();
+    if (deferLoads) {
+        // Une image s'affiche tout de suite, le vrai chargement suit.
+        race.initBlank();
+        later([this] { startAttract(); });
+    } else {
+        startAttract();
+    }
 }
 
 void App::go(Screen next) {
@@ -309,6 +332,15 @@ void App::leaveNetwork() {
 void App::update(double time, float dt, const Controls& controls, const UiInput& input,
                  glm::vec2 screenSize, const gfx::FontAtlas& fonts) {
     now = time;
+    // Travail en attente : le message de chargement a eu une image pour
+    // s'afficher, on peut bloquer.
+    if (pending && pendingFrames++ >= 1) {
+        std::function<void()> work = std::move(pending);
+        pending = nullptr;
+        work();
+    }
+    const bool busy = static_cast<bool>(pending);
+    static const UiInput quiet{};
     pollSongDialog();
     race.statsLine = statsLine;
     // Thème dans les menus. En course, le morceau du circuit, calé sur le
@@ -332,12 +364,16 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 speed = player.speed / std::max(1.0f, f.pace) / std::max(0.5f, 1.0f - f.curvature * player.lateral);
             }
             music->sync(Music::kFirstTrack + race.config.track, songTime, moving, speed);
+        } else if ((screen == Screen::Solo || screen == Screen::Lobby) && !busy && race.songSerial != -2) {
+            // Dans les réglages de partie, on entend le morceau choisi : il
+            // suit la démonstration qui tourne derrière le menu.
+            music->sync(Music::kFirstTrack + race.config.track, race.world.raceTime + race.accumulator, true);
         } else {
             music->play(Music::kTheme);
         }
     }
     // La démonstration derrière les menus repart quand son morceau est fini.
-    if (screen != Screen::Race && !inRace && race.finished()) startAttract();
+    if (screen != Screen::Race && !inRace && race.finished() && !busy) startAttract();
 
     // Réseau : lit les paquets, puis réagit aux changements d'état.
     net.poll(now, inRace ? &race : nullptr);
@@ -411,7 +447,7 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
 
     // Interface des menus, ou bandeau de fin de course.
     menuHud.begin(fonts, screenSize.x, screenSize.y);
-    ui.begin(menuHud, input, static_cast<float>(now));
+    ui.begin(menuHud, busy ? quiet : input, static_cast<float>(now));
     if (screen == Screen::Race) {
         bool over = race.finished();
         auto abandon = [&] {
@@ -452,6 +488,12 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
         }
     } else {
         drawMenus(screenSize);
+    }
+    if (pending) {
+        menuHud.anchor = gfx::Anchor::Center;
+        menuHud.vAnchor = gfx::VAnchor::Middle;
+        ui.panel({800.0f, 450.0f}, {300.0f, 62.0f});
+        ui.text({800.0f, 463.0f}, "CHARGEMENT...", 34.0f, kWhite, Align::Center, FontId::Bold);
     }
     ui.end();
 }
@@ -553,7 +595,7 @@ void App::drawMenus(glm::vec2) {
         const bool openEntry = songIndex == songChoices() - 1;
         if (ui.button({480.0f, y + 30.0f}, {330.0f, 40.0f}, openEntry ? "CHOISIR UN FICHIER" : "LANCER LA COURSE", true, kYellow)) {
             if (openEntry) openSongDialog();
-            else startSolo();
+            else later([this] { startSolo(); });
         }
         if (notice[0]) ui.text({480.0f, y + 78.0f}, notice, 18.0f, kYellow);
         if (ui.button({480.0f, y + 124.0f}, {330.0f, 32.0f}, "RETOUR", true,

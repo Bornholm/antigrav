@@ -16,8 +16,8 @@ ButtonShape buttonShape(Button button, glm::vec2 screen) {
         float radius;
     };
     static const Def defs[] = {
-        {gfx::Anchor::Left, {113.0f, 757.0f}, 70.0f},
-        {gfx::Anchor::Left, {277.0f, 757.0f}, 70.0f},
+        {gfx::Anchor::Left, {128.0f, 756.0f}, 104.0f},
+        {gfx::Anchor::Left, {356.0f, 756.0f}, 104.0f},
         {gfx::Anchor::Right, {1427.0f, 742.0f}, 96.0f},
         {gfx::Anchor::Right, {1316.0f, 588.0f}, 60.0f},
         {gfx::Anchor::Right, {1476.0f, 563.0f}, 58.0f},
@@ -190,7 +190,21 @@ UiInput InputReader::consumeUi() {
 
 Controls InputReader::read(glm::vec2 screen) const {
     Controls c;
-    for (int b = 0; b < static_cast<int>(Button::Count); b++) {
+    // Direction : toute la zone autour des deux boutons compte, pas seulement
+    // les disques. Un pouce qui glisse hors du dessin continue de tourner, et
+    // passer d'un bouton à l'autre se fait sans lever le doigt.
+    {
+        ButtonShape left = buttonShape(Button::Left, screen);
+        ButtonShape right = buttonShape(Button::Right, screen);
+        float split = (left.center.x + right.center.x) * 0.5f;
+        float end = right.center.x + right.radius * 1.35f;
+        float top = left.center.y - left.radius * 1.9f;
+        for (const Pointer& p : pointers) {
+            if (!p.active || p.pos.y < top || p.pos.x > end) continue;
+            c.pressed[static_cast<int>(p.pos.x < split ? Button::Left : Button::Right)] = true;
+        }
+    }
+    for (int b = static_cast<int>(Button::Boost); b < static_cast<int>(Button::Count); b++) {
         ButtonShape shape = buttonShape(static_cast<Button>(b), screen);
         for (const Pointer& p : pointers) {
             if (!p.active) continue;

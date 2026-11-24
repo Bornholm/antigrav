@@ -152,10 +152,11 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
         float dirSign = b == Button::Left ? -1.0f : 1.0f;
         vec4 glass = down ? vec4(0.30f, 0.60f, 0.85f, 0.45f) : vec4(0.10f, 0.12f, 0.24f, 0.34f);
         hud.circle(c, r, glass, alpha(down ? kCyan : kWhite, 0.9f), down ? 4.0f : 2.5f);
+        float k = r / 70.0f; // la flèche suit la taille du bouton
         polyline(hud,
-                 {c + vec2(-13.0f * dirSign, -28.0f), c + vec2(15.0f * dirSign, 0.0f),
-                  c + vec2(-13.0f * dirSign, 28.0f)},
-                 9.0f, kWhite);
+                 {c + vec2(-13.0f * dirSign, -28.0f) * k, c + vec2(15.0f * dirSign, 0.0f) * k,
+                  c + vec2(-13.0f * dirSign, 28.0f) * k},
+                 9.0f * k, kWhite);
     }
     {
         bool down = shapeOf(Button::Boost, c, r) || s.boosting;

@@ -6,7 +6,7 @@
 ctest --test-dir build
 ```
 
-Trois suites : `sim` pour la simulation, `net` pour le réseau en boucle locale, y compris avec 25 % de paquets perdus, et `balance` qui échoue si un vaisseau ou une personnalité d'IA domine.
+Quatre suites : `music` pour l'analyse audio sur des signaux synthétiques, `sim` pour la simulation, `net` pour le réseau en boucle locale, y compris avec 25 % de paquets perdus, et `balance` qui échoue si un vaisseau ou une personnalité d'IA domine.
 
 Essai réseau entre deux instances sur la même machine, chacune filmée :
 
@@ -14,6 +14,18 @@ Essai réseau entre deux instances sur la même machine, chacune filmée :
 ./build/antigrav --headless --screen salon --host-auto 2 --frames 540 --fps 30 --realtime --out "out/h/f_%04d.png" &
 ./build/antigrav --headless --screen multi --join-auto --frames 510 --fps 30 --realtime --out "out/c/f_%04d.png"
 ```
+
+## Analyse d'un morceau
+
+`build/analyze` lit un fichier Ogg Vorbis ou WAV et affiche ce que le jeu en tire : tempo, temps, attaques, sections.
+
+```sh
+./build/analyze assets/music/neon.ogg
+./build/analyze morceau.wav --clicks clics.wav --image analyse.png
+./build/analyze morceau.wav --image zoom.png --from 30 --to 50
+```
+
+`--clicks` écrit le morceau avec un clic sur chaque temps détecté, plus aigu sur le premier temps de la mesure. C'est le moyen de juger l'analyse à l'oreille. `--image` dessine, de haut en bas, les sections et les temps, le spectrogramme, les attaques dans les aigus, les médiums et les graves, puis la courbe d'énergie. `--beats` liste les temps.
 
 ## Captures et vidéos
 
@@ -34,10 +46,11 @@ ffmpeg -framerate 60 -i out/frames/f_%04d.png -c:v libx264 -pix_fmt yuv420p out/
 ```
 src/core      journalisation
 src/gfx       Vulkan : périphérique, swapchain, pipelines, passes de rendu, interface 2D
+src/music     décodage et analyse des morceaux : tempo, temps, attaques, sections
 src/sim       circuits, vaisseaux, IA et simulation, sans dépendance au rendu
 src/net       réseau local : découverte, salon, instantanés, prédiction
 src/game      menus, course, commandes, caméra, son, interface
-tools         lanceur avec validation, outil d'équilibrage
+tools         lanceur avec validation, outil d'équilibrage, analyse d'un morceau
 tests         tests de la simulation et du réseau
 shaders       GLSL, compilé en SPIR-V et inclus dans le binaire
 assets/fonts  police Orbitron, licence OFL

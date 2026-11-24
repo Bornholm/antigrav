@@ -23,6 +23,8 @@ JAVA_HOME=/usr/lib/jvm/java-17-openjdk gradle assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+La version de debug s'appelle « Antigrav Debug » et porte l'identifiant `dev.antigrav.game.debug`. Elle s'installe donc à côté de la version publiée, sans la remplacer.
+
 SDL est compilé avec le jeu. Pour éviter de le retélécharger, placer l'archive `SDL3-3.4.16.tar.gz` dans `.cache/sdl/`.
 
 Pour signer l'APK avec une clé fixe, voir [Publier](publier.md).

@@ -21,6 +21,7 @@ layout(push_constant) uniform Push {
     mat4 model;
     vec4 colorA;
     vec4 colorB;
+    vec4 colorC; // vaisseau : rgb lumière de rythme sur le dos, a intensité
 } pc;
 
 // Les deux couleurs néon du circuit. Les noms datent du premier thème.

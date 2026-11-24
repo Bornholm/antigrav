@@ -19,7 +19,8 @@ void main() {
         float core = 1.0 - smoothstep(0.0, 0.9, length(uv * 2.0 - 1.0));
         c = mix(pc.colorB.rgb, vec3(1.0), core * 0.7) * pc.colorB.a * (0.6 + core);
     } else if (kind > 0.5) {
-        c = pc.colorA.rgb * pc.colorA.a;
+        // Les liserés prennent aussi la lumière de rythme.
+        c = pc.colorA.rgb * pc.colorA.a + pc.colorC.rgb * pc.colorC.a * 2.5;
     } else {
         vec3 n = normalize(normal);
         vec3 v = normalize(g.camPos.xyz - worldPos);
@@ -34,6 +35,11 @@ void main() {
         c = color.rgb * (0.010 + 0.050 * key * key) * vec3(0.72, 0.74, 1.0);
         c += env * fresnel * 0.12;
         c += pc.colorA.rgb * 0.020 * pow(1.0 - nv, 2.0);
+        // Lumière de rythme : le dos du vaisseau s'allume à l'approche du
+        // temps. Les faces tournées vers le haut la portent, ce sont celles
+        // que voit la caméra de poursuite.
+        float back = 0.25 + 0.75 * max(n.y, 0.0);
+        c += pc.colorC.rgb * pc.colorC.a * back;
     }
     outColor = vec4(applyFog(c, worldPos), 1.0);
 }

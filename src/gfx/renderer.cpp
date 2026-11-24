@@ -84,6 +84,7 @@ struct ScenePush {
     glm::mat4 model{1.0f};
     glm::vec4 colorA{1.0f};
     glm::vec4 colorB{1.0f};
+    glm::vec4 colorC{0.0f};
 };
 
 struct PostPush {
@@ -701,6 +702,7 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
         push.model = reflection ? mirrorMatrix(s.planePoint, s.planeNormal) * s.model : s.model;
         push.colorA = s.trim;
         push.colorB = s.engine;
+        push.colorC = s.glow;
         return push;
     };
 

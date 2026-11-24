@@ -34,6 +34,7 @@ struct ShipDraw {
     glm::vec3 planeNormal{0.0f, 1.0f, 0.0f};
     glm::vec4 trim{1.0f};   // rgb couleur des liserés, a intensité
     glm::vec4 engine{1.0f}; // rgb couleur des réacteurs, a intensité
+    glm::vec4 glow{0.0f};   // rgb lumière de rythme sur le dos, a intensité
     float shield = 0.0f;    // intensité de la bulle du bouclier, 0 pour aucune
     int variant = 0;        // modèle de vaisseau
 };

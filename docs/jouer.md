@@ -20,7 +20,7 @@ Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis vo
 
 ## Jouer en rythme
 
-- **Accord.** Enfoncer le BOOST pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. Tout le retour est sur le vaisseau : un anneau s'y referme à chaque temps, et il faut appuyer quand il touche le cercle jaune. « EN RYTHME », « TROP TÔT » ou « TROP TARD » s'affiche au-dessus. Après un accord, l'anneau s'atténue environ deux secondes, le temps avant qu'un nouvel accord soit possible.
+- **Accord.** Enfoncer le BOOST pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. Le signal est une lumière sur le dos du vaisseau : elle monte à l'approche du temps et culmine dessus, c'est là qu'il faut appuyer. Elle est jaune quand un accord est possible, bleu pâle pendant les deux secondes de délai qui suivent un accord, verte sur un accord réussi, rouge sur un appui raté. « EN RYTHME », « TROP TÔT » ou « TROP TARD » s'affiche au-dessus du vaisseau.
 - **Plaques.** Chaque plaque jaune recharge la jauge de 12 %.
 - **Jauge.** Elle ne se recharge presque plus seule : ce sont les plaques et les accords qui la remplissent. Elle sert au boost et à l'armure.
 - **Armure.** Si la jauge est au moins à un tiers quand le vaisseau touche une barrière, elle encaisse le choc et perd ce tiers. Sinon c'est le crash. Il faut donc choisir entre dépenser en boost et garder de quoi encaisser.

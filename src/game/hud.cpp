@@ -204,8 +204,8 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
 }
 
 // Retour de rythme, accroché au vaisseau du joueur : c'est là qu'il regarde.
-// Un anneau se referme sur le vaisseau à chaque temps, les pastilles de la
-// série sont dessous, et le verdict de l'appui s'affiche dessus.
+// Le signal lui-même est une lumière sur le dos du vaisseau, voir Race::fill.
+// Ici, seulement les pastilles de la série et le verdict de l'appui.
 void drawRhythm(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
     if (s.beatPhase < 0.0f) return;
     const glm::vec4 clip = viewProj * glm::vec4(s.shipPos, 1.0f);
@@ -213,16 +213,7 @@ void drawRhythm(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj
     hud.anchor = Anchor::Left;
     hud.vAnchor = gfx::VAnchor::Top;
     const vec2 c = (vec2(clip.x, clip.y) / clip.w * 0.5f + 0.5f) * hud.screen / hud.scale;
-    const bool ready = s.cooldown <= 0.0f;
     const float core = 74.0f;
-
-    // Cible fixe, puis anneau qui s'y referme. Atténués pendant le délai
-    // entre deux accords : un appui n'y compterait pas.
-    const float near = 1.0f - s.beatPhase;
-    hud.circle(c, core, vec4(0.0f), alpha(kYellow, ready ? 0.55f : 0.18f), 2.5f);
-    hud.circle(c, core * (1.0f + 1.1f * s.beatPhase), vec4(0.0f),
-               alpha(kWhite, ready ? 0.25f + 0.65f * near * near : 0.10f + 0.12f * near), ready ? 4.0f : 2.0f);
-    if (!ready) hud.circle(c, core * (1.0f - s.cooldown), vec4(0.0f), alpha(kYellow, 0.35f), 2.0f);
 
     // Série d'accords : la décharge part quand les pastilles sont toutes allumées.
     const float step = 26.0f, x0 = c.x - step * 0.5f * static_cast<float>(s.comboSize - 1);

@@ -311,6 +311,28 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
             state.beatPhase = std::clamp((*next - now) / std::max(0.05f, *next - *(next - 1)), 0.0f, 1.0f);
     }
     state.cooldown = std::clamp(player.accordCooldown / sim::kAccordCooldown, 0.0f, 1.0f);
+    // Lumière de rythme sur le dos du vaisseau. Elle monte à l'approche du
+    // temps et culmine dessus : il faut appuyer quand elle est au plus fort.
+    // Jaune quand un accord est possible, bleu pâle pendant le délai, vert sur
+    // un accord réussi, rouge sur un appui raté, rose quand une décharge arrive.
+    if (state.beatPhase >= 0.0f && localIndex < out.shipCount) {
+        const float near = 1.0f - state.beatPhase;
+        const float charge = near * near * near;
+        glm::vec3 tint{1.0f, 0.78f, 0.22f};
+        float level = 0.06f + 1.5f * charge;
+        if (player.accordCooldown > 0.0f) {
+            tint = {0.35f, 0.75f, 1.0f};
+            level = 0.06f + 0.35f * charge;
+        }
+        if (player.accord > 0.0f) {
+            tint = {0.35f, 1.0f, 0.45f};
+            level = 0.9f + 1.8f * player.accord / sim::kAccordTime;
+        } else if (missTime > 0.0f) {
+            tint = {1.0f, 0.12f, 0.08f};
+            level = 2.0f * missTime / 0.7f;
+        }
+        out.ships[localIndex].glow = glm::vec4(tint, level);
+    }
     state.miss = missTime > 0.0f ? missKind : 0;
     state.missFade = missTime / 0.7f;
     state.comboSize = sim::kComboSize;

@@ -184,16 +184,18 @@ std::vector<float> onsetEnvelope(const Frames& f) {
     return env;
 }
 
-// Période d'un temps, en trames. 0 si la courbe est plate.
-float findPeriod(const std::vector<float>& env, float rate) {
-    const int n = int(env.size());
-    const float minBpm = 70.0f, maxBpm = 190.0f;
-    const int maxLag = std::min(n - 1, int(rate * 60.0f / minBpm * 4.0f) + 2);
-    if (maxLag < 8) return 0.0f;
+constexpr float kMinBpm = 70.0f, kMaxBpm = 190.0f, kBpmStep = 0.5f;
+
+// Score de chaque tempo candidat sur une portion de la courbe d'attaques.
+std::vector<float> tempoScores(const float* env, int n, float rate) {
+    const int candidates = int((kMaxBpm - kMinBpm) / kBpmStep) + 1;
+    std::vector<float> scores(size_t(candidates), 0.0f);
+    const int maxLag = std::min(n - 1, int(rate * 60.0f / kMinBpm * 4.0f) + 2);
+    if (maxLag < 8) return scores;
     std::vector<float> ac(size_t(maxLag) + 1, 0.0f);
     for (int lag = 1; lag <= maxLag; ++lag) {
         double sum = 0.0;
-        for (int t = 0; t + lag < n; ++t) sum += double(env[size_t(t)]) * env[size_t(t + lag)];
+        for (int t = 0; t + lag < n; ++t) sum += double(env[t]) * env[t + lag];
         ac[size_t(lag)] = float(sum / double(n - lag));
     }
     auto at = [&](float lag) {
@@ -202,34 +204,102 @@ float findPeriod(const std::vector<float>& env, float rate) {
         const float frac = lag - float(i);
         return ac[size_t(i)] * (1.0f - frac) + ac[size_t(i) + 1] * frac;
     };
-    float best = 0.0f, bestScore = 0.0f;
-    for (float bpm = minBpm; bpm <= maxBpm; bpm += 0.1f) {
+    for (int c = 0; c < candidates; ++c) {
+        const float bpm = kMinBpm + kBpmStep * float(c);
         const float period = rate * 60.0f / bpm;
-        // Un vrai temps se répète aussi à deux, trois et quatre périodes.
-        // Les deux tiers de la période servent de contre-épreuve : s'ils
+        // Un vrai temps se répète aussi à deux, trois et quatre périodes. Les
+        // deux tiers de la période servent de contre-épreuve : s'ils
         // répondent aussi, le vrai temps est une fois et demie plus rapide.
         const float comb = at(period) + 0.5f * at(2 * period) + 0.33f * at(3 * period) + 0.25f * at(4 * period)
                          - 0.5f * at(period * 2.0f / 3.0f);
         // Entre un tempo et son double, on préfère le plus proche de 130.
         const float octaves = std::log2(bpm / 130.0f);
-        const float score = comb * std::exp(-0.5f * octaves * octaves / (0.8f * 0.8f));
-        if (score > bestScore) {
-            bestScore = score;
-            best = period;
+        scores[size_t(c)] = std::max(0.0f, comb) * std::exp(-0.5f * octaves * octaves / (0.8f * 0.8f));
+    }
+    return scores;
+}
+
+// Période d'un temps à chaque trame. Le tempo est cherché par fenêtres de
+// douze secondes, puis on retient la suite de tempos la plus cohérente : un
+// morceau peut changer d'allure, mais pas à chaque fenêtre. Vide si la courbe
+// est plate.
+std::vector<float> findPeriods(const std::vector<float>& env, float rate) {
+    const int n = int(env.size());
+    const int window = int(rate * 12.0f), hop = int(rate * 4.0f);
+    const int candidates = int((kMaxBpm - kMinBpm) / kBpmStep) + 1;
+    std::vector<std::vector<float>> scores;
+    std::vector<int> centers;
+    float best = 0.0f;
+    for (int start = 0; start == 0 || start + window / 2 < n; start += hop) {
+        const int length = std::min(window, n - start);
+        if (length < int(rate * 4.0f)) break;
+        scores.push_back(tempoScores(env.data() + start, length, rate));
+        centers.push_back(start + length / 2);
+        for (float v : scores.back()) best = std::max(best, v);
+    }
+    if (scores.empty() || best < 1e-4f) return {};
+    const int windows = int(scores.size());
+    // Chaque fenêtre est ramenée à son meilleur score, sauf les fenêtres
+    // presque muettes, qui laissent décider leurs voisines.
+    for (auto& row : scores) {
+        float top = 0.0f;
+        for (float v : row) top = std::max(top, v);
+        const float scale = top > best * 0.02f ? 1.0f / top : 0.0f;
+        for (float& v : row) v *= scale;
+    }
+    // Chemin le plus cohérent : changer de tempo coûte 1,5 par octave.
+    std::vector<std::vector<float>> total(size_t(windows), std::vector<float>(size_t(candidates), 0.0f));
+    std::vector<std::vector<int>> from(size_t(windows), std::vector<int>(size_t(candidates), 0));
+    total[0] = scores[0];
+    for (int w = 1; w < windows; ++w) {
+        for (int c = 0; c < candidates; ++c) {
+            const float bpm = kMinBpm + kBpmStep * float(c);
+            float bestPrev = -1e9f;
+            int bestIndex = c;
+            for (int k = 0; k < candidates; ++k) {
+                const float other = kMinBpm + kBpmStep * float(k);
+                const float cost = 1.5f * std::fabs(std::log2(bpm / other));
+                const float v = total[size_t(w - 1)][size_t(k)] - cost;
+                if (v > bestPrev) {
+                    bestPrev = v;
+                    bestIndex = k;
+                }
+            }
+            total[size_t(w)][size_t(c)] = scores[size_t(w)][size_t(c)] + bestPrev;
+            from[size_t(w)][size_t(c)] = bestIndex;
         }
     }
-    return bestScore > 1e-4f ? best : 0.0f;
+    std::vector<float> periodOf(size_t(windows), 0.0f);
+    int c = int(std::max_element(total.back().begin(), total.back().end()) - total.back().begin());
+    for (int w = windows - 1; w >= 0; --w) {
+        periodOf[size_t(w)] = rate * 60.0f / (kMinBpm + kBpmStep * float(c));
+        c = from[size_t(w)][size_t(c)];
+    }
+    // Période de chaque trame, interpolée entre les centres des fenêtres.
+    std::vector<float> periods(size_t(n), periodOf[0]);
+    int w = 0;
+    for (int t = 0; t < n; ++t) {
+        while (w + 1 < windows && t >= centers[size_t(w + 1)]) ++w;
+        if (t <= centers[0] || w + 1 >= windows) {
+            periods[size_t(t)] = periodOf[size_t(t <= centers[0] ? 0 : windows - 1)];
+        } else {
+            const float u = float(t - centers[size_t(w)]) / float(centers[size_t(w + 1)] - centers[size_t(w)]);
+            periods[size_t(t)] = periodOf[size_t(w)] + (periodOf[size_t(w + 1)] - periodOf[size_t(w)]) * u;
+        }
+    }
+    return periods;
 }
 
 // Place les temps par programmation dynamique : chaque temps cherche le
 // meilleur prédécesseur à une période environ, et paie tout écart.
-std::vector<int> trackBeats(const std::vector<float>& env, float period) {
+std::vector<int> trackBeats(const std::vector<float>& env, const std::vector<float>& periods) {
     const int n = int(env.size());
     const float tightness = 100.0f;
     std::vector<float> score(size_t(n), 0.0f);
     std::vector<int> back(size_t(n), -1);
-    const int from = int(std::lround(period * 2.0f)), to = std::max(1, int(std::lround(period * 0.5f)));
     for (int t = 0; t < n; ++t) {
+        const float period = periods[size_t(t)];
+        const int from = int(std::lround(period * 2.0f)), to = std::max(1, int(std::lround(period * 0.5f)));
         float best = 0.0f;
         int bestIndex = -1;
         for (int d = to; d <= from && t - d >= 0; ++d) {
@@ -244,13 +314,14 @@ std::vector<int> trackBeats(const std::vector<float>& env, float period) {
         back[size_t(t)] = bestIndex >= 0 && best > 0.0f ? bestIndex : -1;
     }
     int last = n - 1;
-    for (int t = std::max(0, n - int(period) - 1); t < n; ++t)
+    for (int t = std::max(0, n - int(periods.back()) - 1); t < n; ++t)
         if (score[size_t(t)] > score[size_t(last)]) last = t;
     std::vector<int> beats;
     for (int t = last; t >= 0; t = back[size_t(t)]) beats.push_back(t);
     std::reverse(beats.begin(), beats.end());
     // La grille se prolonge avant le premier temps trouvé, jusqu'au début.
     if (!beats.empty()) {
+        const float period = periods[size_t(beats.front())];
         std::vector<int> head;
         for (float t = float(beats.front()) - period; t >= 0.0f; t -= period) head.push_back(int(std::lround(t)));
         std::reverse(head.begin(), head.end());
@@ -408,6 +479,41 @@ std::vector<int> findBoundaries(const Frames& f, const std::vector<int>& barFram
     return bounds;
 }
 
+// Hargne du morceau, de 0 à 1 : niveau sonore absolu, part d'aigus et densité
+// d'attaques. Un metal saturé y monte à 1, une ballade reste près de 0. À la
+// différence de l'énergie, elle n'est pas rapportée au morceau lui-même : elle
+// compare les morceaux entre eux.
+std::vector<float> driveCurve(const Frames& f, const std::vector<Onset>& onsets, float duration) {
+    const int points = std::max(1, int(duration * Partition::kEnergyRate) + 1);
+    std::vector<float> out(size_t(points), 0.0f);
+    if (f.count < 1) return out;
+    const std::vector<float> power = movingMean(f.power, int(f.rate * 2.0f));
+    // Part d'aigus : amplitude au-dessus de 2 kHz environ, sur le total.
+    std::vector<float> highs(size_t(f.count), 0.0f);
+    for (int t = 0; t < f.count; ++t) {
+        float high = 0.0f, all = 1e-9f;
+        for (int b = 0; b < kBands; ++b) {
+            const float amp = std::expm1(f.bands[size_t(t) * kBands + size_t(b)]);
+            all += amp;
+            if (b >= 30) high += amp;
+        }
+        highs[size_t(t)] = high / all;
+    }
+    const std::vector<float> highShare = movingMean(highs, int(f.rate * 2.0f));
+    size_t first = 0;
+    for (int i = 0; i < points; ++i) {
+        const float time = float(i) / Partition::kEnergyRate;
+        const int t = std::clamp(int((time - f.offset) * f.rate), 0, f.count - 1);
+        const float level = std::clamp((10.0f * std::log10(power[size_t(t)] + 1e-10f) + 24.0f) / 16.0f, 0.0f, 1.0f);
+        while (first < onsets.size() && onsets[first].time < time - 2.0f) ++first;
+        int hits = 0;
+        for (size_t k = first; k < onsets.size() && onsets[k].time < time + 2.0f; ++k) ++hits;
+        const float rate = std::min(1.4f, float(hits) / 4.0f / 15.0f);
+        out[size_t(i)] = std::clamp(level * (0.5f + highShare[size_t(t)]) * rate / 1.15f, 0.0f, 1.0f);
+    }
+    return out;
+}
+
 // Spectre réduit à huit bandes. Chaque bande est ramenée entre son niveau de
 // fond et ses pointes, pour que toutes bougent autant.
 std::vector<float> reducedSpectrum(const Frames& f, float duration) {
@@ -451,6 +557,14 @@ void Partition::spectrumAt(float time, float* out) const {
     for (int k = 0; k < kSpectrumBands; ++k) out[k] = spectrum[r * size_t(kSpectrumBands) + size_t(k)];
 }
 
+float Partition::driveAt(float time) const {
+    if (drive.empty()) return 0.0f;
+    const float x = std::clamp(time * kEnergyRate, 0.0f, float(drive.size() - 1));
+    const size_t i = size_t(x);
+    const size_t j = std::min(drive.size() - 1, i + 1);
+    return drive[i] + (drive[j] - drive[i]) * (x - float(i));
+}
+
 float Partition::energyAt(float time) const {
     if (energy.empty()) return 0.0f;
     const float x = std::clamp(time * kEnergyRate, 0.0f, float(energy.size() - 1));
@@ -479,11 +593,26 @@ Partition analyze(const float* mono, size_t count, int sampleRate, AnalysisTrace
         return p;
     }
     p.onsets = pickOnsets(f);
+    p.drive = driveCurve(f, p.onsets, p.duration);
 
     const std::vector<float> env = onsetEnvelope(f);
-    const float period = findPeriod(env, f.rate);
+    const std::vector<float> periods = findPeriods(env, f.rate);
     std::vector<int> beatFrames;
-    if (period > 0.0f) beatFrames = trackBeats(env, period);
+    if (!periods.empty()) beatFrames = trackBeats(env, periods);
+    // Un morceau hargneux joué à demi-tempo se ressent au tempo double : on
+    // y ajoute un temps entre deux.
+    if (beatFrames.size() >= 4) {
+        std::vector<int> doubled;
+        for (size_t i = 0; i < beatFrames.size(); ++i) {
+            doubled.push_back(beatFrames[i]);
+            if (i + 1 >= beatFrames.size()) break;
+            const float gap = float(beatFrames[i + 1] - beatFrames[i]) / f.rate;
+            const float time = f.time((beatFrames[i] + beatFrames[i + 1]) / 2);
+            const float hargne = p.drive[std::min(p.drive.size() - 1, size_t(std::max(0.0f, time) * Partition::kEnergyRate))];
+            if (gap > 60.0f / 105.0f && hargne > 0.65f) doubled.push_back((beatFrames[i] + beatFrames[i + 1]) / 2);
+        }
+        beatFrames.swap(doubled);
+    }
 
     if (beatFrames.size() >= 4) {
         std::vector<float> gaps;

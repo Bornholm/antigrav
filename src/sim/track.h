@@ -22,9 +22,9 @@ struct TrackFrame {
 
 // Élément posé sur la piste. Tous agissent selon la seule position du
 // vaisseau, sans état propre : la prédiction réseau les rejoue telle quelle.
-enum class FeatureType { BoostPad, SlowField, Barrier };
+enum class FeatureType { EnergyPad, Barrier };
 struct Feature {
-    FeatureType type = FeatureType::BoostPad;
+    FeatureType type = FeatureType::EnergyPad;
     float dist = 0.0f;      // début de l'élément le long de la piste
     float length = 0.0f;    // longueur, ou épaisseur pour une barrière
     float lateral = 0.0f;   // centre, en décalage par rapport à l'axe
@@ -44,6 +44,7 @@ struct Track {
     std::vector<TrackFrame> frames;
     std::vector<Feature> features;
     std::vector<float> beats; // instants des temps du morceau, croissants
+    std::vector<bool> downbeats; // vrai pour le premier temps d'une mesure
 
     // Vrai si l'instant tombe sur un temps, à la tolérance près.
     bool onBeat(float time, float tolerance) const;

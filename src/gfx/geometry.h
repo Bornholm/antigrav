@@ -13,7 +13,7 @@ namespace gfx {
 MeshData buildRoad(const sim::Track& track);
 MeshData buildRails(const sim::Track& track, const Theme& theme);
 MeshData buildGates(const sim::Track& track, const Theme& theme);
-// Plaques de boost, champs de freinage et barrières du circuit.
+// Plaques d'énergie et barrières de la piste.
 MeshData buildFeatures(const sim::Track& track);
 MeshData buildScenery(const sim::Track& track, const Theme& theme);
 

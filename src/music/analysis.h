@@ -41,6 +41,9 @@ struct Partition {
     std::vector<Onset> onsets;
     std::vector<Section> sections;
     std::vector<float> energy; // 0 à 1, kEnergyRate points par seconde
+    // Hargne, de 0 à 1, au même pas que l'énergie. Elle compare les morceaux
+    // entre eux : niveau absolu, part d'aigus, densité d'attaques.
+    std::vector<float> drive;
     // Niveau de huit bandes de fréquences, du grave à l'aigu, de 0 à 1 :
     // kSpectrumRate lignes de kSpectrumBands valeurs par seconde. Sert à faire
     // danser le décor.
@@ -49,6 +52,7 @@ struct Partition {
     std::vector<float> spectrum;
 
     float energyAt(float time) const;
+    float driveAt(float time) const;
     // Remplit `out` avec les kSpectrumBands niveaux à cet instant.
     void spectrumAt(float time, float* out) const;
 };

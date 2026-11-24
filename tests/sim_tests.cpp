@@ -113,14 +113,13 @@ void testTrackEnds() {
     CHECK(again.features.size() == track.features.size());
     CHECK(again.frames.back().pos == track.frames.back().pos);
 
-    // Chaque plaque de boost tombe sur un premier temps de mesure.
+    // Chaque plaque d'énergie tombe sur un temps du morceau.
     const music::Partition& song = sim::song(0);
     for (const sim::Feature& f : track.features) {
-        if (f.type != sim::FeatureType::BoostPad) continue;
+        if (f.type != sim::FeatureType::EnergyPad) continue;
         float time = track.at(f.dist + 0.5f * f.length).time;
         float best = 1e9f;
-        for (const music::Beat& b : song.beats)
-            if (b.bar == 0) best = std::min(best, std::abs(b.time - time));
+        for (const music::Beat& b : song.beats) best = std::min(best, std::abs(b.time - time));
         CHECK(best < 0.02f);
     }
 }
@@ -343,24 +342,20 @@ void testFeatures() {
     start.dist = 100.0f;
     start.speed = sim::kCruiseSpeed;
 
-    // Plaque de boost : plus vite que le boost, sans toucher à la jauge.
-    track.features = {{sim::FeatureType::BoostPad, 200.0f, 36.0f, 0.0f, 3.6f}};
+    // Plaque d'énergie : recharge la jauge sans changer la vitesse.
+    track.features = {{sim::FeatureType::EnergyPad, 200.0f, 36.0f, 0.0f, 3.6f}};
+    start.energy = 0.5f;
     sim::Vehicle v = driveTo(track, start, 240.0f);
-    CHECK(v.speed > sim::kCruiseSpeed + 30.0f);
-    CHECK(v.energy >= 1.0f);
+    CHECK(v.energy > 0.5f + sim::kPadEnergy * 0.9f);
+    CHECK(std::abs(v.speed - sim::kCruiseSpeed) < 3.0f);
     // À côté de la plaque, rien.
     sim::Vehicle aside = start;
     aside.lateral = 8.0f;
-    CHECK(driveTo(track, aside, 240.0f).speed < sim::kCruiseSpeed + 1.0f);
-
-    // Champ de freinage : ralentit et vide la jauge, sauf sous bouclier.
-    track.features = {{sim::FeatureType::SlowField, 200.0f, 50.0f, 0.0f, 5.0f}};
-    v = driveTo(track, start, 255.0f);
-    CHECK(v.speed < sim::kCruiseSpeed * 0.85f);
-    CHECK(v.energy < 1.0f);
+    CHECK(driveTo(track, aside, 240.0f).energy < 0.51f);
+    start.energy = 1.0f;
+    aside.energy = 1.0f;
     sim::Vehicle shielded = start;
     shielded.shieldTime = 2.0f;
-    CHECK(driveTo(track, shielded, 255.0f).speed > sim::kCruiseSpeed * 0.98f);
 
     // Barrière : choc et perte de contrôle. Le pas de simulation est plus long
     // que la barrière, elle ne doit pas être traversée pour autant.
@@ -404,7 +399,7 @@ void testFeatures() {
     // départ libre et garde toujours un passage entre ses barrières.
     for (int id = 0; id < sim::kTrackCount; id++) {
         sim::Track t = sim::Track::make(id);
-        int counts[3] = {};
+        int counts[2] = {};
         for (const sim::Feature& f : t.features) {
             counts[static_cast<int>(f.type)]++;
             CHECK(f.dist > 250.0f && f.dist + f.length < t.length - 100.0f);
@@ -511,7 +506,7 @@ void testRhythm() {
     CHECK(std::abs(cruiseWithGap(2.0f, true) - cruiseWithGap(-2.0f, true)) < 6.0f);
 
     // Une plaque rend de l'énergie, une fois.
-    track.features = {{sim::FeatureType::BoostPad, 1000.0f, 36.0f, 0.0f, 3.6f}};
+    track.features = {{sim::FeatureType::EnergyPad, 1000.0f, 36.0f, 0.0f, 3.6f}};
     sim::World world;
     world.ownClock = true;
     world.count = 1;

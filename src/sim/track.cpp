@@ -35,21 +35,37 @@ float smoothEnergy(const music::Partition& p, float time, float half) {
     return count ? sum / static_cast<float>(count) : 0.0f;
 }
 
+// Hargne moyenne du morceau autour d'un instant.
+float smoothDrive(const music::Partition& p, float time, float half) {
+    float sum = 0.0f;
+    int count = 0;
+    for (float t = time - half; t <= time + half; t += 0.25f, count++) sum += p.driveAt(t);
+    return count ? sum / static_cast<float>(count) : 0.0f;
+}
+
+// Vitesse du point de synchronisation : elle suit l'énergie du morceau, et un
+// morceau hargneux va plus vite qu'un morceau doux de même énergie.
+float paceFor(float energy, float drive) { return 270.0f + 120.0f * energy + 30.0f * drive; }
+
 struct Phrase {
     float start, end;
     float amplitude; // courbure maximale, signée
 };
 
-// Un virage par phrase de huit temps. La piste serpente autour d'un axe : le
-// cap ne dépasse jamais un quart de tour, donc elle ne se recoupe pas.
+// Un virage par phrase de huit temps, ou de quatre quand le morceau est
+// hargneux : la piste se met alors à secouer. Elle serpente autour d'un axe,
+// le cap ne dépasse jamais un quart de tour, donc elle ne se recoupe pas.
 std::vector<Phrase> makePhrases(const music::Partition& p, const std::vector<music::Beat>& beats,
                                 float duration, uint32_t seed) {
     std::vector<float> cuts{0.0f};
     for (size_t i = 0; i < beats.size(); i++) {
         if (beats[i].bar != 0) continue;
-        for (size_t k = i; k < beats.size(); k += 8)
+        for (size_t k = i; k < beats.size(); k += 4) {
+            const bool whole = (k - i) % 8 == 0;
+            if (!whole && smoothDrive(p, beats[k].time, 1.5f) < 0.7f) continue;
             if (beats[k].time > cuts.back() + 1.0f && beats[k].time < duration - 1.0f)
                 cuts.push_back(beats[k].time);
+        }
         break;
     }
     cuts.push_back(duration);
@@ -59,10 +75,11 @@ std::vector<Phrase> makePhrases(const music::Partition& p, const std::vector<mus
     for (size_t i = 0; i + 1 < cuts.size(); i++) {
         const float start = cuts[i], end = cuts[i + 1];
         const float energy = smoothEnergy(p, 0.5f * (start + end), 0.5f * (end - start));
-        const float length = (270.0f + 120.0f * energy) * (end - start);
+        const float drive = smoothDrive(p, 0.5f * (start + end), 0.5f * (end - start));
+        const float length = paceFor(energy, drive) * (end - start);
         const int slot = static_cast<int>(i);
         // Un passage intense tourne serré, un passage calme file presque droit.
-        float amplitude = (0.0008f + 0.0024f * energy) * (0.6f + 0.4f * featureRoll(seed, slot, 11u));
+        float amplitude = (0.0008f + 0.0024f * energy) * (1.0f + 0.5f * drive) * (0.6f + 0.4f * featureRoll(seed, slot, 11u));
         if (energy < 0.25f && featureRoll(seed, slot, 12u) < 0.5f) amplitude *= 0.3f;
         // Le virage occupe les six dixièmes du milieu de la phrase et tourne de
         // amplitude * longueur * 0,3 : au plus 0,9 radian.
@@ -123,16 +140,14 @@ void finishFrames(Track& track) {
     }
 }
 
-// Pose les éléments sur la musique. Une plaque de boost tombe sur le premier
+// Pose les éléments sur la musique. Une plaque d'énergie tombe sur le premier
 // temps de la mesure. Un obstacle tombe sur le deuxième ou le quatrième
-// temps, celui que le morceau accentue le plus : barrières dans les passages
-// intenses, champs de freinage dans les passages calmes. Un passage reste
+// temps, celui que le morceau accentue le plus. Un passage reste
 // toujours libre, et la plaque de la mesure est dans ce passage.
 void placeFeatures(Track& track, const music::Partition& p, const std::vector<music::Beat>& beats,
                    uint32_t seed) {
     const float hw = track.halfWidth;
     const float kPadLength = 36.0f, kPadHalf = 3.6f;
-    const float kSlowLength = 50.0f;
     const float kBarrierLength = 3.0f;
     const float kGapHalf = 6.5f; // demi-largeur du passage entre deux barrières
 
@@ -148,56 +163,72 @@ void placeFeatures(Track& track, const music::Partition& p, const std::vector<mu
         return best;
     };
 
+    // Barrière ou groupe de barrières à cette distance. Renvoie le couloir
+    // resté libre le plus sûr pour une plaque.
+    auto hazard = [&](float dist, int slot, uint32_t salt, float padLane) {
+        const float lanes[3] = {-0.55f * hw, 0.0f, 0.55f * hw};
+        const float curvature = track.at(dist + 20.0f).curvature;
+        const float inside = curvature > 0.0f ? 1.0f : -1.0f;
+        const float kind = featureRoll(seed, slot, salt);
+        if (std::abs(curvature) > 0.0012f) {
+            // En virage, une barrière ferme la corde : il faut élargir.
+            const float half = hw * 0.36f;
+            add(FeatureType::Barrier, dist, kBarrierLength, inside * (hw - half), half);
+            return -inside * 0.5f * hw;
+        }
+        if (kind < 0.34f) {
+            // Chicane : deux barrières, un passage au milieu.
+            const float half = (hw - kGapHalf) * 0.5f;
+            add(FeatureType::Barrier, dist, kBarrierLength, -(hw - half), half);
+            add(FeatureType::Barrier, dist, kBarrierLength, hw - half, half);
+            return 0.0f;
+        }
+        if (kind < 0.67f) {
+            // Plot central, on passe d'un côté ou de l'autre.
+            add(FeatureType::Barrier, dist, kBarrierLength, 0.0f, hw * 0.28f);
+            return padLane == 0.0f ? (featureRoll(seed, slot, salt + 1u) < 0.5f ? lanes[0] : lanes[2]) : padLane;
+        }
+        // Demi-piste fermée.
+        const float side = featureRoll(seed, slot, salt + 1u) < 0.5f ? -1.0f : 1.0f;
+        const float half = hw * 0.42f;
+        add(FeatureType::Barrier, dist, kBarrierLength, side * (hw - half), half);
+        return -side * 0.5f * hw;
+    };
+
     int bar = 0;
     for (size_t i = 0; i + 3 < beats.size(); i++) {
         if (beats[i].bar != 0) continue;
         const int slot = bar++;
         const float energy = smoothEnergy(p, beats[i].time, 1.0f);
+        const float drive = smoothDrive(p, beats[i].time, 1.0f);
         const float lanes[3] = {-0.55f * hw, 0.0f, 0.55f * hw};
         float padLane = lanes[std::min(2, static_cast<int>(featureRoll(seed, slot, 2u) * 3.0f))];
+        const float turn = track.at(track.distAt(beats[i].time) + 20.0f).curvature;
+        if (std::abs(turn) > 0.0012f) padLane = turn > 0.0f ? -0.5f * hw : 0.5f * hw; // la plaque récompense l'extérieur
 
         const float accent2 = accent(beats[i + 1].time), accent4 = accent(beats[i + 3].time);
+        // Les passages calmes n'ont presque pas d'obstacles, les passages
+        // hargneux en ont à chaque mesure, et jusqu'à deux.
+        const float chance = (0.15f + 0.35f * energy + 0.20f * std::max(accent2, accent4) + 0.35f * drive) *
+                             (energy < 0.25f ? 0.3f : 1.0f);
         // Sur le deuxième temps l'obstacle suit la plaque d'un seul temps :
         // réservé aux passages intenses.
         const bool early = accent2 > accent4 && energy >= 0.6f;
-        const float hazardDist = track.distAt(beats[i + (early ? 1 : 3)].time);
-        const float chance = 0.20f + 0.40f * energy + 0.25f * std::max(accent2, accent4);
-        const float curvature = track.at(hazardDist + 20.0f).curvature;
-        const float inside = curvature > 0.0f ? 1.0f : -1.0f;
-        const bool turning = std::abs(curvature) > 0.0012f;
-
-        if (turning) padLane = -inside * 0.5f * hw; // la plaque récompense l'extérieur
+        const bool both = drive > 0.7f && featureRoll(seed, slot, 7u) < drive - 0.3f;
         if (featureRoll(seed, slot, 1u) < chance) {
-            const float kind = featureRoll(seed, slot, 3u);
-            if (turning) {
-                // En virage, un champ de freinage punit la corde.
-                const float half = hw * 0.30f;
-                add(FeatureType::SlowField, hazardDist, kSlowLength, inside * (hw - half), half);
-            } else if (energy < 0.3f) {
-                const float lane = lanes[std::min(2, static_cast<int>(kind * 3.0f))];
-                add(FeatureType::SlowField, hazardDist, kSlowLength, lane, hw * 0.34f);
-                if (lane == padLane) padLane = lane == 0.0f ? lanes[2] : 0.0f;
-            } else if (kind < 0.34f) {
-                // Chicane : deux barrières, un passage au milieu.
-                const float half = (hw - kGapHalf) * 0.5f;
-                add(FeatureType::Barrier, hazardDist, kBarrierLength, -(hw - half), half);
-                add(FeatureType::Barrier, hazardDist, kBarrierLength, hw - half, half);
-                padLane = 0.0f;
-            } else if (kind < 0.67f) {
-                // Plot central, on passe d'un côté ou de l'autre.
-                add(FeatureType::Barrier, hazardDist, kBarrierLength, 0.0f, hw * 0.28f);
-                if (padLane == 0.0f) padLane = featureRoll(seed, slot, 4u) < 0.5f ? lanes[0] : lanes[2];
-            } else {
-                // Demi-piste fermée.
-                const float side = featureRoll(seed, slot, 4u) < 0.5f ? -1.0f : 1.0f;
-                const float half = hw * 0.42f;
-                add(FeatureType::Barrier, hazardDist, kBarrierLength, side * (hw - half), half);
-                padLane = -side * 0.5f * hw;
+            if (early || both) padLane = hazard(track.distAt(beats[i + 1].time), slot, 3u, padLane);
+            if (!early || both) {
+                const float free = hazard(track.distAt(beats[i + 3].time), slot, 5u, padLane);
+                if (!early && !both) padLane = free;
             }
         }
-        // Passages calmes : une plaque une mesure sur deux.
+        // Passages calmes : une plaque une mesure sur deux. Passages hargneux :
+        // une seconde plaque sur le troisième temps.
         if (energy >= 0.35f || slot % 2 == 0)
-            add(FeatureType::BoostPad, track.distAt(beats[i].time) - 0.5f * kPadLength, kPadLength, padLane, kPadHalf);
+            add(FeatureType::EnergyPad, track.distAt(beats[i].time) - 0.5f * kPadLength, kPadLength, padLane, kPadHalf);
+        if (drive > 0.7f)
+            add(FeatureType::EnergyPad, track.distAt(beats[i + 2].time) - 0.5f * kPadLength, kPadLength,
+                -padLane, kPadHalf);
     }
 }
 
@@ -226,7 +257,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         float time, pace, dist;
     };
     std::vector<Sample> dense;
-    auto paceAt = [&](float time) { return 270.0f + 120.0f * smoothEnergy(p, time, 1.0f); };
+    auto paceAt = [&](float time) { return paceFor(smoothEnergy(p, time, 1.0f), smoothDrive(p, time, 1.0f)); };
     const float startPace = paceAt(0.0f);
     // La piste part vers -z : la ligne droite de départ est donc en z positif.
     for (float d = -kLead; d < 0.0f; d += kStep)
@@ -294,7 +325,10 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     }
     finishFrames(track);
     placeFeatures(track, p, beats, seed);
-    for (const music::Beat& b : beats) track.beats.push_back(b.time);
+    for (const music::Beat& b : beats) {
+        track.beats.push_back(b.time);
+        track.downbeats.push_back(b.bar == 0);
+    }
     return track;
 }
 

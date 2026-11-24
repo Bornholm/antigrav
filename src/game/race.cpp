@@ -210,6 +210,11 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
             const music::Beat& last = *(next - 1);
             out.pulse = (last.bar == 0 ? 1.0f : 0.55f) * std::exp(-(songTime - last.time) * 7.0f);
         }
+        // Un morceau hargneux cogne plus fort : néons plus vifs, et la caméra
+        // encaisse chaque temps.
+        const float drive = sim::song(config.track).driveAt(songTime);
+        beatKick = out.pulse * drive;
+        out.pulse *= 0.6f + 0.9f * drive;
     }
 
     // Caméra de poursuite : derrière et au-dessus du joueur, inclinée avec la
@@ -220,7 +225,8 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     out.camPos = camFrame.pos + camFrame.right * (camLateral * 0.82f) + camFrame.up * 4.8f + shake;
     out.camTarget = track.point(playerDist + 26.0f, camLateral * 0.55f, 0.0f);
     out.camUp = camFrame.up;
-    out.fovY = camFov;
+    out.fovY = camFov + 0.05f * beatKick;
+    out.camPos += camFrame.up * (0.45f * beatKick) - camFrame.tangent * (0.8f * beatKick);
     if (orbit) {
         // Vue de présentation : la caméra tourne autour du vaisseau.
         sim::TrackFrame f = track.at(playerDist);

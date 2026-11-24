@@ -44,7 +44,6 @@ struct AiProfile {
     bool block;        // ferme la porte à celui qui le suit
     float weave;       // amplitude de ses changements de couloir, en mètres
     float erratic;     // part de décisions prises au hasard
-    float nerve;       // part de son braquage qu'il accepte de consacrer à tenir une plaque en virage
     float foresight;   // secondes d'avance avec lesquelles il lit les éléments de piste
     float rhythm;      // part des occasions où il joue en rythme, de 0 à 1
 };

@@ -1,6 +1,11 @@
 # Jouer
 
-Chaque piste est générée à partir d'un morceau de musique. La course va de sa première note à sa dernière : pas de tours, et le classement se joue à l'arrivée. Les plaques de boost tombent sur le premier temps de chaque mesure, les obstacles sur les temps accentués, et les néons battent avec la musique.
+Chaque piste est générée à partir d'un morceau de musique. La course va de sa première note à sa dernière : pas de tours, et le classement se joue à l'arrivée.
+
+- **Tempo.** Un trait barre la piste sur chaque temps, plus épais sur le premier temps de la mesure. Les plaques d'énergie tombent sur les temps forts, les barrières sur les temps accentués.
+- **Intensité.** La piste plonge dans les passages intenses et remonte dans les passages calmes. Les virages se resserrent avec l'intensité.
+- **Hargne.** Un morceau saturé et dense, du metal par exemple, donne une piste plus rapide, des virages deux fois plus fréquents, jusqu'à deux barrières par mesure, et une caméra qui encaisse chaque temps.
+- **Décor.** Les bâtiments s'étirent avec les bandes de fréquences du morceau, comme un égaliseur, et les néons battent sur les temps.
 
 ## Courir sur ses propres morceaux
 
@@ -17,7 +22,7 @@ En multijoueur, seuls les morceaux livrés sont proposés pour l'instant.
 ## Jouer en rythme
 
 - **Accord.** Lancer le boost pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. « EN RYTHME » s'affiche. Un accord est possible toutes les deux secondes environ.
-- **Plaques.** Chaque plaque de boost prise rend aussi un peu d'énergie.
+- **Plaques.** Chaque plaque jaune recharge la jauge de 12 %.
 - **Jauge.** Elle ne se recharge presque plus seule. Boost, missile et bouclier se paient surtout en jouant en rythme.
 
 Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'avance du vaisseau sur la musique. Un élastique freine qui prend de l'avance et aspire qui traîne, donc le peloton reste groupé autour de la musique.
@@ -26,7 +31,7 @@ Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'
 
 Le jeu s'ouvre sur le menu. **Solo** règle le morceau, le vaisseau, le nombre d'IA de 0 à 7 et leur caractère. **Multijoueur** héberge une partie ou rejoint celles trouvées sur le réseau local.
 
-La piste porte trois sortes d'éléments. Les plaques à chevrons jaunes accélèrent, les champs hachurés rouges freinent et vident la jauge, les barrières rouges arrêtent net. Le bouclier protège des champs et encaisse une barrière.
+La piste porte deux sortes d'éléments. Les plaques à chevrons jaunes rechargent la jauge d'énergie, les barrières rouges arrêtent net. Le bouclier encaisse une barrière.
 
 Pour jouer à plusieurs, tous les appareils doivent être sur le même réseau Wi-Fi, ou sur le partage de connexion de l'un d'eux. L'hôte choisit le morceau, les IA et lance la course. Si la découverte automatique ne trouve rien, saisir l'adresse IP de l'hôte. Le jeu utilise le port UDP 47800.
 

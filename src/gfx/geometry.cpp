@@ -153,11 +153,24 @@ MeshData buildFeatures(const sim::Track& track) {
         }
     };
 
+    // Un trait en travers de la piste sur chaque temps du morceau, plus épais
+    // sur le premier temps de la mesure : on voit le tempo défiler.
+    {
+        const glm::vec3 kBeat{0.75f, 0.85f, 1.0f};
+        const float hw = track.halfWidth - 0.6f;
+        for (size_t i = 0; i < track.beats.size(); i++) {
+            const float at = track.distAt(track.beats[i]);
+            if (at < 40.0f || at > track.length - 20.0f) continue;
+            const bool down = i < track.downbeats.size() && track.downbeats[i];
+            flat(at, at + (down ? 2.6f : 1.0f), -hw, hw, 0.04f, glm::vec4(kBeat, down ? 2.4f : 0.9f));
+        }
+    }
+
     for (const sim::Feature& f : track.features) {
         const float d0 = f.dist, d1 = f.dist + f.length;
         const float l0 = f.lateral - f.halfWidth, l1 = f.lateral + f.halfWidth;
 
-        if (f.type == sim::FeatureType::BoostPad) {
+        if (f.type == sim::FeatureType::EnergyPad) {
             flat(d0, d1, l0, l1, 0.05f, glm::vec4(kPad, 0.10f));
             flat(d0, d1, l0, l0 + 0.25f, 0.07f, glm::vec4(kPad, 5.0f));
             flat(d0, d1, l1 - 0.25f, l1, 0.07f, glm::vec4(kPad, 5.0f));
@@ -172,23 +185,6 @@ MeshData buildFeatures(const sim::Track& track) {
                          {base + depth + thick, f.lateral, 0.09f}, {base + depth, f.lateral, 0.09f},
                          glm::vec4(kPad, 6.0f));
                 }
-            }
-        } else if (f.type == sim::FeatureType::SlowField) {
-            flat(d0, d1, l0, l1, 0.05f, glm::vec4(kDanger, 0.12f));
-            flat(d0, d1, l0, l0 + 0.3f, 0.07f, glm::vec4(kDanger, 5.0f));
-            flat(d0, d1, l1 - 0.3f, l1, 0.07f, glm::vec4(kDanger, 5.0f));
-            // Hachures en travers, et une herse basse à l'entrée.
-            const int bars = static_cast<int>(f.length / 5.0f);
-            for (int b = 0; b < bars; b++) {
-                float at = d0 + 5.0f * static_cast<float>(b) + 1.0f;
-                quad({at, l0, 0.08f}, {at + 1.1f, l0, 0.08f}, {at + 3.6f, l1, 0.08f},
-                     {at + 2.5f, l1, 0.08f}, glm::vec4(kDanger, 2.6f));
-            }
-            for (float post : {l0, l1}) {
-                quad({d0, post - 0.2f, 0.0f}, {d0, post + 0.2f, 0.0f}, {d0, post + 0.2f, 2.4f},
-                     {d0, post - 0.2f, 2.4f}, glm::vec4(kDanger, 6.0f));
-                quad({d1, post - 0.2f, 0.0f}, {d1, post + 0.2f, 0.0f}, {d1, post + 0.2f, 2.4f},
-                     {d1, post - 0.2f, 2.4f}, glm::vec4(kDanger, 6.0f));
             }
         } else {
             // Barrière : bloc sombre, bandes lumineuses face au pilote.

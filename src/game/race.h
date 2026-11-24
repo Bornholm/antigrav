@@ -27,6 +27,7 @@ struct Race : sim::Session {
     Synth* synth = nullptr;
     // Texte de mesures à afficher en bas de l'écran, fourni par la boucle principale.
     const char* statsLine = "";
+    float beatKick = 0.0f; // secousse de la caméra sur le temps, selon la hargne du morceau
     float bands[8] = {}; // niveaux de la musique, lissés pour l'affichage
     int theme = 0;      // décor de la piste
     int songSerial = 0; // change quand la piste change : le rendu la reconstruit alors

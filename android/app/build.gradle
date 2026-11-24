@@ -21,8 +21,9 @@ android {
         // Android 13 : première version où Vulkan 1.3 est courant.
         minSdk 33
         targetSdk 36
-        versionCode 1
-        versionName '0.1.0'
+        // La CI fournit le numéro de version à partir du tag.
+        versionCode((System.getenv('ANTIGRAV_VERSION_CODE') ?: '1') as int)
+        versionName System.getenv('ANTIGRAV_VERSION') ?: '0.1.0'
 
         ndk {
             // Tous les téléphones visés sont en ARM 64 bits.

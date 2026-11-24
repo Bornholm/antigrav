@@ -19,11 +19,15 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT,
     const VkDebugUtilsMessengerCallbackDataEXT* data, void* user) {
     auto* gpu = static_cast<Gpu*>(user);
+    // Un seul shader de sommets sert tous les matériaux, donc certaines de ses
+    // sorties restent sans lecteur. C'est voulu.
+    if (data->pMessageIdName && std::strstr(data->pMessageIdName, "OutputNotConsumed"))
+        return VK_FALSE;
     if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
         gpu->validationErrors++;
         logWarn("[validation] ERREUR %s", data->pMessage);
     } else {
-        logWarn("[validation] %s", data->pMessage);
+        logWarn("[validation] %s: %s", data->pMessageIdName ? data->pMessageIdName : "?", data->pMessage);
     }
     return VK_FALSE;
 }

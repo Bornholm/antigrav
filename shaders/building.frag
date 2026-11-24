@@ -26,7 +26,7 @@ void main() {
         float window = step(0.15, f.x) * step(f.x, 0.85) * step(0.25, f.y) * step(f.y, 0.75);
         vec3 tint = mix(CYAN, MAGENTA, step(0.5, hash21(cell.yx + kind)));
         c = vec3(0.004, 0.004, 0.012);
-        c += tint * lit * window * 0.9;
+        c += tint * lit * window * 0.55;
         // Bandeau lumineux au sommet et arête verticale.
         float crown = smoothstep(height - 5.0, height - 3.5, uv.y);
         c += color.rgb * crown * 3.0;

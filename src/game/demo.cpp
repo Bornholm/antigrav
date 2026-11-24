@@ -53,8 +53,9 @@ void Demo::fill(float time, gfx::FrameParams& out) const {
 
         gfx::ShipDraw& ship = out.ships[out.shipCount++];
         // Le maillage regarde vers -Z, donc son axe +Z pointe vers l'arrière.
-        ship.model = glm::mat4(glm::vec4(right, 0.0f), glm::vec4(up, 0.0f),
-                               glm::vec4(-f.tangent, 0.0f), glm::vec4(pos, 1.0f));
+        const float scale = 1.3f;
+        ship.model = glm::mat4(glm::vec4(right * scale, 0.0f), glm::vec4(up * scale, 0.0f),
+                               glm::vec4(-f.tangent * scale, 0.0f), glm::vec4(pos, 1.0f));
         ship.planePoint = f.pos;
         ship.planeNormal = f.up;
         ship.trim = glm::vec4(setup.trim, 6.0f);
@@ -63,9 +64,9 @@ void Demo::fill(float time, gfx::FrameParams& out) const {
 
     // Caméra de poursuite : derrière et au-dessus du joueur, inclinée avec la
     // piste, et qui regarde loin devant.
-    sim::TrackFrame camFrame = track.at(playerDist - 9.5f);
-    out.camPos = camFrame.pos + camFrame.right * (playerLateral * 0.7f) + camFrame.up * 3.1f;
-    out.camTarget = track.point(playerDist + 32.0f, playerLateral * 0.4f, 0.9f);
+    sim::TrackFrame camFrame = track.at(playerDist - 9.0f);
+    out.camPos = camFrame.pos + camFrame.right * (playerLateral * 0.7f) + camFrame.up * 4.4f;
+    out.camTarget = track.point(playerDist + 26.0f, playerLateral * 0.4f, 0.0f);
     out.camUp = camFrame.up;
     out.fovY = 1.12f;
     out.planePoint = camFrame.pos;

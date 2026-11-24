@@ -24,8 +24,8 @@ vec3 skyColor(vec3 d) {
     vec3 q = d * 220.0;
     vec3 cell = floor(q);
     float star = hash21(cell.xy + cell.z * 13.7);
-    float twinkle = smoothstep(0.985, 1.0, star) * smoothstep(0.6, 0.0, length(fract(q) - 0.5));
-    c += vec3(0.7, 0.8, 1.0) * twinkle * smoothstep(0.08, 0.4, d.y) * 0.9;
+    float twinkle = smoothstep(0.992, 1.0, star) * smoothstep(0.6, 0.0, length(fract(q) - 0.5));
+    c += vec3(0.7, 0.8, 1.0) * twinkle * smoothstep(0.15, 0.6, d.y) * 0.45;
 
     return c;
 }

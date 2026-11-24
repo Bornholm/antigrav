@@ -568,7 +568,7 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
     scene.camRight = glm::vec4(right * tanX, 1.0f);
     scene.camUp = glm::vec4(up * tanY, 0.0f);
     scene.camForward = glm::vec4(forward, 0.0f);
-    scene.fog = glm::vec4(0.045f, 0.012f, 0.085f, 0.00075f);
+    scene.fog = glm::vec4(0.050f, 0.012f, 0.095f, 0.0010f);
     scene.screen = glm::vec4(1.0f / static_cast<float>(sceneExtent.width),
                              1.0f / static_cast<float>(sceneExtent.height), params.speed, 0.0f);
 

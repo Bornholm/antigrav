@@ -17,8 +17,8 @@ void main() {
         c = color.rgb * color.a;
     } else {
         // Panneaux sombres avec un liseré tous les huit mètres.
-        float seam = 1.0 - smoothstep(0.0, 0.06, abs(fract(uv.y / 8.0) - 0.5) - 0.47);
-        c = vec3(0.006, 0.007, 0.014) + color.rgb * 0.05 * uv.x + color.rgb * seam * 0.25;
+        float seam = smoothstep(0.485, 0.5, abs(fract(uv.y / 8.0) - 0.5));
+        c = vec3(0.004, 0.005, 0.010) + color.rgb * (0.03 * uv.x * uv.x + seam * 0.5);
     }
     outColor = vec4(applyFog(c, worldPos), 1.0);
 }

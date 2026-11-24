@@ -150,13 +150,13 @@ MeshData buildCity(const sim::Track& track) {
             nearest = std::min(nearest, dx * dx + dz * dz);
         }
         nearest = std::sqrt(nearest);
-        float clearance = 110.0f + std::max(width, depth);
+        float clearance = 230.0f + std::max(width, depth);
         if (nearest < clearance) continue;
 
         float t = rng.next();
         float height = 70.0f + 380.0f * t * t;
         // Plus basses près de la piste, pour dégager la vue.
-        height *= std::clamp(nearest / 500.0f, 0.45f, 1.0f);
+        height *= std::clamp(nearest / 700.0f, 0.4f, 1.0f);
         float top = baseY + height + rng.range(60.0f, 110.0f);
         float tallness = top - baseY;
 
@@ -251,9 +251,16 @@ MeshData buildShip() {
         glm::vec3 finTop = P(3.08f, 1.05f, 2.45f);
         addFace(mesh, {finBase, wingTipRear, finTop}, 0.0f, hull, core);
 
-        // Liserés lumineux : bord d'attaque, bord de fuite, arête de dérive.
+        // Liserés lumineux : arêtes du fuselage, bord d'attaque, bord de fuite,
+        // arête de dérive.
         const glm::vec3 lift{0.0f, 0.025f, 0.0f};
         const glm::vec3 back{0.0f, 0.0f, 0.13f};
+        auto edge = [&](glm::vec3 a, glm::vec3 b) {
+            glm::vec3 w = P(0.07f, 0.0f, 0.0f);
+            addFace(mesh, {a + lift, b + lift, b + lift + w, a + lift + w}, 1.0f, white, below);
+        };
+        edge(nose, shoulder);
+        edge(shoulder, rearTop);
         addFace(mesh, {wingRootFront + lift, wingTipFront + lift, wingTipFront + lift + back,
                        wingRootFront + lift + back},
                 1.0f, white, below);
@@ -297,9 +304,9 @@ MeshData buildTrail() {
                  {cx, cy - halfH, z1}},
                 0.0f, white, none, {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}});
     };
-    for (float cx : {-0.76f, -0.33f, 0.33f, 0.76f}) ribbon(cx, 0.34f, 0.26f, 0.24f, 7.0f);
+    for (float cx : {-0.76f, -0.33f, 0.33f, 0.76f}) ribbon(cx, 0.34f, 0.24f, 0.22f, 4.5f);
     // Halo large qui fond les quatre flammes.
-    ribbon(0.0f, 0.34f, 1.7f, 0.5f, 13.0f);
+    ribbon(0.0f, 0.34f, 1.5f, 0.45f, 8.0f);
     return mesh;
 }
 

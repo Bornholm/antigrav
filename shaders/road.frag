@@ -32,21 +32,25 @@ void main() {
     float nv = clamp(dot(n, v), 0.0, 1.0);
 
     // Plaques plus ou moins humides, étirées dans le sens de la piste.
-    float wet = hash21(floor(vec2(x * 1.5, uv.y * 0.08)));
-    wet = mix(0.75, 1.0, wet);
+    vec2 wp = vec2(x * 0.9, uv.y * 0.05);
+    vec2 wi = floor(wp), wf = fract(wp);
+    wf = wf * wf * (3.0 - 2.0 * wf);
+    float wet = mix(mix(hash21(wi), hash21(wi + vec2(1.0, 0.0)), wf.x),
+                    mix(hash21(wi + vec2(0.0, 1.0)), hash21(wi + vec2(1.0, 1.0)), wf.x), wf.y);
+    wet = mix(0.70, 1.0, wet);
 
     // Reflet : plusieurs lectures étalées verticalement à l'écran, ce qui donne
     // les traînées allongées d'une chaussée mouillée.
     vec2 suv = gl_FragCoord.xy * g.screen.xy;
-    float spread = mix(0.004, 0.030, 1.0 - nv) * (0.6 + 0.4 * wet);
+    float spread = mix(0.010, 0.060, 1.0 - nv) * (0.6 + 0.4 * wet);
     vec3 refl = vec3(0.0);
     const float weights[5] = float[](0.30, 0.25, 0.20, 0.15, 0.10);
     for (int i = 0; i < 5; i++) {
         float t = float(i) / 4.0;
         refl += texture(reflectionTex, suv + vec2(0.0, -spread * t)).rgb * weights[i];
     }
-    float fresnel = 0.06 + 0.94 * pow(1.0 - nv, 4.0);
-    vec3 c = vec3(0.004, 0.005, 0.010) + refl * fresnel * wet * 1.6;
+    float fresnel = 0.05 + 0.95 * pow(1.0 - nv, 3.0);
+    vec3 c = vec3(0.003, 0.004, 0.008) + refl * fresnel * wet * 1.1;
 
     // Marquages émissifs.
     float edge = lineMask(ax, halfWidth - 0.55, 0.22);

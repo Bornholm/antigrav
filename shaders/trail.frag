@@ -18,8 +18,8 @@ void main() {
     float along = clamp(1.0 - uv.y, 0.0, 1.0);
     float flicker = 0.85 + 0.15 * sin(g.camPos.w * 40.0 + uv.y * 30.0);
     float core = pow(across, 3.0) * pow(along, 2.2);
-    vec3 c = mix(pc.colorB.rgb, vec3(1.0), pow(across, 8.0) * along) * core * pc.colorB.a *
-             flicker;
+    vec3 c = mix(pc.colorB.rgb, vec3(1.0), pow(across, 10.0) * along * 0.6) * core * pc.colorB.a *
+             flicker * 0.30;
     float visible = exp(-length(worldPos - g.camPos.xyz) * g.fog.a);
     outColor = vec4(c * visible, 1.0);
 }

@@ -120,8 +120,17 @@ target_compile_definitions(sim PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_RADI
 target_compile_options(sim PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
 set_target_properties(sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Réseau local : ne dépend que de la simulation et des sockets POSIX.
+add_library(net STATIC src/net/net.cpp)
+target_link_libraries(net PUBLIC sim)
+target_compile_options(net PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
+set_target_properties(net PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 if(NOT ANDROID)
   enable_testing()
+  add_executable(net_tests tests/net_tests.cpp)
+  target_link_libraries(net_tests PRIVATE net)
+  add_test(NAME net COMMAND net_tests)
   add_executable(sim_tests tests/sim_tests.cpp src/game/synth.cpp)
   target_link_libraries(sim_tests PRIVATE sim)
   add_test(NAME sim COMMAND sim_tests)
@@ -158,6 +167,6 @@ endif()
 
 add_dependencies(${GAME_TARGET} shaders)
 target_include_directories(${GAME_TARGET} PRIVATE src ${SHADER_OUT_DIR})
-target_link_libraries(${GAME_TARGET} PRIVATE sim third_party SDL3::SDL3)
+target_link_libraries(${GAME_TARGET} PRIVATE net sim third_party SDL3::SDL3)
 target_compile_options(${GAME_TARGET} PRIVATE
   -Wall -Wextra -Wno-missing-field-initializers -fno-exceptions -fno-rtti)

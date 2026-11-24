@@ -1,6 +1,9 @@
 #pragma once
 
+#include "sim/content.h"
 #include "sim/track.h"
+
+#include <cstdint>
 
 namespace sim {
 
@@ -14,9 +17,11 @@ constexpr float kShipHalfWidth = 3.2f;
 // Boost, missile et bouclier puisent dans la même jauge d'énergie.
 constexpr int kMaxMissiles = 16;
 constexpr float kMissileCost = 0.25f;
-constexpr float kShieldCost = 0.20f;
+constexpr float kShieldCost = 0.35f;
 constexpr float kShieldDuration = 2.5f; // secondes
 constexpr float kStunDuration = 1.2f;   // secondes sans contrôle après un impact
+constexpr float kAbsorbGain = 0.25f;
+constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand son missile touche    // énergie rendue par un missile absorbé
 
 struct Input {
     float steer = 0.0f; // -1 à gauche, +1 à droite
@@ -34,7 +39,7 @@ struct Vehicle {
     float speed = 0.0f;
     float energy = 1.0f;
     float roll = 0.0f;       // inclinaison visuelle
-    float topSpeed = kCruiseSpeed;
+    int ship = 0;            // modèle, voir shipStats
     bool boosting = false;
     bool scraping = false;   // frotte contre un muret
     bool finished = false;
@@ -59,6 +64,7 @@ struct World {
     Vehicle vehicles[kMaxVehicles];
     Missile missiles[kMaxMissiles];
     int count = 0;
+    uint32_t tick = 0;
     double time = 0.0;
     int laps = 3;
     float countdown = 0.0f; // secondes avant le départ, les vaisseaux restent sur la grille
@@ -70,11 +76,16 @@ int lapOf(const World& world, const Track& track, const Vehicle& vehicle);
 
 void step(World& world, const Track& track, const Input* inputs);
 
-// Pilote automatique : suit l'intérieur des virages et compense la dérive.
-Input autopilot(const Vehicle& vehicle, const Track& track, float laneOffset);
+// Avance un seul vaisseau d'un pas, sans missiles ni contacts. La prédiction
+// réseau s'en sert pour rejouer les commandes du joueur local.
+void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track);
 
-// Complète les commandes d'un pilote automatique : quand tirer, quand se protéger.
-void autopilotItems(const World& world, int index, Input& input);
+// Pilote automatique : conduite, boost, tir et bouclier selon sa personnalité.
+// laneOffset est son couloir préféré, en mètres par rapport à l'axe.
+Input autopilot(const World& world, int index, const Track& track, const AiProfile& profile,
+                float laneOffset);
+
+float cruiseSpeed(const Vehicle& vehicle);
 
 // Rang d'un vaisseau, 1 pour le premier.
 int rankOf(const World& world, int index);

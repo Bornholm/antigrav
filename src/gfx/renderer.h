@@ -31,6 +31,7 @@ struct ShipDraw {
     glm::vec4 trim{1.0f};   // rgb couleur des liserés, a intensité
     glm::vec4 engine{1.0f}; // rgb couleur des réacteurs, a intensité
     float shield = 0.0f;    // intensité de la bulle du bouclier, 0 pour aucune
+    int variant = 0;        // modèle de vaisseau
 };
 
 struct MissileDraw {

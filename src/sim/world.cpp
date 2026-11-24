@@ -13,10 +13,12 @@ constexpr float kDecel = 30.0f;
 constexpr float kSteerSpeed = 27.0f;  // vitesse latérale à fond de braquage, m/s
 constexpr float kSteerResponse = 9.0f;
 constexpr float kDrift = 0.040f;      // part de l'accélération centrifuge subie
+constexpr float kScrub = 1.6f;        // vitesse perdue par mètre de glissade
 constexpr float kBoostDrain = 1.0f / 5.0f;   // énergie par seconde
 constexpr float kEnergyRegen = 1.0f / 24.0f;
 
-void stepVehicle(Vehicle& v, const Input& in, const Track& track, float dt) {
+void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, float dt) {
+    const ShipStats& stats = shipStats(v.ship);
     TrackFrame f = track.at(v.dist);
     float steer = std::clamp(in.steer, -1.0f, 1.0f);
 
@@ -26,18 +28,23 @@ void stepVehicle(Vehicle& v, const Input& in, const Track& track, float dt) {
     if (stunned) steer *= 0.3f;
 
     v.boosting = in.boost && v.energy > 0.0f && !stunned;
-    float target = v.boosting ? kBoostSpeed * (v.topSpeed / kCruiseSpeed) : v.topSpeed;
-    if (stunned) target = v.topSpeed * 0.55f;
+    float cruise = kCruiseSpeed * stats.topSpeed;
+    float target = v.boosting ? kBoostSpeed * stats.topSpeed : cruise;
+    if (stunned) target = cruise * 0.55f;
     float delta = target - v.speed;
-    v.speed += std::clamp(delta, -(stunned ? 4.0f : 1.0f) * kDecel * dt,
-                          (v.boosting ? kBoostAccel : kAccel) * dt);
+    float gain = (v.boosting ? kBoostAccel : kAccel) * stats.accel;
+    v.speed += std::clamp(delta, -(stunned ? 4.0f : 1.0f) * kDecel * dt, gain * dt);
 
-    v.energy += (v.boosting ? -kBoostDrain : kEnergyRegen) * dt;
+    v.energy += (v.boosting ? -kBoostDrain : kEnergyRegen * stats.regen) * dt;
 
     // Braquage, plus la dérive vers l'extérieur du virage.
-    v.lateralVel += (steer * kSteerSpeed - v.lateralVel) * std::min(1.0f, kSteerResponse * dt);
-    float drift = -f.curvature * v.speed * v.speed * kDrift;
+    float steerSpeed = kSteerSpeed * stats.handling;
+    v.lateralVel += (steer * steerSpeed - v.lateralVel) * std::min(1.0f, kSteerResponse * dt);
+    float drift = -f.curvature * v.speed * v.speed * kDrift / stats.grip;
     v.lateral += (v.lateralVel + drift) * dt;
+    // Glisser coûte de la vitesse : un vaisseau qui accroche sort plus vite
+    // des virages qu'un vaisseau rapide en ligne droite.
+    v.speed -= std::abs(drift) * kScrub * dt;
 
     // Murets : rebond mou, perte de vitesse et d'énergie.
     float limit = track.halfWidth - kShipHalfWidth;
@@ -46,7 +53,7 @@ void stepVehicle(Vehicle& v, const Input& in, const Track& track, float dt) {
         float side = v.lateral > 0.0f ? 1.0f : -1.0f;
         v.lateral = side * limit;
         if (v.lateralVel * side > 0.0f) v.lateralVel *= -0.35f;
-        v.speed -= v.speed * 0.55f * dt;
+        v.speed -= v.speed * (0.55f / stats.sturdy) * dt;
         // Le bouclier protège aussi des murets.
         if (v.shieldTime <= 0.0f) v.energy -= 0.12f * dt;
         v.scraping = true;
@@ -124,11 +131,16 @@ void stepMissiles(World& world, const Track& track, float dt) {
             if (std::abs(v.dist - m.dist) > 6.5f || std::abs(v.lateral - m.lateral) > 3.8f)
                 continue;
             m.active = false;
-            // Un bouclier levé absorbe le missile.
+            // Un bouclier levé absorbe le missile et en récupère l'énergie : se
+            // défendre au bon moment rapporte plus que tirer à l'aveugle.
+            if (v.shieldTime > 0.0f) v.energy = std::min(1.0f, v.energy + kAbsorbGain);
             if (v.shieldTime <= 0.0f) {
-                v.stunTime = kStunDuration;
-                v.speed *= 0.6f;
+                const ShipStats& stats = shipStats(v.ship);
+                v.stunTime = kStunDuration / stats.sturdy;
+                v.speed *= 1.0f - 0.4f / stats.sturdy;
                 v.energy = std::max(0.0f, v.energy - 0.10f);
+                Vehicle& shooter = world.vehicles[m.owner];
+                shooter.energy = std::min(1.0f, shooter.energy + kHitGain);
             }
             break;
         }
@@ -137,7 +149,14 @@ void stepMissiles(World& world, const Track& track, float dt) {
 
 } // namespace
 
+void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track) {
+    stepVehicleDt(vehicle, input, track, kFixedDt);
+}
+
+float cruiseSpeed(const Vehicle& vehicle) { return kCruiseSpeed * shipStats(vehicle.ship).topSpeed; }
+
 void step(World& world, const Track& track, const Input* inputs) {
+    world.tick++;
     world.time += kFixedDt;
     if (world.countdown > 0.0f) {
         world.countdown -= kFixedDt;
@@ -150,7 +169,7 @@ void step(World& world, const Track& track, const Input* inputs) {
         Vehicle& v = world.vehicles[i];
         float before = v.dist;
         useItems(world, i, inputs[i]);
-        stepVehicle(v, inputs[i], track, kFixedDt);
+        stepVehicleDt(v, inputs[i], track, kFixedDt);
         if (!v.finished && v.dist >= finishDist) {
             v.finished = true;
             // Instant exact du passage, interpolé dans le pas.
@@ -188,43 +207,83 @@ void step(World& world, const Track& track, const Input* inputs) {
         world.vehicles[i].lateral = std::clamp(world.vehicles[i].lateral, -limit, limit);
 }
 
-Input autopilot(const Vehicle& v, const Track& track, float laneOffset) {
+namespace {
+
+// Tirage pseudo-aléatoire reproductible : dépend du pilote et de l'instant,
+// jamais d'un état global, donc deux exécutions donnent la même course.
+float chance(int index, uint32_t slot, uint32_t salt) {
+    uint32_t h = static_cast<uint32_t>(index) * 0x9E3779B1u ^ slot * 0x85EBCA77u ^ salt * 0xC2B2AE3Du;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    return static_cast<float>(h & 0xFFFFFFu) / 16777216.0f;
+}
+
+} // namespace
+
+Input autopilot(const World& world, int index, const Track& track, const AiProfile& profile,
+                float laneOffset) {
+    const Vehicle& v = world.vehicles[index];
+    const ShipStats& stats = shipStats(v.ship);
+    Input in;
+
     // Regarde devant pour prendre le virage à temps.
     TrackFrame here = track.at(v.dist);
     TrackFrame ahead = track.at(v.dist + v.speed * 0.6f);
     float limit = track.halfWidth - kShipHalfWidth - 1.5f;
-    float line = std::clamp(ahead.curvature * 4200.0f + laneOffset, -limit, limit);
+    float line = ahead.curvature * profile.lineGain + laneOffset;
+    if (profile.weave > 0.0f)
+        line += profile.weave * std::sin(static_cast<float>(world.time) * 0.9f +
+                                         static_cast<float>(index) * 2.1f);
 
-    Input in;
-    float drift = -here.curvature * v.speed * v.speed * kDrift;
-    float wanted = (line - v.lateral) * 1.6f - drift;
-    in.steer = std::clamp(wanted / kSteerSpeed, -1.0f, 1.0f);
-
-    bool straight = std::abs(here.curvature) < 0.0006f && std::abs(ahead.curvature) < 0.0008f;
-    in.boost = straight && (v.boosting ? v.energy > 0.25f : v.energy > 0.85f);
-    return in;
-}
-
-void autopilotItems(const World& world, int index, Input& input) {
-    const Vehicle& me = world.vehicles[index];
-
-    // Tire sur un adversaire proche et à peu près dans l'axe, s'il reste de
-    // quoi garder un peu de boost.
+    // Réactions aux autres vaisseaux.
+    bool targetInSight = false;
     for (int i = 0; i < world.count; i++) {
         if (i == index) continue;
         const Vehicle& other = world.vehicles[i];
-        float ahead = other.dist - me.dist;
-        if (ahead > 25.0f && ahead < 170.0f && std::abs(other.lateral - me.lateral) < 5.0f &&
-            other.stunTime <= 0.0f && other.shieldTime <= 0.0f && me.energy > 0.7f)
-            input.fire = true;
+        float along = other.dist - v.dist;
+        float across = other.lateral - v.lateral;
+        if (profile.ram && std::abs(along) < 14.0f && std::abs(across) < 11.0f) {
+            line = other.lateral; // se rabat dessus
+        } else if (profile.block && along < -8.0f && along > -45.0f) {
+            line = other.lateral; // ferme la porte
+        } else if (!profile.ram && along > 0.0f && along < 30.0f && std::abs(across) < 6.5f) {
+            line += across > 0.0f ? -7.5f : 7.5f; // double par le côté libre
+        }
+        if (along > 25.0f && along < profile.fireRange && std::abs(across) < 5.0f &&
+            other.stunTime <= 0.0f && other.shieldTime <= 0.0f)
+            targetInSight = true;
     }
-    // Lève le bouclier quand un missile adverse arrive par derrière.
-    for (const Missile& m : world.missiles) {
-        if (!m.active || m.owner == index) continue;
-        float behind = me.dist - m.dist;
-        if (behind > 0.0f && behind < 110.0f && std::abs(m.lateral - me.lateral) < 7.0f)
-            input.shield = true;
+    line = std::clamp(line, -limit, limit);
+
+    float steerSpeed = kSteerSpeed * stats.handling;
+    float drift = -here.curvature * v.speed * v.speed * kDrift / stats.grip;
+    float wanted = (line - v.lateral) * 1.6f - drift;
+    in.steer = std::clamp(wanted / steerSpeed, -1.0f, 1.0f);
+
+    // Décisions prises par tranches d'une demi-seconde pour les tirages.
+    uint32_t slot = world.tick / 30u;
+    bool whim = profile.erratic > 0.0f && chance(index, slot, 1u) < profile.erratic;
+
+    bool straight = std::abs(here.curvature) < 0.0006f && std::abs(ahead.curvature) < 0.0008f;
+    in.boost = straight && (v.boosting ? v.energy > profile.boostStop : v.energy > profile.boostStart);
+    if (whim && v.energy > 0.3f) in.boost = chance(index, slot, 2u) < 0.5f;
+
+    // Un appui bref : la simulation ne tire que sur le front montant.
+    bool pulse = world.tick % 30u == static_cast<uint32_t>(index) % 30u;
+    bool wantsFire = targetInSight && v.energy >= profile.fireEnergy;
+    if (whim && v.energy > kMissileCost + 0.05f && chance(index, slot, 3u) < 0.25f) wantsFire = true;
+    in.fire = wantsFire && pulse;
+
+    if (profile.shieldRange > 0.0f) {
+        for (const Missile& m : world.missiles) {
+            if (!m.active || m.owner == index) continue;
+            float behind = v.dist - m.dist;
+            if (behind > 0.0f && behind < profile.shieldRange && std::abs(m.lateral - v.lateral) < 7.0f)
+                in.shield = true;
+        }
     }
+    return in;
 }
 
 int rankOf(const World& world, int index) {

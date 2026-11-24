@@ -66,6 +66,7 @@ struct Options {
     bool hud = true;
     bool autopilot = false;
     bool stats = false;
+    int track = 0;
     bool audio = true;
     std::string wav;     // mode sans fenêtre : écrit le son de la course dans ce fichier
     int gridStart = -1;  // -1 : selon le mode, 0 : départ lancé, 1 : grille
@@ -95,6 +96,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--no-hud")) o.hud = false;
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
         else if (!std::strcmp(a, "--stats")) o.stats = true;
+        else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
         else if (!std::strcmp(a, "--no-audio")) o.audio = false;
         else if (!std::strcmp(a, "--wav")) o.wav = value();
         else if (!std::strcmp(a, "--grid-start")) o.gridStart = 1;
@@ -203,7 +205,7 @@ int runHeadless(const Options& opt) {
     capture.init(gpu, extent);
 
     game::Race race;
-    race.init(opt.gridStart == 1);
+    race.init(game::defaultConfig(opt.track, opt.gridStart == 1), 0);
     race.autopilot = true;
     game::Synth synth;
     std::vector<float> wavSamples;
@@ -311,7 +313,7 @@ int runWindowed(const Options& opt) {
     if (!haveSwapchain) fatal("Surface de taille nulle au démarrage");
 
     game::Race race;
-    race.init(opt.gridStart != 0);
+    race.init(game::defaultConfig(opt.track, opt.gridStart != 0), 0);
     race.autopilot = opt.autopilot;
     game::InputReader input;
     game::Audio audio;

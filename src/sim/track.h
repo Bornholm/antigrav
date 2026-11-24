@@ -24,7 +24,8 @@ struct Track {
     float halfWidth = 15.0f;
     std::vector<TrackFrame> frames;
 
-    static Track makeDemo();
+    // id : indice du circuit, de 0 à kTrackCount - 1. Voir sim/content.h.
+    static Track make(int id);
 
     // Distance quelconque, ramenée dans [0, length).
     TrackFrame at(float distance) const;

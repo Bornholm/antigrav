@@ -1,5 +1,7 @@
 #include "sim/track.h"
 
+#include "sim/content.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -97,15 +99,41 @@ Track build(const std::vector<glm::vec3>& control, float halfWidth, float target
 
 } // namespace
 
-Track Track::makeDemo() {
-    // Environ 10,7 km : une trentaine de secondes par tour à 1 250 km/h.
-    std::vector<glm::vec3> control = {
-        {0.0f, 0.0f, 0.0f},        {0.0f, 0.0f, -1500.0f},    {450.0f, 25.0f, -2700.0f},
-        {1500.0f, 60.0f, -3000.0f}, {2400.0f, 25.0f, -2400.0f}, {2250.0f, 0.0f, -1350.0f},
-        {1350.0f, -12.0f, -900.0f}, {1500.0f, 0.0f, 150.0f},   {900.0f, 35.0f, 900.0f},
-        {0.0f, 25.0f, 750.0f},
-    };
-    return build(control, 15.0f, 4.0f);
+Track Track::make(int id) {
+    const float halfWidth = trackInfo(id).halfWidth;
+    std::vector<glm::vec3> control;
+    switch (id) {
+    case 1:
+        // Canyon Solaire : tracé sinueux et vallonné, virages serrés.
+        control = {
+            {0.0f, 0.0f, 0.0f},       {0.0f, 15.0f, -900.0f},   {350.0f, 70.0f, -1500.0f},
+            {1000.0f, 130.0f, -1500.0f}, {1300.0f, 95.0f, -900.0f}, {900.0f, 40.0f, -450.0f},
+            {1200.0f, 0.0f, 150.0f},  {1900.0f, -35.0f, 300.0f}, {2300.0f, 25.0f, -300.0f},
+            {2900.0f, 95.0f, -200.0f}, {3000.0f, 60.0f, 700.0f}, {2200.0f, 10.0f, 1100.0f},
+            {1200.0f, -25.0f, 850.0f}, {500.0f, 30.0f, 1300.0f}, {-150.0f, 20.0f, 800.0f},
+        };
+        break;
+    case 2: {
+        // Station Orbitale : un huit, dont une branche enjambe l'autre.
+        const int points = 14;
+        for (int i = 0; i < points; i++) {
+            float t = 0.45f + 6.2831853f * static_cast<float>(i) / points;
+            control.push_back({1700.0f * std::sin(t), 45.0f * std::cos(t),
+                               -1150.0f * std::sin(2.0f * t)});
+        }
+        break;
+    }
+    default:
+        // Néon City : grandes courbes rapides, environ 10,7 km.
+        control = {
+            {0.0f, 0.0f, 0.0f},        {0.0f, 0.0f, -1500.0f},    {450.0f, 25.0f, -2700.0f},
+            {1500.0f, 60.0f, -3000.0f}, {2400.0f, 25.0f, -2400.0f}, {2250.0f, 0.0f, -1350.0f},
+            {1350.0f, -12.0f, -900.0f}, {1500.0f, 0.0f, 150.0f},   {900.0f, 35.0f, 900.0f},
+            {0.0f, 25.0f, 750.0f},
+        };
+        break;
+    }
+    return build(control, halfWidth, 4.0f);
 }
 
 TrackFrame Track::at(float distance) const {

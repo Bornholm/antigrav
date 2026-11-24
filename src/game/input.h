@@ -22,6 +22,18 @@ struct Controls {
     bool pressed[static_cast<int>(Button::Count)] = {};
 };
 
+// Ce que les menus retiennent des entrées d'une image : des appuis ponctuels,
+// pas des touches maintenues.
+struct UiInput {
+    glm::vec2 taps[4];
+    int tapCount = 0;
+    bool up = false, down = false, left = false, right = false;
+    bool accept = false, back = false;
+    char typed[8] = ""; // chiffres et points saisis au clavier
+    int typedCount = 0;
+    bool backspace = false;
+};
+
 // Réunit clavier, souris et écran tactile en un seul état de commandes.
 struct InputReader {
     static constexpr int kMaxPointers = 10;
@@ -38,7 +50,11 @@ struct InputReader {
     bool padLeft = false, padRight = false, padBoost = false, padTrigger = false;
     bool padMissile = false, padShield = false;
 
+    UiInput ui;
+
     void handleEvent(const SDL_Event& event, glm::vec2 screen);
+    // Rend les appuis accumulés depuis le dernier appel et les efface.
+    UiInput consumeUi();
     Controls read(glm::vec2 screen) const;
 };
 

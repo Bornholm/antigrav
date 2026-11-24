@@ -1,6 +1,6 @@
 #include "core/log.h"
 #include "game/audio.h"
-#include "game/race.h"
+#include "game/app.h"
 #include "gfx/capture.h"
 #include "gfx/gpu.h"
 #include "gfx/renderer.h"
@@ -9,6 +9,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -67,6 +68,9 @@ struct Options {
     bool autopilot = false;
     bool stats = false;
     int track = 0;
+    bool race = false;   // démarre directement en course, sans menu
+    std::string screen;  // mode sans fenêtre : écran de menu à capturer
+    int ship = 0;
     bool audio = true;
     std::string wav;     // mode sans fenêtre : écrit le son de la course dans ce fichier
     int gridStart = -1;  // -1 : selon le mode, 0 : départ lancé, 1 : grille
@@ -97,6 +101,9 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
         else if (!std::strcmp(a, "--stats")) o.stats = true;
         else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
+        else if (!std::strcmp(a, "--ship")) o.ship = std::atoi(value());
+        else if (!std::strcmp(a, "--race")) o.race = true;
+        else if (!std::strcmp(a, "--screen")) o.screen = value();
         else if (!std::strcmp(a, "--no-audio")) o.audio = false;
         else if (!std::strcmp(a, "--wav")) o.wav = value();
         else if (!std::strcmp(a, "--grid-start")) o.gridStart = 1;
@@ -204,15 +211,35 @@ int runHeadless(const Options& opt) {
     gfx::Capture capture;
     capture.init(gpu, extent);
 
-    game::Race race;
-    race.init(game::defaultConfig(opt.track, opt.gridStart == 1), 0);
-    race.autopilot = true;
     game::Synth synth;
     std::vector<float> wavSamples;
-    if (!opt.wav.empty()) race.synth = &synth;
-    // Avance jusqu'à l'instant demandé avant la première image.
-    for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
-        race.update(sim::kFixedDt, game::Controls{});
+    game::App app;
+    app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
+    app.init(opt.track);
+    game::Race& race = app.race;
+    if (opt.screen.empty()) {
+        // Course jouée par l'ordinateur, pour les captures.
+        game::RaceConfig config = game::defaultConfig(opt.track, opt.gridStart == 1);
+        config.racers[0].ship = app.ship;
+        if (!opt.wav.empty()) app.synth = &synth;
+        app.startQuickRace(config, true);
+        // Avance jusqu'à l'instant demandé avant la première image.
+        for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
+            race.update(sim::kFixedDt, game::Controls{});
+    } else {
+        if (opt.screen == "solo") app.screen = game::Screen::Solo;
+        else if (opt.screen == "multi") app.screen = game::Screen::Multi;
+        else if (opt.screen == "adresse") app.screen = game::Screen::Address;
+        else if (opt.screen == "salon") {
+            app.net.host(app.playerName, app.ship, 47950);
+            app.net.lobby.track = opt.track;
+            app.screen = game::Screen::Lobby;
+        }
+        if (opt.screen == "multi") app.net.client(app.playerName, app.ship);
+        for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
+            race.update(sim::kFixedDt, game::Controls{});
+        race.orbitAngle = opt.startTime * 0.35f;
+    }
 
     gfx::Renderer renderer;
     renderer.init(gpu, format);
@@ -235,8 +262,10 @@ int runHeadless(const Options& opt) {
         gfx::FrameTarget ft{target.view, extent, extent, 0};
         gfx::FrameParams params;
         params.slot = i % kFramesInFlight;
-        race.update(1.0f / opt.fps, game::Controls{});
-        if (race.synth) {
+        glm::vec2 screenSize{static_cast<float>(extent.width), static_cast<float>(extent.height)};
+        app.update(static_cast<double>(i) / opt.fps, 1.0f / opt.fps, game::Controls{},
+                   game::UiInput{}, screenSize, renderer.fonts);
+        if (app.synth) {
             // Le son avance du même pas que l'image, donc il reste synchrone.
             size_t wanted = static_cast<size_t>(
                 static_cast<double>(i + 1) * game::Synth::kSampleRate / opt.fps);
@@ -246,8 +275,7 @@ int runHeadless(const Options& opt) {
                 synth.render(wavSamples.data() + have * 2, static_cast<int>(wanted - have));
             }
         }
-        race.fill(renderer.fonts,
-                  {static_cast<float>(extent.width), static_cast<float>(extent.height)}, params);
+        app.fill(renderer.fonts, screenSize, params);
         if (!opt.hud) params.hud = nullptr;
         renderer.draw(cmd, ft, params);
 
@@ -313,12 +341,18 @@ int runWindowed(const Options& opt) {
     bool haveSwapchain = swapchain.create(gpu, w, h, opt.vsync);
     if (!haveSwapchain) fatal("Surface de taille nulle au démarrage");
 
-    game::Race race;
-    race.init(game::defaultConfig(opt.track, opt.gridStart != 0), 0);
-    race.autopilot = opt.autopilot;
     game::InputReader input;
     game::Audio audio;
-    if (opt.audio && audio.init()) race.synth = &audio.synth;
+    game::App app;
+    if (opt.audio && audio.init()) app.synth = &audio.synth;
+    app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
+    app.init(opt.track);
+    if (opt.race || opt.autopilot) {
+        game::RaceConfig config = game::defaultConfig(opt.track, opt.gridStart != 0);
+        config.racers[0].ship = app.ship;
+        app.startQuickRace(config, opt.autopilot);
+    }
+    game::Race& race = app.race;
 
     gfx::Renderer renderer;
     renderer.init(gpu, swapchain.format);
@@ -347,9 +381,6 @@ int runWindowed(const Options& opt) {
             switch (event.type) {
             case SDL_EVENT_QUIT:
                 running = false;
-                break;
-            case SDL_EVENT_KEY_DOWN:
-                if (event.key.key == SDLK_ESCAPE) running = false;
                 break;
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                 needResize = true;
@@ -419,7 +450,12 @@ int runWindowed(const Options& opt) {
         lastTick = now;
         screen = {static_cast<float>(swapchain.logicalExtent.width),
                   static_cast<float>(swapchain.logicalExtent.height)};
-        race.update(dt, input.read(screen));
+        app.update(static_cast<double>(now - start) * 1e-9, dt, input.read(screen),
+                   input.consumeUi(), screen, renderer.fonts);
+        if (app.quit) running = false;
+        // Le menu a changé de circuit : la géométrie suit.
+        if (race.config.track != renderer.loadedTrack)
+            renderer.loadTrack(race.track, race.config.track);
 
         // Mesures lissées, rafraîchies deux fois par seconde.
         cpuMsSmoothed += (static_cast<double>(dt) * 1000.0 - cpuMsSmoothed) * 0.05;
@@ -430,11 +466,11 @@ int runWindowed(const Options& opt) {
                           renderer.stats.lastTotalMs(), cpuMsSmoothed, 1000.0 / cpuMsSmoothed,
                           renderer.sceneExtent.width, renderer.sceneExtent.height);
         }
-        race.statsLine = statsText;
+        app.statsLine = statsText;
 
         gfx::FrameParams params;
         params.slot = static_cast<int>(frameIndex % kFramesInFlight);
-        race.fill(renderer.fonts, screen, params);
+        app.fill(renderer.fonts, screen, params);
         if (!opt.hud) params.hud = nullptr;
         renderer.draw(cmd, ft, params);
 
@@ -466,6 +502,7 @@ int runWindowed(const Options& opt) {
             seconds > 0.0 ? static_cast<double>(frameIndex) / seconds : 0.0);
     logGpuStats(renderer);
 
+    app.net.close();
     audio.shutdown();
     destroyFrames(gpu, frames);
     renderer.shutdown();

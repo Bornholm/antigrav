@@ -197,11 +197,13 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         // Vue de présentation : la caméra tourne autour du vaisseau.
         sim::TrackFrame f = track.at(playerDist);
         glm::vec3 center = f.pos + f.right * player.lateral + f.up * 1.2f;
-        out.camPos = center + (f.right * std::sin(orbitAngle) - f.tangent * std::cos(orbitAngle)) * 11.5f +
-                     f.up * 3.6f;
-        out.camTarget = center;
+        out.camPos = center + (f.right * std::sin(orbitAngle) - f.tangent * std::cos(orbitAngle)) * 16.0f +
+                     f.up * 11.0f;
+        glm::vec3 view = glm::normalize(center - out.camPos);
+        glm::vec3 side = glm::normalize(glm::cross(view, f.up));
+        out.camTarget = center - side * orbitShift.x + f.up * orbitShift.y;
         out.camUp = f.up;
-        out.fovY = 0.95f;
+        out.fovY = 0.85f;
     }
     out.planePoint = camFrame.pos;
     out.planeNormal = camFrame.up;

@@ -49,6 +49,8 @@ struct Race : sim::Session {
     // Caméra en orbite autour du vaisseau local, pour les menus. Angle en radians.
     bool orbit = false;
     float orbitAngle = 0.0f;
+    // Décale le vaisseau dans l'image : x vers la droite, y vers le bas, en mètres.
+    glm::vec2 orbitShift{0.0f};
 };
 
 // Course d'exemple : un joueur et trois IA de personnalités différentes.

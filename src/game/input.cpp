@@ -47,6 +47,47 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
         slot->pos = pos;
     };
 
+    auto tap = [&](glm::vec2 pos) {
+        if (ui.tapCount < 4) ui.taps[ui.tapCount++] = pos;
+    };
+
+    // Appuis ponctuels pour les menus.
+    if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
+        SDL_Scancode sc = event.key.scancode;
+        if (sc == SDL_SCANCODE_UP) ui.up = true;
+        else if (sc == SDL_SCANCODE_DOWN) ui.down = true;
+        else if (sc == SDL_SCANCODE_LEFT) ui.left = true;
+        else if (sc == SDL_SCANCODE_RIGHT) ui.right = true;
+        else if (sc == SDL_SCANCODE_RETURN || sc == SDL_SCANCODE_KP_ENTER) ui.accept = true;
+        else if (sc == SDL_SCANCODE_ESCAPE || sc == SDL_SCANCODE_AC_BACK) ui.back = true;
+        else if (sc == SDL_SCANCODE_BACKSPACE) ui.backspace = true;
+        char c = 0;
+        if (sc >= SDL_SCANCODE_1 && sc <= SDL_SCANCODE_9) c = static_cast<char>('1' + (sc - SDL_SCANCODE_1));
+        else if (sc == SDL_SCANCODE_0) c = '0';
+        else if (sc >= SDL_SCANCODE_KP_1 && sc <= SDL_SCANCODE_KP_9) c = static_cast<char>('1' + (sc - SDL_SCANCODE_KP_1));
+        else if (sc == SDL_SCANCODE_KP_0) c = '0';
+        else if (sc == SDL_SCANCODE_PERIOD || sc == SDL_SCANCODE_KP_PERIOD) c = '.';
+        if (c && ui.typedCount < 7) {
+            ui.typed[ui.typedCount++] = c;
+            ui.typed[ui.typedCount] = '\0';
+        }
+    }
+    if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
+        switch (event.gbutton.button) {
+        case SDL_GAMEPAD_BUTTON_DPAD_UP: ui.up = true; break;
+        case SDL_GAMEPAD_BUTTON_DPAD_DOWN: ui.down = true; break;
+        case SDL_GAMEPAD_BUTTON_DPAD_LEFT: ui.left = true; break;
+        case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: ui.right = true; break;
+        case SDL_GAMEPAD_BUTTON_SOUTH: ui.accept = true; break;
+        case SDL_GAMEPAD_BUTTON_EAST: ui.back = true; break;
+        default: break;
+        }
+    }
+    if (event.type == SDL_EVENT_FINGER_DOWN)
+        tap({event.tfinger.x * screen.x, event.tfinger.y * screen.y});
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.which != SDL_TOUCH_MOUSEID)
+        tap({event.button.x, event.button.y});
+
     switch (event.type) {
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
@@ -139,6 +180,12 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
     default:
         break;
     }
+}
+
+UiInput InputReader::consumeUi() {
+    UiInput out = ui;
+    ui = UiInput{};
+    return out;
 }
 
 Controls InputReader::read(glm::vec2 screen) const {

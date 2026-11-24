@@ -154,7 +154,9 @@ set(GAME_SOURCES
   src/game/input.cpp
   src/game/synth.cpp
   src/game/audio.cpp
-  src/game/race.cpp)
+  src/game/race.cpp
+  src/game/ui.cpp
+  src/game/app.cpp)
 
 if(ANDROID)
   # SDL charge le jeu comme bibliothèque partagée nommée "main".

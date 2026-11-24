@@ -113,7 +113,7 @@ SDL est compilé avec le jeu. Pour éviter de le retélécharger, placer l'archi
 
 ## Intégration continue
 
-`.github/workflows/build.yml` compile le jeu pour Linux, lance les tests, puis compile l'APK de debug. Il tourne à chaque push sur `master`, sur les pull requests, sur les tags `v*` et à la demande. Les deux résultats sont à télécharger dans les artefacts de l'exécution : `antigrav-linux-x86_64` et `antigrav-android-debug`.
+`.github/workflows/build.yml` compile le jeu pour Linux, lance les tests, puis compile l'APK de debug. Il tourne à chaque push sur `main`, sur les pull requests, sur les tags `v*` et à la demande. Les deux résultats sont à télécharger dans les artefacts de l'exécution : `antigrav-linux-x86_64` et `antigrav-android-debug`.
 
 ### Clé de signature
 

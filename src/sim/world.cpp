@@ -56,7 +56,26 @@ void stepVehicle(Vehicle& v, const Input& in, const Track& track, float dt) {
 } // namespace
 
 void step(World& world, const Track& track, const Input* inputs) {
-    for (int i = 0; i < world.count; i++) stepVehicle(world.vehicles[i], inputs[i], track, kFixedDt);
+    world.time += kFixedDt;
+    if (world.countdown > 0.0f) {
+        world.countdown -= kFixedDt;
+        return;
+    }
+    world.raceTime += kFixedDt;
+
+    const float finishDist = track.length * static_cast<float>(world.laps);
+    for (int i = 0; i < world.count; i++) {
+        Vehicle& v = world.vehicles[i];
+        float before = v.dist;
+        stepVehicle(v, inputs[i], track, kFixedDt);
+        if (!v.finished && v.dist >= finishDist) {
+            v.finished = true;
+            // Instant exact du passage, interpolé dans le pas.
+            float moved = v.dist - before;
+            float fraction = moved > 0.0f ? (finishDist - before) / moved : 1.0f;
+            v.finishTime = world.raceTime - kFixedDt * (1.0f - fraction);
+        }
+    }
 
     // Contacts entre vaisseaux : ils s'écartent, sans blocage dur.
     for (int i = 0; i < world.count; i++) {
@@ -82,7 +101,6 @@ void step(World& world, const Track& track, const Input* inputs) {
     const float limit = track.halfWidth - kShipHalfWidth;
     for (int i = 0; i < world.count; i++)
         world.vehicles[i].lateral = std::clamp(world.vehicles[i].lateral, -limit, limit);
-    world.time += kFixedDt;
 }
 
 Input autopilot(const Vehicle& v, const Track& track, float laneOffset) {
@@ -103,10 +121,24 @@ Input autopilot(const Vehicle& v, const Track& track, float laneOffset) {
 }
 
 int rankOf(const World& world, int index) {
+    const Vehicle& me = world.vehicles[index];
     int rank = 1;
-    for (int i = 0; i < world.count; i++)
-        if (world.vehicles[i].dist > world.vehicles[index].dist) rank++;
+    for (int i = 0; i < world.count; i++) {
+        if (i == index) continue;
+        const Vehicle& other = world.vehicles[i];
+        bool ahead;
+        // Une fois la ligne franchie, c'est le temps d'arrivée qui classe.
+        if (me.finished && other.finished) ahead = other.finishTime < me.finishTime;
+        else if (me.finished != other.finished) ahead = other.finished;
+        else ahead = other.dist > me.dist;
+        if (ahead) rank++;
+    }
     return rank;
+}
+
+int lapOf(const World& world, const Track& track, const Vehicle& vehicle) {
+    int lap = static_cast<int>(std::floor(vehicle.dist / track.length)) + 1;
+    return std::clamp(lap, 1, world.laps);
 }
 
 } // namespace sim

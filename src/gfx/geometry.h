@@ -9,6 +9,7 @@ namespace gfx {
 // n'est lu sur disque.
 MeshData buildRoad(const sim::Track& track);
 MeshData buildRails(const sim::Track& track);
+MeshData buildGates(const sim::Track& track);
 MeshData buildCity(const sim::Track& track);
 MeshData buildShip();
 MeshData buildTrail();

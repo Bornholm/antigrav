@@ -99,7 +99,7 @@ struct Renderer {
     VkDescriptorSet bloomSet[kBloomLevels]{};
     VkDescriptorSet compositeSet = VK_NULL_HANDLE;
 
-    Mesh road, rails, city, ship, trail;
+    Mesh road, rails, gates, city, ship, trail;
 
     FontAtlas fonts;
     Image fontTexture;

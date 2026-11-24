@@ -36,18 +36,27 @@ float mixf(float a, float b, float t) { return a + (b - a) * t; }
 
 } // namespace
 
-void Race::init() {
+void Race::init(bool gridStart) {
     track = sim::Track::makeDemo();
 
     world = sim::World{};
     world.count = kRacerCount;
+    world.laps = laps;
+    world.countdown = gridStart ? 3.0f : 0.0f;
     for (int i = 0; i < kRacerCount; i++) {
         sim::Vehicle& v = world.vehicles[i];
-        v.dist = 150.0f + kRacers[i].startAhead;
         v.lateral = kRacers[i].startLateral;
         v.topSpeed = sim::kCruiseSpeed * kRacers[i].topSpeed;
-        v.speed = v.topSpeed;
-        v.energy = 0.87f;
+        if (gridStart) {
+            // Grille juste derrière la ligne, le joueur en dernière position.
+            v.dist = -80.0f + kRacers[i].startAhead * 0.5f;
+            v.speed = 0.0f;
+            v.energy = 1.0f;
+        } else {
+            v.dist = 150.0f + kRacers[i].startAhead;
+            v.speed = v.topSpeed;
+            v.energy = 0.87f;
+        }
     }
     previous = world;
 
@@ -76,7 +85,8 @@ void Race::update(float dt, const Controls& input) {
         sim::Input inputs[sim::kMaxVehicles];
         for (int i = 0; i < world.count; i++)
             inputs[i] = sim::autopilot(world.vehicles[i], track, kRacers[i].lane);
-        if (!autopilot) {
+        // Après l'arrivée, le pilote automatique reprend la main.
+        if (!autopilot && !world.vehicles[0].finished) {
             inputs[0].steer = input.steer;
             inputs[0].boost = input.pressed[static_cast<int>(Button::Boost)];
         }
@@ -155,11 +165,16 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.energy = player.energy;
     state.position = sim::rankOf(world, 0);
     state.racers = world.count;
-    state.lap = std::clamp(static_cast<int>(playerDist / track.length) + 1, 1, laps);
+    state.lap = sim::lapOf(world, track, player);
     state.laps = laps;
+    state.countdown = world.countdown;
+    state.raceTime = player.finished ? player.finishTime : world.raceTime;
+    state.finished = player.finished;
     state.speedKmh = player.speed * 3.6f;
     state.minimap = &minimap;
-    state.progress = std::fmod(playerDist, track.length) / track.length;
+    float wrapped = std::fmod(playerDist, track.length);
+    if (wrapped < 0.0f) wrapped += track.length;
+    state.progress = wrapped / track.length;
     state.boosting = player.boosting;
     for (int b = 0; b < static_cast<int>(Button::Count); b++) state.pressed[b] = controls.pressed[b];
 

@@ -383,6 +383,7 @@ void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
 
     road = uploadMesh(*gpu, buildRoad(track), "road");
     rails = uploadMesh(*gpu, buildRails(track), "rails");
+    gates = uploadMesh(*gpu, buildGates(track), "gates");
     city = uploadMesh(*gpu, buildCity(track), "city");
     ship = uploadMesh(*gpu, buildShip(), "ship");
     trail = uploadMesh(*gpu, buildTrail(), "trail");
@@ -393,6 +394,7 @@ void Renderer::shutdown() {
     destroyTargets();
     destroyMesh(*gpu, road);
     destroyMesh(*gpu, rails);
+    destroyMesh(*gpu, gates);
     destroyMesh(*gpu, city);
     destroyMesh(*gpu, ship);
     destroyMesh(*gpu, trail);
@@ -527,6 +529,8 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     bind(Material::Neon);
     bindMesh(cmd, rails);
     vkCmdDrawIndexed(cmd, rails.indexCount, 1, 0, 0, 0);
+    bindMesh(cmd, gates);
+    vkCmdDrawIndexed(cmd, gates.indexCount, 1, 0, 0, 0);
 
     bind(Material::Building);
     bindMesh(cmd, city);

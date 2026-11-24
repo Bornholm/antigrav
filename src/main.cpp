@@ -27,6 +27,7 @@ struct Options {
     float startTime = 0.0f;
     bool hud = true;
     bool autopilot = false;
+    int gridStart = -1;  // -1 : selon le mode, 0 : départ lancé, 1 : grille
     gfx::RenderSettings render;
 };
 
@@ -52,6 +53,8 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--scale")) o.render.renderScale = static_cast<float>(std::atof(value()));
         else if (!std::strcmp(a, "--no-hud")) o.hud = false;
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
+        else if (!std::strcmp(a, "--grid-start")) o.gridStart = 1;
+        else if (!std::strcmp(a, "--rolling-start")) o.gridStart = 0;
         else if (!std::strcmp(a, "--no-bloom")) o.render.bloom = false;
         else if (!std::strcmp(a, "--no-reflections")) o.render.reflections = false;
         else if (!std::strcmp(a, "--size")) {
@@ -156,7 +159,7 @@ int runHeadless(const Options& opt) {
     capture.init(gpu, extent);
 
     game::Race race;
-    race.init();
+    race.init(opt.gridStart == 1);
     race.autopilot = true;
     // Avance jusqu'à l'instant demandé avant la première image.
     for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
@@ -247,7 +250,7 @@ int runWindowed(const Options& opt) {
     if (!haveSwapchain) fatal("Surface de taille nulle au démarrage");
 
     game::Race race;
-    race.init();
+    race.init(opt.gridStart != 0);
     race.autopilot = opt.autopilot;
     game::InputReader input;
 

@@ -253,6 +253,40 @@ void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewPr
 
 } // namespace
 
+void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
+    char buf[48];
+
+    // Chrono sous le compteur de tours.
+    hud.anchor = Anchor::Left;
+    int centis = static_cast<int>(s.raceTime * 100.0f);
+    std::snprintf(buf, sizeof(buf), "%d:%02d.%02d", centis / 6000, (centis / 100) % 60,
+                  centis % 100);
+    hud.text(FontId::Medium, "TEMPS", {34.0f, 208.0f}, 20.0f, alpha(kWhite, 0.75f));
+    hud.text(FontId::Bold, buf, {146.0f, 209.0f}, 24.0f, kWhite);
+
+    hud.anchor = Anchor::Center;
+    if (s.countdown > 0.0f) {
+        std::snprintf(buf, sizeof(buf), "%d", static_cast<int>(std::ceil(s.countdown)));
+        float pulse = 1.0f + 0.25f * (s.countdown - std::floor(s.countdown));
+        hud.text(FontId::Bold, buf, {800.0f, 400.0f}, 190.0f * pulse, kWhite, Align::Center,
+                 0.2f, alpha(kCyan, 0.8f));
+    } else if (s.raceTime < 1.2f && !s.finished) {
+        hud.text(FontId::Bold, "GO !", {800.0f, 400.0f}, 170.0f,
+                 alpha(kYellow, 1.0f - s.raceTime / 1.2f), Align::Center, 0.2f);
+    }
+
+    if (s.finished) {
+        hud.quad({0.0f, 318.0f}, {1600.0f, 318.0f}, {1600.0f, 482.0f}, {0.0f, 482.0f},
+                 vec4(0.02f, 0.02f, 0.08f, 0.72f));
+        hud.line({200.0f, 318.0f}, {1400.0f, 318.0f}, 2.0f, kCyan, 0.5f);
+        hud.line({200.0f, 482.0f}, {1400.0f, 482.0f}, 2.0f, kMagenta, 0.5f);
+        hud.text(FontId::Bold, "COURSE TERMINÉE", {800.0f, 392.0f}, 58.0f, kWhite, Align::Center,
+                 0.2f, alpha(kCyan, 0.6f));
+        std::snprintf(buf, sizeof(buf), "POSITION %d / %d", s.position, s.racers);
+        hud.text(FontId::Medium, buf, {800.0f, 448.0f}, 34.0f, kYellow, Align::Center);
+    }
+}
+
 void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewProj) {
     drawNameTags(hud, state, viewProj);
     drawStandings(hud, state);
@@ -260,6 +294,7 @@ void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewPr
     drawSpeed(hud, state);
     drawMinimap(hud, state);
     drawButtons(hud, state);
+    drawRaceFlow(hud, state);
 }
 
 } // namespace game

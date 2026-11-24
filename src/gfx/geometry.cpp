@@ -90,7 +90,7 @@ MeshData buildRoad(const sim::Track& track) {
             v.pos = f.pos + f.right * lat;
             v.normal = f.up;
             v.uv = {lat, dist};
-            v.color = {hw, 0.0f, 0.0f, 0.0f};
+            v.color = {hw, track.length, 0.0f, 0.0f};
             mesh.add(v);
         }
     }
@@ -118,6 +118,54 @@ MeshData buildRails(const sim::Track& track) {
                  glm::vec4(kMagenta, 6.0f));
         addStrip(mesh, track, side * (hw + 4.2f), 0.35f, side * (hw + 4.2f), 0.05f, 0.0f,
                  glm::vec4(kMagenta, 6.0f));
+    }
+    return mesh;
+}
+
+// Portiques lumineux au-dessus de la piste : celui de la ligne de départ, puis
+// un tous les 900 m environ. Ils rythment le défilement.
+MeshData buildGates(const sim::Track& track) {
+    MeshData mesh;
+    const float hw = track.halfWidth;
+    const int gateCount = std::max(1, static_cast<int>(std::round(track.length / 900.0f)));
+
+    for (int g = 0; g < gateCount; g++) {
+        float dist = track.length * static_cast<float>(g) / static_cast<float>(gateCount);
+        bool start = g == 0;
+        glm::vec3 tint = start ? glm::vec3(1.0f, 0.85f, 0.35f) : (g % 2 ? kMagenta : kCyan);
+        float intensity = start ? 9.0f : 6.0f;
+
+        // Panneau vertical en travers de la piste, entre deux points de la section.
+        auto panel = [&](float lat0, float h0, float lat1, float h1, float kind,
+                         const glm::vec4& color) {
+            for (float offset : {-0.5f, 0.5f}) {
+                sim::TrackFrame f = track.at(dist + offset);
+                uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
+                const float lats[4] = {lat0, lat1, lat1, lat0};
+                const float heights[4] = {h0, h0, h1, h1};
+                for (int i = 0; i < 4; i++) {
+                    Vertex v;
+                    v.pos = f.pos + f.right * lats[i];
+                    v.height = heights[i];
+                    v.normal = f.up;
+                    v.kind = kind;
+                    v.uv = {static_cast<float>(i == 1 || i == 2), dist};
+                    v.color = color;
+                    mesh.add(v);
+                }
+                mesh.quad(base, base + 1, base + 2, base + 3);
+            }
+        };
+
+        const float outer = hw + 2.6f, inner = hw + 1.7f, top = 11.0f;
+        const glm::vec4 dark{tint, 1.0f};
+        const glm::vec4 glow{tint, intensity};
+        for (float side : {-1.0f, 1.0f}) {
+            panel(side * inner, 0.0f, side * outer, top, 1.0f, dark);
+            panel(side * (inner - 0.25f), 0.0f, side * inner, top, 0.0f, glow);
+        }
+        panel(-outer, top, outer, top + 1.3f, 1.0f, dark);
+        panel(-outer, top - 0.3f, outer, top, 0.0f, glow);
     }
     return mesh;
 }

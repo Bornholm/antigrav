@@ -30,6 +30,9 @@ struct HudState {
     const std::vector<glm::vec2>* minimap = nullptr;
     float progress = 0.0f; // position du joueur sur le tour, 0 à 1
     bool boosting = false;
+    float countdown = 0.0f; // secondes avant le départ
+    float raceTime = 0.0f;
+    bool finished = false;
     bool pressed[static_cast<int>(Button::Count)] = {};
 };
 

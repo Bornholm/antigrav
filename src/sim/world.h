@@ -28,13 +28,21 @@ struct Vehicle {
     float topSpeed = kCruiseSpeed;
     bool boosting = false;
     bool scraping = false;   // frotte contre un muret
+    bool finished = false;
+    float finishTime = 0.0f; // temps de course au passage de la ligne
 };
 
 struct World {
     Vehicle vehicles[kMaxVehicles];
     int count = 0;
     double time = 0.0;
+    int laps = 3;
+    float countdown = 0.0f; // secondes avant le départ, les vaisseaux restent sur la grille
+    float raceTime = 0.0f;  // secondes depuis le départ
 };
+
+// Tour en cours d'un vaisseau, de 1 à laps.
+int lapOf(const World& world, const Track& track, const Vehicle& vehicle);
 
 void step(World& world, const Track& track, const Input* inputs);
 

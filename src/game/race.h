@@ -27,7 +27,10 @@ struct Race {
     float camFov = 1.12f;
     float camShake = 0.0f;
 
-    void init();
+    // gridStart : départ arrêté avec compte à rebours. Sinon les vaisseaux
+    // sont déjà lancés, ce qui sert aux démonstrations et aux captures.
+    void init(bool gridStart);
+    float finishRaceTime = 0.0f;
     // Avance la simulation du temps écoulé depuis la dernière image.
     void update(float dt, const Controls& input);
     // screen : taille de l'écran vue par le jeu, en pixels.

@@ -9,7 +9,7 @@ layout(set = 1, binding = 0) uniform sampler2D reflectionTex;
 layout(location = 0) in vec3 worldPos;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 uv; // x décalage latéral en mètres, y distance en mètres
-layout(location = 3) in vec4 color; // x demi-largeur de la piste
+layout(location = 3) in vec4 color; // x demi-largeur de la piste, y longueur du circuit
 layout(location = 4) flat in float kind;
 
 layout(location = 0) out vec4 outColor;
@@ -79,6 +79,13 @@ void main() {
     c += MAGENTA * lane * 0.9;
     c += vec3(0.5, 0.6, 1.0) * center * 0.25;
     c += streakColor * streak * 0.55;
+
+    // Ligne de départ : damier sur quatre mètres.
+    float toLine = min(uv.y, color.y - uv.y);
+    if (toLine < 2.0 && ax < halfWidth - 1.0) {
+        vec2 cell = floor(vec2(x, uv.y) / 1.0);
+        c += vec3(1.0, 0.95, 0.85) * mod(cell.x + cell.y, 2.0) * 1.6;
+    }
 
     // Halo des bandes de bord sur l'asphalte.
     c += CYAN * exp(-max(halfWidth - 0.55 - ax, 0.0) * 1.1) * 0.10;

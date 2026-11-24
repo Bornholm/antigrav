@@ -148,6 +148,33 @@ void testWallAndBoost() {
     CHECK(world.vehicles[0].energy < 0.05f);
 }
 
+void testCountdownAndFinish() {
+    sim::Track track = sim::Track::makeDemo();
+    sim::World world = makeGrid();
+    world.laps = 1;
+    world.countdown = 3.0f;
+    float startDist = world.vehicles[0].dist;
+
+    // Personne ne bouge pendant le compte à rebours.
+    run(world, track, 170);
+    CHECK(world.vehicles[0].dist == startDist);
+    CHECK(world.raceTime == 0.0f);
+
+    run(world, track, 60 * 45);
+    for (int i = 0; i < world.count; i++) {
+        const sim::Vehicle& v = world.vehicles[i];
+        CHECK(v.finished);
+        // Un tour à la vitesse de croisière prend une trentaine de secondes.
+        CHECK(v.finishTime > 20.0f && v.finishTime < 45.0f);
+        CHECK(sim::lapOf(world, track, v) == 1);
+    }
+    // Le classement final suit les temps d'arrivée.
+    for (int i = 0; i < world.count; i++)
+        for (int j = 0; j < world.count; j++)
+            if (world.vehicles[i].finishTime < world.vehicles[j].finishTime)
+                CHECK(sim::rankOf(world, i) < sim::rankOf(world, j));
+}
+
 void testRanking() {
     sim::World world;
     world.count = 3;
@@ -168,6 +195,7 @@ int main() {
     testAutopilotLaps();
     testWallAndBoost();
     testRanking();
+    testCountdownAndFinish();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");
     return failures == 0 ? 0 : 1;
 }

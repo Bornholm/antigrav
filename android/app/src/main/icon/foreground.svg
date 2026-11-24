@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="432" height="432" viewBox="0 0 432 432">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a1466"/>
+      <stop offset="1" stop-color="#12062a"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.25" stop-color="#40ebff"/>
+      <stop offset="1" stop-color="#40ebff" stop-opacity="0"/>
+    </linearGradient>
+    <g id="ship">
+      <path d="M216 122 L286 262 L216 238 L146 262 Z"/>
+      <path d="M216 122 L216 238"/>
+    </g>
+  </defs>
+  <!-- Flammes des réacteurs -->
+  <path d="M190 250 L206 246 L200 318 Z" fill="url(#flame)"/>
+  <path d="M242 250 L226 246 L232 318 Z" fill="url(#flame)"/>
+  <!-- Halo puis trait net -->
+  <use href="#ship" fill="none" stroke="#ff47db" stroke-width="12" stroke-linejoin="round" filter="url(#glow)" opacity="0.9"/>
+  <path d="M216 122 L286 262 L216 238 L146 262 Z" fill="url(#hull)"/>
+  <use href="#ship" fill="none" stroke="#ff8ae8" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M216 150 L232 196 L216 190 L200 196 Z" fill="#40ebff" opacity="0.9"/>
+</svg>

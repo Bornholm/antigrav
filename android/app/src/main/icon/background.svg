@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="432" height="432" viewBox="0 0 432 432">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#07041a"/>
+      <stop offset="0.55" stop-color="#2a0b4a"/>
+      <stop offset="1" stop-color="#0a0520"/>
+    </linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+  <rect width="432" height="432" fill="url(#sky)"/>
+  <!-- Piste en perspective, point de fuite au centre -->
+  <g stroke="#40ebff" stroke-width="3" opacity="0.55">
+    <path d="M216 150 L-60 432 M216 150 L80 432 M216 150 L352 432 M216 150 L492 432"/>
+  </g>
+  <g stroke="#ff47db" stroke-width="2.5" opacity="0.45">
+    <path d="M0 300 H432 M0 340 H432 M0 392 H432"/>
+  </g>
+  <path d="M0 150 H432" stroke="#40ebff" stroke-width="6" opacity="0.5" filter="url(#soft)"/>
+</svg>

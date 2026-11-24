@@ -601,20 +601,6 @@ Partition analyze(const float* mono, size_t count, int sampleRate, AnalysisTrace
     const std::vector<float> periods = findPeriods(env, f.rate);
     std::vector<int> beatFrames;
     if (!periods.empty()) beatFrames = trackBeats(env, periods);
-    // Un morceau hargneux joué à demi-tempo se ressent au tempo double : on
-    // y ajoute un temps entre deux.
-    if (beatFrames.size() >= 4) {
-        std::vector<int> doubled;
-        for (size_t i = 0; i < beatFrames.size(); ++i) {
-            doubled.push_back(beatFrames[i]);
-            if (i + 1 >= beatFrames.size()) break;
-            const float gap = float(beatFrames[i + 1] - beatFrames[i]) / f.rate;
-            const float time = f.time((beatFrames[i] + beatFrames[i + 1]) / 2);
-            const float hargne = p.drive[std::min(p.drive.size() - 1, size_t(std::max(0.0f, time) * Partition::kEnergyRate))];
-            if (gap > 60.0f / 105.0f && hargne > 0.65f) doubled.push_back((beatFrames[i] + beatFrames[i + 1]) / 2);
-        }
-        beatFrames.swap(doubled);
-    }
 
     if (beatFrames.size() >= 4) {
         std::vector<float> gaps;

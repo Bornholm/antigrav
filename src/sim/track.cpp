@@ -228,9 +228,13 @@ void placeFeatures(Track& track, const music::Partition& p, const std::vector<mu
         // une seconde plaque sur le troisième temps.
         if (energy >= 0.35f || slot % 2 == 0)
             add(FeatureType::EnergyPad, track.distAt(beats[i].time) - 0.5f * kPadLength, kPadLength, padLane, kPadHalf);
-        if (drive > 0.7f)
-            add(FeatureType::EnergyPad, track.distAt(beats[i + 2].time) - 0.5f * kPadLength, kPadLength,
-                -padLane, kPadHalf);
+        // Passages hargneux : une plaque sur chaque temps, en zigzag. Le tempo
+        // reste celui qu'on bat du pied, c'est la piste qui se densifie.
+        if (drive > 0.7f) {
+            add(FeatureType::EnergyPad, track.distAt(beats[i + 2].time) - 0.5f * kPadLength, kPadLength, -padLane, kPadHalf);
+            if (drive > 0.8f)
+                add(FeatureType::EnergyPad, track.distAt(beats[i + 1].time) - 0.5f * kPadLength, kPadLength, 0.0f, kPadHalf);
+        }
     }
 
     // Règle générale : une barrière ne suit jamais une plaque. Qui vient de

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "game/input.h"
 #include "gfx/hud.h"
 
 #include <glm/glm.hpp>
@@ -28,6 +29,8 @@ struct HudState {
     // Tracé du circuit vu de dessus, normalisé dans [-1, 1].
     const std::vector<glm::vec2>* minimap = nullptr;
     float progress = 0.0f; // position du joueur sur le tour, 0 à 1
+    bool boosting = false;
+    bool pressed[static_cast<int>(Button::Count)] = {};
 };
 
 void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewProj);

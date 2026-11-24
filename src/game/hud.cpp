@@ -134,44 +134,53 @@ void drawMinimap(gfx::HudBatch& hud, const HudState& s) {
             kYellow);
 }
 
-void drawButtons(gfx::HudBatch& hud) {
-    const vec4 glass{0.10f, 0.12f, 0.24f, 0.34f};
-
+void drawButtons(gfx::HudBatch& hud, const HudState& s) {
+    // Les formes viennent de buttonShape, en pixels : les mêmes que celles
+    // testées au toucher. On les ramène au repère de référence.
     hud.anchor = Anchor::Left;
-    for (float dirSign : {-1.0f, 1.0f}) {
-        vec2 c{dirSign < 0.0f ? 113.0f : 277.0f, 757.0f};
-        hud.circle(c, 70.0f, glass, alpha(kWhite, 0.85f), 2.5f);
+    auto shapeOf = [&](Button b, vec2& c, float& r) {
+        ButtonShape shape = buttonShape(b, hud.screen);
+        c = shape.center / hud.scale;
+        r = shape.radius / hud.scale;
+        return s.pressed[static_cast<int>(b)];
+    };
+    vec2 c;
+    float r = 0.0f;
+
+    for (Button b : {Button::Left, Button::Right}) {
+        bool down = shapeOf(b, c, r);
+        float dirSign = b == Button::Left ? -1.0f : 1.0f;
+        vec4 glass = down ? vec4(0.30f, 0.60f, 0.85f, 0.45f) : vec4(0.10f, 0.12f, 0.24f, 0.34f);
+        hud.circle(c, r, glass, alpha(down ? kCyan : kWhite, 0.9f), down ? 4.0f : 2.5f);
         polyline(hud,
                  {c + vec2(-13.0f * dirSign, -28.0f), c + vec2(15.0f * dirSign, 0.0f),
                   c + vec2(-13.0f * dirSign, 28.0f)},
                  9.0f, kWhite);
     }
-
-    hud.anchor = Anchor::Right;
-    // Boost.
     {
-        vec2 c{1427.0f, 742.0f};
-        hud.circle(c, 96.0f, vec4(0.10f, 0.07f, 0.03f, 0.5f), kYellow, 5.0f);
+        bool down = shapeOf(Button::Boost, c, r) || s.boosting;
+        vec4 fill = down ? vec4(0.55f, 0.38f, 0.05f, 0.6f) : vec4(0.10f, 0.07f, 0.03f, 0.5f);
+        hud.circle(c, r, fill, kYellow, down ? 7.0f : 5.0f);
         polyline(hud, {c + vec2(-32.0f, -22.0f), c + vec2(0.0f, -50.0f), c + vec2(32.0f, -22.0f)},
                  10.0f, kYellow, 0.4f);
         polyline(hud, {c + vec2(-32.0f, 2.0f), c + vec2(0.0f, -26.0f), c + vec2(32.0f, 2.0f)},
                  10.0f, kYellow, 0.4f);
         hud.text(FontId::Bold, "BOOST", c + vec2(0.0f, 46.0f), 28.0f, kWhite, Align::Center);
     }
-    // Missile.
     {
-        vec2 c{1316.0f, 588.0f};
+        bool down = shapeOf(Button::Missile, c, r);
         const vec4 pink{1.0f, 0.45f, 0.85f, 1.0f};
-        hud.circle(c, 60.0f, vec4(0.10f, 0.03f, 0.09f, 0.5f), pink, 3.0f);
+        hud.circle(c, r, down ? vec4(0.5f, 0.12f, 0.4f, 0.6f) : vec4(0.10f, 0.03f, 0.09f, 0.5f),
+                   pink, down ? 5.0f : 3.0f);
         hud.line(c + vec2(-16.0f, 14.0f), c + vec2(14.0f, -14.0f), 16.0f, pink);
         hud.line(c + vec2(14.0f, -14.0f), c + vec2(24.0f, -24.0f), 8.0f, kWhite);
         hud.line(c + vec2(-22.0f, 6.0f), c + vec2(-8.0f, 22.0f), 6.0f, kWhite);
         hud.line(c + vec2(-24.0f, 22.0f), c + vec2(-33.0f, 31.0f), 6.0f, alpha(pink, 0.8f));
     }
-    // Bouclier.
     {
-        vec2 c{1476.0f, 563.0f};
-        hud.circle(c, 58.0f, vec4(0.03f, 0.08f, 0.12f, 0.5f), kCyan, 3.0f);
+        bool down = shapeOf(Button::Shield, c, r);
+        hud.circle(c, r, down ? vec4(0.08f, 0.40f, 0.55f, 0.6f) : vec4(0.03f, 0.08f, 0.12f, 0.5f),
+                   kCyan, down ? 5.0f : 3.0f);
         const vec2 topP = c + vec2(0.0f, -30.0f), tr = c + vec2(26.0f, -20.0f),
                    br = c + vec2(26.0f, 3.0f), bot = c + vec2(0.0f, 31.0f),
                    bl = c + vec2(-26.0f, 3.0f), tl = c + vec2(-26.0f, -20.0f);
@@ -219,7 +228,7 @@ void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewPr
     drawEnergy(hud, state);
     drawSpeed(hud, state);
     drawMinimap(hud, state);
-    drawButtons(hud);
+    drawButtons(hud, state);
 }
 
 } // namespace game

@@ -1,5 +1,5 @@
 #include "core/log.h"
-#include "game/demo.h"
+#include "game/race.h"
 #include "gfx/capture.h"
 #include "gfx/gpu.h"
 #include "gfx/renderer.h"
@@ -26,6 +26,7 @@ struct Options {
     float fps = 60.0f;   // pas de temps du mode sans fenêtre
     float startTime = 0.0f;
     bool hud = true;
+    bool autopilot = false;
     gfx::RenderSettings render;
 };
 
@@ -50,6 +51,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--time")) o.startTime = static_cast<float>(std::atof(value()));
         else if (!std::strcmp(a, "--scale")) o.render.renderScale = static_cast<float>(std::atof(value()));
         else if (!std::strcmp(a, "--no-hud")) o.hud = false;
+        else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
         else if (!std::strcmp(a, "--no-bloom")) o.render.bloom = false;
         else if (!std::strcmp(a, "--no-reflections")) o.render.reflections = false;
         else if (!std::strcmp(a, "--size")) {
@@ -153,11 +155,15 @@ int runHeadless(const Options& opt) {
     gfx::Capture capture;
     capture.init(gpu, extent);
 
-    game::Demo demo;
-    demo.init();
+    game::Race race;
+    race.init();
+    race.autopilot = true;
+    // Avance jusqu'à l'instant demandé avant la première image.
+    for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
+        race.update(sim::kFixedDt, game::Controls{});
 
     gfx::Renderer renderer;
-    renderer.init(gpu, format, demo.track);
+    renderer.init(gpu, format, race.track);
     renderer.settings = opt.render;
 
     FrameData frames[kFramesInFlight];
@@ -176,7 +182,8 @@ int runHeadless(const Options& opt) {
         gfx::FrameTarget ft{target.view, extent, extent, 0};
         gfx::FrameParams params;
         params.slot = i % kFramesInFlight;
-        demo.fill(opt.startTime + static_cast<float>(i) / opt.fps, renderer.fonts,
+        race.update(1.0f / opt.fps, game::Controls{});
+        race.fill(renderer.fonts,
                   {static_cast<float>(extent.width), static_cast<float>(extent.height)}, params);
         if (!opt.hud) params.hud = nullptr;
         renderer.draw(cmd, ft, params);
@@ -239,11 +246,13 @@ int runWindowed(const Options& opt) {
     bool haveSwapchain = swapchain.create(gpu, w, h, opt.vsync);
     if (!haveSwapchain) fatal("Surface de taille nulle au démarrage");
 
-    game::Demo demo;
-    demo.init();
+    game::Race race;
+    race.init();
+    race.autopilot = opt.autopilot;
+    game::InputReader input;
 
     gfx::Renderer renderer;
-    renderer.init(gpu, swapchain.format, demo.track);
+    renderer.init(gpu, swapchain.format, race.track);
     renderer.settings = opt.render;
 
     FrameData frames[kFramesInFlight];
@@ -254,10 +263,14 @@ int runWindowed(const Options& opt) {
     bool needResize = false;
     uint64_t frameIndex = 0;
     Uint64 start = SDL_GetTicksNS();
+    Uint64 lastTick = start;
 
     while (running) {
+        glm::vec2 screen{static_cast<float>(swapchain.logicalExtent.width),
+                         static_cast<float>(swapchain.logicalExtent.height)};
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
+            input.handleEvent(event, screen);
             switch (event.type) {
             case SDL_EVENT_QUIT:
                 running = false;
@@ -326,14 +339,16 @@ int runWindowed(const Options& opt) {
 
         gfx::FrameTarget ft{swapchain.views[imageIndex], swapchain.extent,
                             swapchain.logicalExtent, swapchain.rotation};
+        Uint64 now = SDL_GetTicksNS();
+        float dt = static_cast<float>(static_cast<double>(now - lastTick) * 1e-9);
+        lastTick = now;
+        screen = {static_cast<float>(swapchain.logicalExtent.width),
+                  static_cast<float>(swapchain.logicalExtent.height)};
+        race.update(dt, input.read(screen));
+
         gfx::FrameParams params;
         params.slot = static_cast<int>(frameIndex % kFramesInFlight);
-        demo.fill(opt.startTime +
-                      static_cast<float>(static_cast<double>(SDL_GetTicksNS() - start) * 1e-9),
-                  renderer.fonts,
-                  {static_cast<float>(swapchain.logicalExtent.width),
-                   static_cast<float>(swapchain.logicalExtent.height)},
-                  params);
+        race.fill(renderer.fonts, screen, params);
         if (!opt.hud) params.hud = nullptr;
         renderer.draw(cmd, ft, params);
 

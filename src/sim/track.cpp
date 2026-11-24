@@ -64,7 +64,8 @@ Track build(const std::vector<glm::vec3>& control, float halfWidth, float target
         glm::vec3 flatRight =
             glm::normalize(glm::cross(track.frames[i].tangent, glm::vec3(0.0f, 1.0f, 0.0f)));
         float curvature = glm::dot(t1 - t0, flatRight) / (2.0f * track.step);
-        bank[i] = std::clamp(curvature * 55.0f, -0.42f, 0.42f);
+        track.frames[i].curvature = curvature;
+        bank[i] = std::clamp(curvature * 170.0f, -0.42f, 0.42f);
     }
     for (int pass = 0; pass < 12; pass++) {
         std::vector<float> smoothed(count);
@@ -72,6 +73,15 @@ Track build(const std::vector<glm::vec3>& control, float halfWidth, float target
             smoothed[i] = (bank[(i + count - 1) % count] + 2.0f * bank[i] +
                            bank[(i + 1) % count]) * 0.25f;
         bank.swap(smoothed);
+    }
+    // La courbure brute est bruitée par l'échantillonnage : même lissage.
+    for (int pass = 0; pass < 6; pass++) {
+        std::vector<float> smoothed(count);
+        for (int i = 0; i < count; i++)
+            smoothed[i] = (track.frames[(i + count - 1) % count].curvature +
+                           2.0f * track.frames[i].curvature +
+                           track.frames[(i + 1) % count].curvature) * 0.25f;
+        for (int i = 0; i < count; i++) track.frames[i].curvature = smoothed[i];
     }
 
     for (int i = 0; i < count; i++) {
@@ -88,11 +98,12 @@ Track build(const std::vector<glm::vec3>& control, float halfWidth, float target
 } // namespace
 
 Track Track::makeDemo() {
+    // Environ 10,7 km : une trentaine de secondes par tour à 1 250 km/h.
     std::vector<glm::vec3> control = {
-        {0.0f, 0.0f, 0.0f},      {0.0f, 0.0f, -500.0f},   {150.0f, 10.0f, -900.0f},
-        {500.0f, 25.0f, -1000.0f}, {800.0f, 10.0f, -800.0f}, {750.0f, 0.0f, -450.0f},
-        {450.0f, -5.0f, -300.0f}, {500.0f, 0.0f, 50.0f},   {300.0f, 15.0f, 300.0f},
-        {0.0f, 10.0f, 250.0f},
+        {0.0f, 0.0f, 0.0f},        {0.0f, 0.0f, -1500.0f},    {450.0f, 25.0f, -2700.0f},
+        {1500.0f, 60.0f, -3000.0f}, {2400.0f, 25.0f, -2400.0f}, {2250.0f, 0.0f, -1350.0f},
+        {1350.0f, -12.0f, -900.0f}, {1500.0f, 0.0f, 150.0f},   {900.0f, 35.0f, 900.0f},
+        {0.0f, 25.0f, 750.0f},
     };
     return build(control, 15.0f, 4.0f);
 }
@@ -112,6 +123,7 @@ TrackFrame Track::at(float distance) const {
     out.pos = glm::mix(a.pos, b.pos, t);
     out.tangent = glm::normalize(glm::mix(a.tangent, b.tangent, t));
     out.up = glm::normalize(glm::mix(a.up, b.up, t));
+    out.curvature = glm::mix(a.curvature, b.curvature, t);
     out.right = glm::normalize(glm::cross(out.tangent, out.up));
     out.up = glm::cross(out.right, out.tangent);
     return out;

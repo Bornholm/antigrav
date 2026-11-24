@@ -12,6 +12,8 @@ struct TrackFrame {
     glm::vec3 tangent{0.0f, 0.0f, -1.0f};
     glm::vec3 up{0.0f, 1.0f, 0.0f};
     glm::vec3 right{1.0f, 0.0f, 0.0f};
+    // Courbure signée en 1/m, positive dans un virage à droite.
+    float curvature = 0.0f;
 };
 
 // Circuit fermé, échantillonné à pas constant le long de son axe. Tout le jeu

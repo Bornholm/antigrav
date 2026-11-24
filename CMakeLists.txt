@@ -120,7 +120,9 @@ set(GAME_SOURCES
   src/gfx/hud.cpp
   src/game/hud.cpp
   src/sim/track.cpp
-  src/game/demo.cpp)
+  src/sim/world.cpp
+  src/game/input.cpp
+  src/game/race.cpp)
 
 if(ANDROID)
   # SDL charge le jeu comme bibliothèque partagée nommée "main".

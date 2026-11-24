@@ -131,12 +131,12 @@ MeshData buildCity(const sim::Track& track) {
         lo = glm::min(lo, f.pos);
         hi = glm::max(hi, f.pos);
     }
-    const float margin = 1500.0f;
+    const float margin = 1900.0f;
     const float baseY = lo.y - 90.0f;
     const int frameCount = static_cast<int>(track.frames.size());
 
     int placed = 0;
-    for (int attempt = 0; attempt < 6000 && placed < 520; attempt++) {
+    for (int attempt = 0; attempt < 40000 && placed < 1500; attempt++) {
         float x = rng.range(lo.x - margin, hi.x + margin);
         float z = rng.range(lo.z - margin, hi.z + margin);
         float width = rng.range(28.0f, 85.0f);
@@ -144,14 +144,15 @@ MeshData buildCity(const sim::Track& track) {
 
         // Les tours restent à l'écart de la piste.
         float nearest = 1e9f;
-        for (int i = 0; i < frameCount; i += 6) {
+        for (int i = 0; i < frameCount; i += 10) {
             const glm::vec3& p = track.frames[i].pos;
             float dx = p.x - x, dz = p.z - z;
             nearest = std::min(nearest, dx * dx + dz * dz);
         }
         nearest = std::sqrt(nearest);
         float clearance = 230.0f + std::max(width, depth);
-        if (nearest < clearance) continue;
+        // Ni trop près, ni si loin que la brume les efface.
+        if (nearest < clearance || nearest > 1900.0f) continue;
 
         float t = rng.next();
         float height = 70.0f + 380.0f * t * t;

@@ -1,0 +1,41 @@
+#pragma once
+
+#include <glm/glm.hpp>
+
+union SDL_Event;
+
+namespace game {
+
+enum class Button { Left, Right, Boost, Missile, Shield, Count };
+
+// Centre et rayon d'un bouton tactile, en pixels. Sert à la fois au dessin de
+// l'interface et aux tests de contact, pour que les deux ne divergent jamais.
+struct ButtonShape {
+    glm::vec2 center;
+    float radius;
+};
+ButtonShape buttonShape(Button button, glm::vec2 screen);
+
+// Commandes du joueur pour une image.
+struct Controls {
+    float steer = 0.0f;
+    bool pressed[static_cast<int>(Button::Count)] = {};
+};
+
+// Réunit clavier, souris et écran tactile en un seul état de commandes.
+struct InputReader {
+    static constexpr int kMaxPointers = 10;
+    struct Pointer {
+        bool active = false;
+        long long id = 0;
+        glm::vec2 pos{0.0f};
+    };
+    Pointer pointers[kMaxPointers];
+    bool keyLeft = false, keyRight = false, keyBoost = false;
+    bool keyMissile = false, keyShield = false;
+
+    void handleEvent(const SDL_Event& event, glm::vec2 screen);
+    Controls read(glm::vec2 screen) const;
+};
+
+} // namespace game

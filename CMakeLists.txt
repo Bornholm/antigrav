@@ -38,7 +38,8 @@ if(ANDROID)
   # déjà téléchargée.
   set(ANTIGRAV_SDL_ARCHIVE "https://www.libsdl.org/release/SDL3-3.4.16.tar.gz"
       CACHE STRING "Archive des sources de SDL3")
-  FetchContent_Declare(SDL3 URL ${ANTIGRAV_SDL_ARCHIVE})
+  FetchContent_Declare(SDL3 URL ${ANTIGRAV_SDL_ARCHIVE}
+    URL_HASH SHA256=7322236cd12090c3eb40b9728be4d49c76f66ad17d04369584d4ecad5cf77c68)
   set(SDL_SHARED ON CACHE BOOL "" FORCE)
   set(SDL_STATIC OFF CACHE BOOL "" FORCE)
   set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)

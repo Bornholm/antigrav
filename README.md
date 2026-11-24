@@ -62,3 +62,16 @@ shaders       GLSL, compilé en SPIR-V et inclus dans le binaire
 assets/fonts  police Orbitron, licence OFL
 android       projet Gradle pour Android
 ```
+
+## Compiler pour Android
+
+Il faut le SDK Android avec la plateforme 36, le NDK 27.2.12479018, CMake 3.22.1 du SDK et un JDK 17.
+
+```sh
+echo "sdk.dir=$HOME/Android/Sdk" > android/local.properties
+cd android
+JAVA_HOME=/usr/lib/jvm/java-17-openjdk gradle assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+SDL est compilé avec le jeu. Pour éviter de le retélécharger, placer l'archive `SDL3-3.4.16.tar.gz` dans `.cache/sdl/`.

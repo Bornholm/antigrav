@@ -58,6 +58,11 @@ struct Track {
     // accord. Ce sont les temps, plus les demi-temps quand le tempo est lent,
     // pour qu'on puisse toujours taper à une cadence confortable.
     std::vector<float> pulses;
+    // Le morceau a un tempo net. Sinon la grille n'est qu'un repli régulier,
+    // et la cadence du joueur n'a pas à s'y conformer.
+    bool tempoKnown = false;
+    // Durée d'un temps du morceau autour d'un instant, en secondes.
+    float beatPeriod(float time) const;
 
     // Vrai si l'instant tombe sur la grille de frappe, à la tolérance près.
     // La tolérance se resserre quand les frappes sont rapprochées.

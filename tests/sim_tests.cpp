@@ -481,92 +481,126 @@ void testRhythm() {
     track.features.clear();
     const float beat = track.beats[20], next = track.beats[21];
 
-    // Une frappe du boost sur un temps est un accord : un court boost gratuit
-    // qui tient sans garder le bouton, et un peu d'énergie. Une frappe entre
-    // deux temps ne donne rien et casse la série.
-    auto tapAt = [&](float time) {
-        sim::World world;
-        world.ownClock = true;
-        world.count = 1;
-        sim::Vehicle& v = world.vehicles[0];
-        v.dist = track.distAt(time) - sim::kCruiseSpeed * sim::kFixedDt;
-        v.speed = sim::kCruiseSpeed;
-        v.energy = 0.5f;
-        v.combo = 3;
-        for (int s = 0; s < 12; s++) {
-            sim::Input in;
-            in.boost = s < 2; // frappe brève
-            sim::step(world, track, &in);
-        }
-        return v;
+    // C'est la régularité du joueur qui est jugée, pas son alignement sur le
+    // morceau. Joue des frappes aux instants donnés, en secondes depuis le
+    // début de l'essai, et renvoie le vaisseau et ses verdicts.
+    struct Played {
+        sim::Vehicle v;
+        std::vector<int> verdicts;
+        int discharges = 0;
     };
-    sim::Vehicle onBeat = tapAt(beat), offBeat = tapAt(0.5f * (beat + next));
-    CHECK(onBeat.accord > 0.0f && offBeat.accord == 0.0f);
-    CHECK(onBeat.boosting && !offBeat.boosting);
-    CHECK(onBeat.combo == 4 && offBeat.combo == 0);
-    CHECK(onBeat.energy > 0.5f + sim::kAccordEnergy * 0.8f);
-    CHECK(onBeat.speed > offBeat.speed + 5.0f);
-
-    // Battre la mesure : une frappe par temps. La série monte, et au bout de
-    // kComboSize accords elle se décharge. Seul en piste, elle rend de l'énergie.
-    {
+    const float period = next - beat;
+    auto play = [&](const std::vector<float>& taps, float seconds) {
         sim::World world;
         world.ownClock = true;
         world.count = 1;
         sim::Vehicle& v = world.vehicles[0];
-        v.dist = track.distAt(beat) - 200.0f;
+        v.dist = track.distAt(beat);
         v.speed = sim::kCruiseSpeed;
         v.energy = 0.3f;
-        int accords = 0, discharges = 0, held = 0;
-        for (int s = 0; s < 60 * 8; s++) {
+        Played out;
+        size_t at = 0;
+        int hold = 0;
+        for (int s = 0; static_cast<float>(s) * sim::kFixedDt < seconds; s++) {
+            const float t = static_cast<float>(s) * sim::kFixedDt;
+            if (at < taps.size() && t >= taps[at]) {
+                hold = 2;
+                at++;
+            }
             sim::Input in;
-            const bool on = track.onBeat(track.at(v.dist).time, sim::kBeatTolerance * 0.5f);
-            held = on ? held + 1 : 0;
-            in.boost = on && held <= 2;
-            const bool before = v.accord > 0.0f;
+            in.boost = hold-- > 0;
+            const uint8_t before = v.tapCount;
             const int comboBefore = v.combo;
-            const float accordBefore = v.accord;
             sim::step(world, track, &in);
-            if (v.accord > accordBefore || (!before && v.accord > 0.0f)) accords++;
-            if (comboBefore >= sim::kComboSize && v.combo < sim::kComboSize) discharges++;
+            if (v.tapCount != before) out.verdicts.push_back(v.tapVerdict);
+            if (comboBefore >= sim::kComboSize && v.combo < sim::kComboSize) out.discharges++;
         }
-        CHECK(accords >= 12);
-        CHECK(discharges >= 1);
-        CHECK(v.energy > 0.3f + sim::kLeaderGain * 0.9f);
-        // Il est resté en boost presque tout du long, sans payer.
-        CHECK(v.speed > sim::kCruiseSpeed + 30.0f);
-    }
+        out.v = v;
+        return out;
+    };
+    auto steady = [&](float interval, float offset, int count) {
+        std::vector<float> taps;
+        for (int i = 0; i < count; i++) taps.push_back(offset + interval * static_cast<float>(i));
+        return taps;
+    };
+    auto count = [](const Played& p, int verdict) { return static_cast<int>(std::count(p.verdicts.begin(), p.verdicts.end(), verdict)); };
 
+    // Frappes régulières au tempo du morceau, mais décalées d'un tiers de
+    // temps : toutes justes après les deux qui posent la cadence.
+    {
+        const Played p = play(steady(period, 0.3f + period / 3.0f, 18), 10.0f);
+        CHECK(p.verdicts.size() == 18);
+        CHECK(p.verdicts[0] == sim::kTapStart && p.verdicts[1] == sim::kTapStart);
+        CHECK(count(p, sim::kTapGood) == 16);
+        // La série complète s'est déchargée : seul en piste, elle rend de l'énergie.
+        CHECK(p.discharges == 1);
+        CHECK(p.v.energy > 0.3f + sim::kLeaderGain * 0.9f);
+        // En boost presque tout du long, sans garder le bouton enfoncé.
+        CHECK(p.v.speed > sim::kCruiseSpeed + 30.0f);
+    }
+    // Deux fois plus vite, ou deux fois plus lentement : toujours cohérent
+    // avec le morceau.
+    CHECK(count(play(steady(period * 0.5f, 0.2f, 20), 6.0f), sim::kTapGood) == 18);
+    CHECK(count(play(steady(period * 2.0f, 0.2f, 8), 9.0f), sim::kTapGood) == 6);
+    // Une petite irrégularité humaine passe.
+    {
+        std::vector<float> taps = steady(period, 0.4f, 12);
+        for (size_t i = 0; i < taps.size(); i++) taps[i] += (i % 2 ? 0.03f : -0.03f);
+        CHECK(count(play(taps, 7.0f), sim::kTapGood) >= 9);
+    }
+    // Régulier, mais à une cadence sans rapport avec le morceau : pas d'accord.
+    {
+        const Played p = play(steady(period * 1.3f, 0.3f, 10), 8.0f);
+        CHECK(count(p, sim::kTapGood) == 0);
+        CHECK(count(p, sim::kTapOffTempo) >= 6);
+        CHECK(p.v.combo == 0);
+    }
+    // Une frappe trop tôt ou trop tard casse la série, et le verdict dit de quel côté.
+    {
+        std::vector<float> taps = steady(period, 0.3f, 6);
+        taps.push_back(taps.back() + period * 0.6f);
+        Played p = play(taps, 5.0f);
+        CHECK(p.verdicts.back() == sim::kTapEarly && p.v.combo == 0);
+        taps.back() = taps[5] + period * 1.45f;
+        p = play(taps, 5.0f);
+        CHECK(p.verdicts.back() == sim::kTapLate && p.v.combo == 0);
+    }
+    // Sauter une frappe ne casse rien.
+    {
+        std::vector<float> taps = steady(period, 0.3f, 6);
+        taps.push_back(taps.back() + 2.0f * period);
+        const Played p = play(taps, taps.back() + 0.2f);
+        CHECK(p.verdicts.back() == sim::kTapGood && p.v.combo == 5);
+    }
     // Marteler le bouton au hasard ne construit pas de série.
     {
-        sim::World world;
-        world.ownClock = true;
-        world.count = 1;
-        sim::Vehicle& v = world.vehicles[0];
-        v.dist = track.distAt(beat) - 400.0f;
-        v.speed = sim::kCruiseSpeed;
-        v.energy = 0.5f;
-        int best = 0;
-        for (int s = 0; s < 60 * 8; s++) {
-            sim::Input in;
-            in.boost = s % 5 < 2;
-            sim::step(world, track, &in);
-            best = std::max(best, v.combo);
+        std::vector<float> taps;
+        uint32_t state = 7u;
+        for (float t = 0.2f; t < 8.0f;) {
+            state = state * 1664525u + 1013904223u;
+            t += 0.15f + 0.5f * static_cast<float>(state >> 8) / 16777216.0f;
+            taps.push_back(t);
         }
-        CHECK(best < sim::kComboSize);
+        const Played p = play(taps, 8.5f);
+        CHECK(p.discharges == 0);
+        CHECK(count(p, sim::kTapGood) < static_cast<int>(taps.size()) / 3);
+    }
+    // Arrêter de frapper fait oublier la cadence : il faut la reposer.
+    {
+        std::vector<float> taps = steady(period, 0.3f, 5);
+        taps.push_back(taps.back() + 4.0f);
+        const Played p = play(taps, 8.0f);
+        CHECK(p.verdicts.back() == sim::kTapStart);
     }
 
-    // Tempo lent : la grille de frappe ajoute les demi-temps, pour qu'on
-    // puisse taper à une cadence confortable.
+    // La grille de frappe des pilotes automatiques ajoute les demi-temps sur
+    // un tempo lent.
     {
         const sim::Track slow = sim::generateTrack(sim::metronome(82.0f, 60.0f), 15.0f, 5u);
         const sim::Track fast = sim::generateTrack(sim::metronome(128.0f, 60.0f), 15.0f, 5u);
         CHECK(slow.pulses.size() > slow.beats.size() * 2 - 3);
         CHECK(fast.pulses.size() == fast.beats.size());
-        const float b0 = slow.beats[10], b1 = slow.beats[11];
-        CHECK(slow.onBeat(b0, sim::kBeatTolerance));
-        CHECK(slow.onBeat(0.5f * (b0 + b1), sim::kBeatTolerance));
-        CHECK(!slow.onBeat(b0 + 0.25f * (b1 - b0), sim::kBeatTolerance));
+        CHECK(slow.tempoKnown && std::abs(slow.beatPeriod(20.0f) - 60.0f / 82.0f) < 0.01f);
     }
 
     // Horloge commune : l'élastique freine qui devance la musique et aspire

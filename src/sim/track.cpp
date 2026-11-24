@@ -263,7 +263,8 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     // Sans tempo fiable, une grille régulière à 120 battements par minute
     // tient lieu de temps.
     std::vector<music::Beat> beats = p.beats;
-    if (beats.size() < 16 || p.confidence < 0.1f) {
+    const bool tempoKnown = !(beats.size() < 16 || p.confidence < 0.1f);
+    if (!tempoKnown) {
         beats.clear();
         int index = 0;
         for (float t = 0.5f; t < duration; t += 0.5f, index++) beats.push_back({t, 0.5f, index % 4});
@@ -331,6 +332,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     track.lead = kLead;
     track.length = length;
     track.duration = duration;
+    track.tempoKnown = tempoKnown;
     const float total = kLead + length + kTail;
     const int count = static_cast<int>(total / kStep);
     track.step = kStep;
@@ -438,6 +440,14 @@ bool Track::onBeat(float time, float tolerance) const {
         tolerance = std::min(tolerance, 0.18f * (*next - *(next - 1)));
     if (next != pulses.end() && *next - time <= tolerance) return true;
     return next != pulses.begin() && time - *(next - 1) <= tolerance;
+}
+
+float Track::beatPeriod(float time) const {
+    if (beats.size() < 2) return 0.5f;
+    auto next = std::upper_bound(beats.begin(), beats.end(), time);
+    if (next == beats.begin()) ++next;
+    if (next == beats.end()) --next;
+    return std::max(0.05f, *next - *(next - 1));
 }
 
 float Track::distAt(float time) const {

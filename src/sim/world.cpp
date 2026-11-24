@@ -76,25 +76,56 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
                           : std::min(1.25f, 1.0f - kDraft * gap / kWindow);
     }
 
-    // Frappe du boost sur la grille : un accord. Il donne un court boost
-    // gratuit et renforcé, qui tient sans garder le bouton enfoncé : battre la
-    // mesure suffit à rester en boost. Une frappe à côté casse la série et
-    // coupe l'élan. Garder le bouton enfoncé reste possible, mais se paie en
-    // énergie.
+    // Frappe du boost. On juge la régularité du joueur, pas son alignement
+    // sur le morceau : une frappe est juste quand elle tombe une période après
+    // la précédente. Elle donne alors un court boost gratuit, qui tient
+    // jusqu'à la frappe suivante sans garder le bouton enfoncé. Les deux
+    // premières frappes posent la cadence. Une frappe irrégulière casse la
+    // série et pose une nouvelle cadence.
     const bool pressed = in.boost && !v.boostHeld;
     v.boostHeld = in.boost;
     v.accord = std::max(0.0f, v.accord - dt);
     v.accordCooldown = std::max(0.0f, v.accordCooldown - dt);
+    v.sinceTap = std::min(10.0f, v.sinceTap + dt);
+    // Cadence abandonnée : il faudra la reposer.
+    if (v.tapPeriod > 0.0f && v.sinceTap > 2.6f * v.tapPeriod) {
+        v.tapPeriod = 0.0f;
+        v.combo = 0;
+    }
     if (pressed && !stunned && v.accordCooldown <= 0.0f) {
-        if (track.onBeat(clock.own ? f.time : clock.raceTime, kBeatTolerance)) {
-            v.accord = kAccordTime;
+        const float gap = v.sinceTap;
+        v.sinceTap = 0.0f;
+        v.accordCooldown = kAccordCooldown;
+        v.tapCount++;
+        const float period = v.tapPeriod;
+        // Une frappe sautée reste dans le rythme : deux périodes font l'affaire.
+        const bool regular = period > 0.0f && (std::abs(gap - period) <= kTapTolerance * period ||
+                                               std::abs(gap - 2.0f * period) <= kTapTolerance * period);
+        // La cadence doit tenir à un temps, un demi-temps ou deux temps du morceau.
+        bool onTempo = !track.tempoKnown;
+        if (period > 0.0f && !onTempo) {
+            const float beat = track.beatPeriod(clock.own ? f.time : clock.raceTime);
+            for (float ratio : {0.5f, 1.0f, 2.0f})
+                onTempo = onTempo || std::abs(period - ratio * beat) <= kTempoTolerance * ratio * beat;
+        }
+        if (regular && onTempo) {
+            v.tapVerdict = kTapGood;
+            v.accord = std::min(1.2f, period * 1.3f);
             v.combo++;
-            v.energy = std::min(1.0f, v.energy + kAccordEnergy);
-        } else {
+            v.energy = std::min(1.0f, v.energy + kAccordEnergy * period);
+            // La cadence suit doucement le joueur, sans se laisser entraîner.
+            if (std::abs(gap - period) <= kTapTolerance * period) v.tapPeriod = 0.75f * period + 0.25f * gap;
+        } else if (regular) {
+            v.tapVerdict = kTapOffTempo;
             v.accord = 0.0f;
             v.combo = 0;
+        } else {
+            v.tapVerdict = period <= 0.0f ? kTapStart : gap < period ? kTapEarly : kTapLate;
+            v.accord = 0.0f;
+            v.combo = 0;
+            // Nouvelle référence, si l'écart ressemble à une cadence.
+            v.tapPeriod = gap >= kMinTapPeriod && gap <= kMaxTapPeriod ? gap : 0.0f;
         }
-        v.accordCooldown = kAccordCooldown;
     }
     if (stunned) {
         v.combo = 0;
@@ -404,7 +435,9 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     // boost, et place des accords même sans vouloir accélérer longtemps.
     const float beatTime = songTime(world, track, v);
     const bool onBeat = track.onBeat(beatTime, kBeatTolerance * 0.6f);
-    const bool inRhythm = chance(index, static_cast<uint32_t>(beatTime * 0.5f) + 7919u, 3u) < profile.rhythm;
+    // Il bat la mesure par plages de six secondes : poser une cadence prend
+    // deux frappes, des plages trop courtes ne rapporteraient rien.
+    const bool inRhythm = chance(index, static_cast<uint32_t>(beatTime / 6.0f) + 7919u, 3u) < profile.rhythm;
     if (inRhythm && v.stunTime <= 0.0f) {
         // Il bat la mesure : une frappe par temps de la grille, rien entre.
         // L'accord tient le boost, inutile de payer en énergie.

@@ -71,23 +71,14 @@ void Race::update(float dt, const Controls& input) {
     local.steer = input.steer;
     local.boost = input.pressed[static_cast<int>(Button::Boost)];
 
-    // Appui de boost à côté du temps : on dit au joueur de quel côté il s'est
-    // trompé. Pendant le délai entre deux accords, l'appui ne compte pas.
+    // Verdict de la dernière frappe du boost, donné par la simulation.
     missTime = std::max(0.0f, missTime - dt);
     {
         const sim::Vehicle& me = world.vehicles[localIndex];
-        const bool pressed = local.boost && !boostWas;
-        boostWas = local.boost;
-        if (pressed && !autopilot && world.countdown <= 0.0f && !me.finished && me.stunTime <= 0.0f &&
-            me.accordCooldown <= 0.0f && !track.pulses.empty()) {
-            const float now = sim::songTime(world, track, me);
-            auto next = std::lower_bound(track.pulses.begin(), track.pulses.end(), now);
-            const float toNext = next != track.pulses.end() ? *next - now : 1e9f;
-            const float sincePrev = next != track.pulses.begin() ? now - *(next - 1) : 1e9f;
-            if (!track.onBeat(now, sim::kBeatTolerance)) {
-                missKind = toNext < sincePrev ? 1 : 2;
-                missTime = 0.7f;
-            }
+        if (me.tapCount != tapSeen) {
+            tapSeen = me.tapCount;
+            missKind = autopilot ? 0 : me.tapVerdict;
+            missTime = 0.7f;
         }
     }
 
@@ -270,7 +261,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.remaining = std::max(0.0f, track.duration - sim::songTime(world, track, player));
     state.showGap = !world.ownClock && world.countdown <= 0.0f && !player.finished;
     state.gap = sim::gapOf(world, track, player);
-    state.accord = player.accord / sim::kAccordTime;
+    state.accord = player.accord > 0.0f ? 1.0f : 0.0f;
     state.countdown = world.countdown;
     state.raceTime = player.finished ? player.finishTime : world.raceTime;
     state.finished = player.finished;
@@ -302,34 +293,39 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     for (int b = 0; b < static_cast<int>(Button::Count); b++) state.pressed[b] = controls.pressed[b];
     state.statsLine = statsLine;
     state.combo = player.combo;
-    // Anneau de rythme : part de l'intervalle qui reste avant le prochain temps.
+    // Lumière de rythme sur le dos du vaisseau. Elle suit la cadence du
+    // joueur : elle monte entre deux frappes et culmine quand la suivante est
+    // due. Tant qu'il n'a pas posé de cadence, elle bat doucement avec le
+    // morceau, pour donner le tempo. Jaune d'ordinaire, verte tant que la
+    // série tient, rouge sur une frappe irrégulière.
     state.beatPhase = -1.0f;
-    if (world.countdown <= 0.0f && !player.finished && !track.pulses.empty()) {
-        const float now = sim::songTime(world, track, player) + accumulator;
-        auto next = std::lower_bound(track.pulses.begin(), track.pulses.end(), now);
-        if (next != track.pulses.end() && next != track.pulses.begin())
-            state.beatPhase = std::clamp((*next - now) / std::max(0.05f, *next - *(next - 1)), 0.0f, 1.0f);
-    }
-    state.cooldown = 0.0f;
-    // Lumière de rythme sur le dos du vaisseau. Elle monte à l'approche du
-    // temps et culmine dessus : il faut appuyer quand elle est au plus fort.
-    // Jaune quand un accord est possible, bleu pâle pendant le délai, vert sur
-    // un accord réussi, rouge sur un appui raté, rose quand une décharge arrive.
-    if (state.beatPhase >= 0.0f && localIndex < out.shipCount) {
-        const float near = 1.0f - state.beatPhase;
-        const float charge = near * near * near;
+    if (world.countdown <= 0.0f && !player.finished && localIndex < out.shipCount) {
+        state.beatPhase = 0.0f;
         glm::vec3 tint{1.0f, 0.78f, 0.22f};
-        float level = 0.06f + 1.5f * charge;
-        if (player.accord > 0.0f) {
-            tint = {0.35f, 1.0f, 0.45f};
-            // Série en cours : le vaisseau reste vert et repique à chaque frappe.
-            level = 0.5f + 1.6f * player.accord / sim::kAccordTime + 0.8f * charge;
-        } else if (missTime > 0.0f) {
+        float level;
+        if (player.tapPeriod > 0.0f) {
+            const float phase = std::clamp((player.sinceTap + accumulator) / player.tapPeriod, 0.0f, 1.0f);
+            level = 0.10f + 1.5f * phase * phase * phase;
+            if (player.accord > 0.0f) {
+                tint = {0.35f, 1.0f, 0.45f};
+                level += 0.5f;
+            }
+        } else {
+            const float now = sim::songTime(world, track, player) + accumulator;
+            auto next = std::lower_bound(track.pulses.begin(), track.pulses.end(), now);
+            float near = 0.0f;
+            if (next != track.pulses.end() && next != track.pulses.begin())
+                near = 1.0f - std::clamp((*next - now) / std::max(0.05f, *next - *(next - 1)), 0.0f, 1.0f);
+            level = 0.06f + 0.7f * near * near * near;
+        }
+        const bool bad = missKind == sim::kTapEarly || missKind == sim::kTapLate || missKind == sim::kTapOffTempo;
+        if (missTime > 0.0f && bad) {
             tint = {1.0f, 0.12f, 0.08f};
-            level = 2.0f * missTime / 0.7f;
+            level = std::max(level, 2.0f * missTime / 0.7f);
         }
         out.ships[localIndex].glow = glm::vec4(tint, level);
     }
+    state.cooldown = 0.0f;
     state.miss = missTime > 0.0f ? missKind : 0;
     state.missFade = missTime / 0.7f;
     state.comboSize = sim::kComboSize;

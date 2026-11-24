@@ -1,6 +1,7 @@
 #include "game/hud.h"
 
 #include "game/i18n.h"
+#include "sim/world.h"
 
 #include <algorithm>
 #include <cmath>
@@ -224,12 +225,13 @@ void drawRhythm(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj
     }
 
     const vec2 label = c + vec2(0.0f, -core - 44.0f);
-    if (s.accord > 0.0f) {
-        hud.text(FontId::Bold, tr("EN RYTHME"), label, 30.0f + 8.0f * s.accord, alpha(kYellow, 0.4f + 0.6f * s.accord),
-                 Align::Center, 0.2f, alpha(kYellow, 0.4f * s.accord));
-    } else if (s.miss != 0) {
-        hud.text(FontId::Bold, tr(s.miss == 1 ? "TROP TÔT" : "TROP TARD"), label, 28.0f,
-                 alpha(vec4(1.0f, 0.45f, 0.35f, 1.0f), s.missFade), Align::Center);
+    // Verdict de la dernière frappe, jugée sur la régularité du joueur.
+    if (s.miss == sim::kTapGood) {
+        hud.text(FontId::Bold, tr("EN RYTHME"), label, 30.0f + 6.0f * s.missFade, alpha(vec4(0.45f, 1.0f, 0.5f, 1.0f), 0.3f + 0.7f * s.missFade),
+                 Align::Center, 0.2f, alpha(vec4(0.45f, 1.0f, 0.5f, 1.0f), 0.4f * s.missFade));
+    } else if (s.miss == sim::kTapEarly || s.miss == sim::kTapLate || s.miss == sim::kTapOffTempo) {
+        const char* word = s.miss == sim::kTapEarly ? "TROP TÔT" : s.miss == sim::kTapLate ? "TROP TARD" : "HORS TEMPO";
+        hud.text(FontId::Bold, tr(word), label, 28.0f, alpha(vec4(1.0f, 0.45f, 0.35f, 1.0f), s.missFade), Align::Center);
     }
     if (s.incoming)
         hud.text(FontId::Bold, tr("DÉCHARGE ! PAREZ EN RYTHME"), label + vec2(0.0f, -40.0f), 28.0f, kMagenta, Align::Center,

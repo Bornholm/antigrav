@@ -14,7 +14,7 @@ namespace net {
 
 namespace {
 
-const uint32_t kMagic = 0x33474141u; // "AAG3"
+const uint32_t kMagic = 0x34474141u; // "AAG4"
 constexpr double kTimeout = 5.0;      // secondes sans nouvelles avant de couper
 
 enum Type : uint8_t {
@@ -83,8 +83,8 @@ struct InputPacket {
 };
 struct WireVehicle {
     float dist, lateral, lateralVel, speed, energy, roll, finishTime, shieldTime, stunTime;
-    float accord, accordCooldown;
-    uint8_t combo;
+    float accord, accordCooldown, sinceTap, tapPeriod;
+    uint8_t combo, tapCount, tapVerdict;
     uint8_t flags; // bit 0 boost, 1 frottement, 2 arrivé, 5 boost tenu
 };
 struct WireMissile {
@@ -387,6 +387,10 @@ void Net::hostSendSnapshot(const sim::Session& session) {
         o.finishTime = v.finishTime;
         o.accord = v.accord;
         o.accordCooldown = v.accordCooldown;
+        o.sinceTap = v.sinceTap;
+        o.tapPeriod = v.tapPeriod;
+        o.tapCount = v.tapCount;
+        o.tapVerdict = v.tapVerdict;
         o.shieldTime = v.shieldTime;
         o.stunTime = v.stunTime;
         o.flags = static_cast<uint8_t>((v.boosting ? 1 : 0) | (v.scraping ? 2 : 0) |
@@ -428,6 +432,10 @@ void Net::reconcile(sim::Session& session, const void* data) {
         v.finishTime = o.finishTime;
         v.accord = o.accord;
         v.accordCooldown = o.accordCooldown;
+        v.sinceTap = o.sinceTap;
+        v.tapPeriod = o.tapPeriod;
+        v.tapCount = o.tapCount;
+        v.tapVerdict = o.tapVerdict;
         v.shieldTime = o.shieldTime;
         v.stunTime = o.stunTime;
         v.boosting = o.flags & 1;

@@ -24,7 +24,7 @@ constexpr float kArmorCost = 0.33f;     // énergie que coûte une barrière enc
 constexpr float kArmorFlash = 0.5f;     // secondes d'affichage de la bulle d'armure
 // Décharge : gagnée en enchaînant des accords, elle part seule sur le vaisseau
 // de devant. Sa cible la pare en étant elle-même en plein accord.
-constexpr int kComboSize = 8;           // accords d'affilée pour une décharge
+constexpr int kComboSize = 12;          // accords d'affilée pour une décharge
 constexpr float kStunDuration = 0.6f;   // secondes sans contrôle après une décharge
 constexpr float kAbsorbGain = 0.25f;    // énergie rendue par une décharge parée
 constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand sa décharge touche
@@ -43,11 +43,28 @@ constexpr float kSyncEdge = 1.15f;
 constexpr float kWindow = 2.0f;          // secondes d'écart au point de synchronisation qui servent d'échelle
 constexpr float kLeadDrag = 0.10f;       // part de vitesse perdue à kWindow d'avance
 constexpr float kDraft = 0.16f;          // part de vitesse gagnée à kWindow de retard
-constexpr float kBeatTolerance = 0.075f; // secondes autour d'un temps où un appui compte
-constexpr float kAccordTime = 0.45f;     // secondes de boost gratuit et renforcé après une frappe en rythme
-constexpr float kAccordCooldown = 0.14f; // secondes pendant lesquelles un second appui est ignoré : anti-rebond
-constexpr float kAccordEnergy = 0.012f;  // énergie rendue par un accord
+constexpr float kBeatTolerance = 0.075f; // secondes autour d'un temps où les pilotes automatiques frappent
+// Rythme du joueur. Ce n'est pas l'alignement sur le morceau qui est jugé,
+// mais la régularité des frappes : une frappe est juste quand elle arrive une
+// période après la précédente. La cadence doit seulement rester cohérente
+// avec le tempo du morceau : un temps, un demi-temps ou deux temps.
+constexpr float kTapTolerance = 0.22f;   // écart admis sur la période, en part de celle-ci
+constexpr float kTempoTolerance = 0.16f; // écart admis entre la cadence et le tempo du morceau
+constexpr float kMinTapPeriod = 0.22f;   // secondes : plus vite, c'est du martelage
+constexpr float kMaxTapPeriod = 1.10f;   // secondes : plus lent, ce n'est plus une cadence
+constexpr float kAccordCooldown = 0.12f; // secondes pendant lesquelles un second appui est ignoré : anti-rebond
+constexpr float kAccordEnergy = 0.03f;   // énergie rendue par seconde de cadence tenue
 constexpr float kPadEnergy = 0.12f;      // énergie rendue par une plaque
+
+// Verdict de la dernière frappe du boost.
+enum TapVerdict : uint8_t {
+    kTapNone = 0,
+    kTapStart,   // pose la cadence, rien à juger encore
+    kTapGood,    // régulière : accord
+    kTapEarly,   // trop tôt par rapport à sa propre cadence
+    kTapLate,    // trop tard
+    kTapOffTempo // régulière, mais sans rapport avec le tempo du morceau
+};
 
 struct Input {
     float steer = 0.0f; // -1 à gauche, +1 à droite
@@ -72,8 +89,12 @@ struct Vehicle {
     float stunTime = 0.0f;   // secondes restantes sans contrôle après un choc
     bool boostHeld = false;  // état précédent de la commande, pour détecter l'appui
     int combo = 0;           // accords réussis d'affilée
-    float accord = 0.0f;         // secondes restantes d'un boost lancé en rythme
-    float accordCooldown = 0.0f; // secondes avant de pouvoir en relancer un
+    float accord = 0.0f;         // secondes restantes du boost donné par la dernière frappe juste
+    float accordCooldown = 0.0f; // anti-rebond
+    float sinceTap = 10.0f;      // secondes depuis la dernière frappe
+    float tapPeriod = 0.0f;      // cadence du joueur, en secondes ; 0 tant qu'il n'en a pas posé
+    uint8_t tapCount = 0;        // change à chaque frappe, pour que l'affichage la remarque
+    uint8_t tapVerdict = 0;      // voir TapVerdict
 };
 
 // Décharge à tête chercheuse, elle aussi en coordonnées de piste.

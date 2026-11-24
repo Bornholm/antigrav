@@ -20,14 +20,15 @@ Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis vo
 
 ## Jouer en rythme
 
-- **Accord.** Frapper le BOOST pile sur un temps donne un accord : un court boost gratuit, qui tient sans garder le bouton enfoncé, et un peu d'énergie. Il suffit donc de battre la mesure pour rester en boost. Chaque frappe juste compte, il n'y a pas de délai entre deux accords. Une frappe à côté du temps coupe l'élan et remet la série à zéro. Garder le bouton enfoncé reste possible, mais ce boost-là se paie en énergie.
-- **Cadence.** On frappe sur les temps du morceau. Sous 100 battements par minute, la grille ajoute les demi-temps, pour qu'on puisse toujours taper à une cadence confortable : un morceau à 82 BPM se frappe à 164.
-- **Signal.** Une lumière sur le dos du vaisseau monte à l'approche de chaque frappe et culmine dessus. Elle est jaune en temps normal, verte tant que la série tient, rouge sur une frappe ratée. « EN RYTHME », « TROP TÔT » ou « TROP TARD » s'affiche au-dessus du vaisseau.
-- **Plaques.** Chaque plaque jaune recharge la jauge de 12 %.
+- **Accord.** Le jeu juge la régularité de vos frappes sur le BOOST, pas leur alignement exact sur le morceau. Les deux premières frappes posent votre cadence. Ensuite, chaque frappe qui arrive une période après la précédente est un accord : un court boost gratuit, qui tient jusqu'à la frappe suivante sans garder le bouton enfoncé, et un peu d'énergie. Battre la mesure régulièrement suffit donc à rester en boost.
+- **Cadence.** Elle doit rester cohérente avec le tempo du morceau : un temps, un demi-temps ou deux temps, à 16 % près. Une cadence régulière mais sans rapport avec le morceau affiche « HORS TEMPO ».
+- **Frappe irrégulière.** Elle affiche « TROP TÔT » ou « TROP TARD » par rapport à votre propre cadence, coupe l'élan, remet la série à zéro et pose une nouvelle cadence. Sauter une frappe ne casse rien.
+- **Signal.** Une lumière sur le dos du vaisseau monte entre deux frappes et culmine quand la suivante est due. Tant que vous n'avez pas posé de cadence, elle bat doucement avec le morceau. Elle est verte tant que la série tient, rouge sur une frappe irrégulière.
+- **Bouton enfoncé.** Garder le BOOST enfoncé reste possible, mais ce boost-là se paie en énergie.
 - **Jauge.** Elle ne se recharge presque plus seule : ce sont les plaques et les accords qui la remplissent. Elle sert au boost et à l'armure.
 - **Armure.** Si la jauge est au moins à un tiers quand le vaisseau touche une barrière, elle encaisse le choc et perd ce tiers. Sinon c'est le crash. Il faut donc choisir entre dépenser en boost et garder de quoi encaisser.
-- **Décharge.** Huit accords d'affilée, comptés par les pastilles sous le vaisseau, déclenchent une décharge qui part seule sur le vaisseau de devant. En tête de course, la série rend de l'énergie à la place. Un appui à côté du temps remet la série à zéro.
-- **Parade.** Quand une décharge arrive, le jeu prévient. Réussir un accord à ce moment l'absorbe et rend de l'énergie. Sinon le vaisseau perd le contrôle une demi-seconde.
+- **Décharge.** Douze accords d'affilée, comptés par les pastilles sous le vaisseau, déclenchent une décharge qui part seule sur le vaisseau de devant. En tête de course, la série rend de l'énergie à la place. Un appui à côté du temps remet la série à zéro.
+- **Parade.** Quand une décharge arrive, le jeu prévient. Être en plein accord à ce moment l'absorbe et rend de l'énergie. Sinon le vaisseau perd le contrôle une demi-seconde.
 
 Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'avance du vaisseau sur la musique. Un élastique freine qui prend de l'avance et aspire qui traîne, donc le peloton reste groupé autour de la musique.
 

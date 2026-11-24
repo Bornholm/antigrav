@@ -35,7 +35,7 @@ void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float
             // À cette vitesse un pas dépasse l'épaisseur de la barrière : on
             // teste le franchissement, pas la présence.
             if (track.ahead(before, f.dist) >= moved) continue;
-            if (std::abs(v.lateral - f.lateral) > f.halfWidth + kShipHalfWidth * 0.8f) continue;
+            if (std::abs(v.lateral - f.lateral) > f.halfWidth + kHitRadius) continue;
             if (shielded) {
                 v.shieldTime = 0.0f; // le bouclier se brise à sa place
                 shielded = false;

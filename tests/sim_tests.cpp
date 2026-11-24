@@ -364,6 +364,13 @@ void testFeatures() {
     CHECK(v.speed < sim::kCruiseSpeed * 0.6f);
     CHECK(v.stunTime > 0.0f);
     CHECK(driveTo(track, aside, 210.0f).stunTime == 0.0f);
+    // Seul le cœur du vaisseau touche : une aile peut mordre sur la barrière.
+    sim::Vehicle grazing = start;
+    grazing.lateral = 4.0f + sim::kHitRadius + 0.3f;
+    CHECK(grazing.lateral < 4.0f + sim::kShipHalfWidth);
+    CHECK(driveTo(track, grazing, 210.0f).stunTime == 0.0f);
+    grazing.lateral = 4.0f + sim::kHitRadius - 0.3f;
+    CHECK(driveTo(track, grazing, 210.0f).stunTime > 0.0f);
     // Le bouclier encaisse le choc et se brise.
     v = driveTo(track, shielded, 210.0f);
     CHECK(v.stunTime == 0.0f);

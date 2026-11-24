@@ -13,6 +13,9 @@ constexpr float kFixedDt = 1.0f / 60.0f;
 constexpr float kCruiseSpeed = 340.0f; // m/s
 constexpr float kBoostSpeed = 405.0f;
 constexpr float kShipHalfWidth = 3.2f;
+// Contre une barrière, seul le cœur du vaisseau compte, comme dans un jeu de
+// tir : les ailes passent au travers, ce qui laisse une chance d'esquiver.
+constexpr float kHitRadius = 0.9f;
 
 // Boost, missile et bouclier puisent dans la même jauge d'énergie.
 constexpr int kMaxMissiles = 16;

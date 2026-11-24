@@ -31,7 +31,7 @@ Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'
 
 Le jeu s'ouvre sur le menu. **Solo** règle le morceau, le vaisseau, le nombre d'IA de 0 à 7 et leur caractère. **Multijoueur** héberge une partie ou rejoint celles trouvées sur le réseau local.
 
-La piste porte deux sortes d'éléments. Les plaques à chevrons jaunes rechargent la jauge d'énergie, les barrières rouges arrêtent net. Le bouclier encaisse une barrière.
+La piste porte deux sortes d'éléments. Les plaques à chevrons jaunes rechargent la jauge d'énergie, les barrières rouges arrêtent net. Seul le cœur du vaisseau les touche : une aile peut passer au travers. Le bouclier encaisse une barrière.
 
 Pour jouer à plusieurs, tous les appareils doivent être sur le même réseau Wi-Fi, ou sur le partage de connexion de l'un d'eux. L'hôte choisit le morceau, les IA et lance la course. Si la découverte automatique ne trouve rien, saisir l'adresse IP de l'hôte. Le jeu utilise le port UDP 47800.
 

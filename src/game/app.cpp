@@ -60,6 +60,7 @@ void App::init(int startTrack) {
 
 void App::go(Screen next) {
     screen = next;
+    confirmQuit = false;
     ui.reset();
 }
 
@@ -218,23 +219,40 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     ui.begin(menuHud, input, static_cast<float>(now));
     if (screen == Screen::Race) {
         bool over = race.finished();
-        if (over && ui.button({800.0f, 560.0f}, {190.0f, 38.0f}, "CONTINUER", true, kYellow)) {
-            if (net.role == net::Role::Host) {
-                net.hostBackToLobby();
-                startAttract();
-                go(Screen::Lobby);
-            } else if (net.role == net::Role::Client) {
-                startAttract();
-                go(Screen::Lobby);
-            } else {
-                startAttract();
-                go(Screen::Solo);
-            }
-        } else if (input.back) {
-            // Retour arrière : abandonne la course.
+        auto abandon = [&] {
             if (net.role != net::Role::Off) leaveNetwork();
             else startAttract();
             go(Screen::Main);
+        };
+        if (over) {
+            if (ui.button({800.0f, 560.0f}, {190.0f, 38.0f}, "CONTINUER", true, kYellow)) {
+                if (net.role == net::Role::Host) {
+                    net.hostBackToLobby();
+                    startAttract();
+                    go(Screen::Lobby);
+                } else if (net.role == net::Role::Client) {
+                    startAttract();
+                    go(Screen::Lobby);
+                } else {
+                    startAttract();
+                    go(Screen::Solo);
+                }
+            } else if (input.back) {
+                abandon();
+            }
+        } else if (confirmQuit) {
+            // La course continue derrière : en réseau, on ne peut pas la figer.
+            ui.panel({800.0f, 440.0f}, {340.0f, 130.0f});
+            ui.text({800.0f, 392.0f}, "QUITTER LA COURSE ?", 34.0f, vec4(1.0f));
+            if (ui.button({650.0f, 490.0f}, {130.0f, 38.0f}, "REPRENDRE") || input.back) {
+                confirmQuit = false;
+                ui.reset();
+            } else if (ui.button({950.0f, 490.0f}, {130.0f, 38.0f}, "QUITTER", true, kMagenta)) {
+                abandon();
+            }
+        } else if (ui.button({1225.0f, 62.0f}, {66.0f, 26.0f}, "MENU") || input.back) {
+            confirmQuit = true;
+            ui.reset();
         }
     } else {
         drawMenus(screenSize);

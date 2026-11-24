@@ -26,7 +26,7 @@ Pour jouer à plusieurs, tous les appareils doivent être sur le même réseau W
 | Bouclier | Q | B | bouton bleu |
 | Menus | flèches, Entrée, Échap | croix, A, B | toucher |
 
-La souris agit comme un doigt. Échap pendant une course ramène au menu.
+La souris agit comme un doigt. Pendant une course, le bouton MENU, Échap ou le geste retour d'Android proposent de quitter la course.
 
 ## Options
 

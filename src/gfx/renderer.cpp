@@ -60,7 +60,7 @@ const uint32_t kHudFrag[] =
     ;
 
 const VkSampleCountFlagBits kSamples = VK_SAMPLE_COUNT_4_BIT;
-constexpr float kEqualizerStretch = 0.55f;
+constexpr float kEqualizerStretch = 0.30f;
 
 // Miroir de shaders/common.glsl, disposition std140.
 struct Globals {

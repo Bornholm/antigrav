@@ -57,7 +57,7 @@ void testTrackGeometry() {
             CHECK(f.pace >= 260.0f && f.pace <= 395.0f);
             // Aucun virage plus serré que 120 m de rayon, aucune pente raide.
             CHECK(std::abs(f.curvature) < 1.0f / 120.0f);
-            CHECK(std::abs(f.tangent.y) < 0.18f);
+            CHECK(std::abs(f.tangent.y) < 0.25f);
         }
 
         // Deux portions de piste ne se touchent jamais.
@@ -105,7 +105,7 @@ void testTrackEnds() {
             if (e < 0.35f) low += y, lowCount++;
         }
         CHECK(highCount > 10 && lowCount > 10);
-        CHECK(high / highCount > low / lowCount + 80.0);
+        CHECK(high / highCount > low / lowCount + 150.0);
     }
 
     // Le même morceau donne toujours la même piste.

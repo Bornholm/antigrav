@@ -43,6 +43,10 @@ struct HudState {
     bool finished = false;
     // Ligne de mesures affichée en bas de l'écran, vide pour la masquer.
     const char* statsLine = "";
+    float beatPhase = -1.0f; // part de l'intervalle avant le prochain temps, de 1 à 0 ; négatif pour masquer
+    float cooldown = 0.0f;   // délai restant avant le prochain accord possible, de 1 à 0
+    int miss = 0;            // appui raté : 1 trop tôt, 2 trop tard
+    float missFade = 0.0f;
     int combo = 0;        // accords d'affilée, sur comboSize
     int comboSize = 4;
     bool armored = false; // la jauge suffit à encaisser une barrière

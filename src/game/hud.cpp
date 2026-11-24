@@ -186,8 +186,21 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
     }
     {
         bool down = shapeOf(Button::Boost, c, r) || s.boosting;
+        // Pendant le délai entre deux accords, le bouton s'éteint et se
+        // rallume peu à peu : un appui n'y donnerait pas d'accord.
+        const bool ready = s.cooldown <= 0.0f;
+        const vec4 rim = ready ? kYellow : alpha(kYellow, 0.35f);
         vec4 fill = down ? vec4(0.55f, 0.38f, 0.05f, 0.6f) : vec4(0.10f, 0.07f, 0.03f, 0.5f);
-        hud.circle(c, r, fill, kYellow, down ? 7.0f : 5.0f);
+        hud.circle(c, r, fill, rim, down ? 7.0f : 5.0f);
+        if (!ready) hud.circle(c, r * (1.0f - s.cooldown), alpha(kYellow, 0.10f), alpha(kYellow, 0.5f), 2.0f);
+        // Anneau de rythme : il se referme sur le bouton à chaque temps.
+        // Appuyer quand il le touche donne un accord.
+        if (s.beatPhase >= 0.0f) {
+            const float ring = r * (1.0f + 0.75f * s.beatPhase);
+            const float near = 1.0f - s.beatPhase;
+            hud.circle(c, ring, vec4(0.0f), alpha(ready ? kWhite : kYellow, (ready ? 0.35f : 0.15f) + 0.55f * near * near * (ready ? 1.0f : 0.3f)),
+                       ready ? 4.0f : 2.0f);
+        }
         polyline(hud, {c + vec2(-32.0f, -22.0f), c + vec2(0.0f, -50.0f), c + vec2(32.0f, -22.0f)},
                  10.0f, kYellow, 0.4f);
         polyline(hud, {c + vec2(-32.0f, 2.0f), c + vec2(0.0f, -26.0f), c + vec2(32.0f, 2.0f)},
@@ -296,6 +309,14 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         hud.vAnchor = gfx::VAnchor::Bottom;
         hud.text(FontId::Bold, "DÉCHARGE ! PAREZ EN RYTHME", {800.0f, 720.0f}, 30.0f, kMagenta, Align::Center, 0.2f,
                  alpha(kMagenta, 0.5f));
+        hud.anchor = Anchor::Left;
+        hud.vAnchor = gfx::VAnchor::Top;
+    }
+    if (s.miss != 0 && s.accord <= 0.0f) {
+        hud.anchor = Anchor::Center;
+        hud.vAnchor = gfx::VAnchor::Bottom;
+        hud.text(FontId::Bold, s.miss == 1 ? "TROP TÔT" : "TROP TARD", {800.0f, 770.0f}, 28.0f,
+                 alpha(vec4(1.0f, 0.45f, 0.35f, 1.0f), s.missFade), Align::Center);
         hud.anchor = Anchor::Left;
         hud.vAnchor = gfx::VAnchor::Top;
     }

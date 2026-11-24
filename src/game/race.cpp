@@ -71,6 +71,26 @@ void Race::update(float dt, const Controls& input) {
     local.steer = input.steer;
     local.boost = input.pressed[static_cast<int>(Button::Boost)];
 
+    // Appui de boost à côté du temps : on dit au joueur de quel côté il s'est
+    // trompé. Pendant le délai entre deux accords, l'appui ne compte pas.
+    missTime = std::max(0.0f, missTime - dt);
+    {
+        const sim::Vehicle& me = world.vehicles[localIndex];
+        const bool pressed = local.boost && !boostWas;
+        boostWas = local.boost;
+        if (pressed && !autopilot && world.countdown <= 0.0f && !me.finished && me.stunTime <= 0.0f &&
+            me.accordCooldown <= 0.0f && !track.beats.empty()) {
+            const float now = sim::songTime(world, track, me);
+            auto next = std::lower_bound(track.beats.begin(), track.beats.end(), now);
+            const float toNext = next != track.beats.end() ? *next - now : 1e9f;
+            const float sincePrev = next != track.beats.begin() ? now - *(next - 1) : 1e9f;
+            if (std::min(toNext, sincePrev) > sim::kBeatTolerance) {
+                missKind = toNext < sincePrev ? 1 : 2;
+                missTime = 0.7f;
+            }
+        }
+    }
+
     // Une image très longue ne doit pas déclencher une rafale de pas.
     accumulator += std::min(dt, 0.1f);
     while (accumulator >= sim::kFixedDt) {
@@ -281,6 +301,17 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     for (int b = 0; b < static_cast<int>(Button::Count); b++) state.pressed[b] = controls.pressed[b];
     state.statsLine = statsLine;
     state.combo = player.combo;
+    // Anneau de rythme : part de l'intervalle qui reste avant le prochain temps.
+    state.beatPhase = -1.0f;
+    if (world.countdown <= 0.0f && !player.finished && !track.beats.empty()) {
+        const float now = sim::songTime(world, track, player) + accumulator;
+        auto next = std::lower_bound(track.beats.begin(), track.beats.end(), now);
+        if (next != track.beats.end() && next != track.beats.begin())
+            state.beatPhase = std::clamp((*next - now) / std::max(0.05f, *next - *(next - 1)), 0.0f, 1.0f);
+    }
+    state.cooldown = std::clamp(player.accordCooldown / sim::kAccordCooldown, 0.0f, 1.0f);
+    state.miss = missTime > 0.0f ? missKind : 0;
+    state.missFade = missTime / 0.7f;
     state.comboSize = sim::kComboSize;
     state.armored = player.energy >= sim::kArmorCost;
     // Une décharge arrive : elle est derrière, proche, et personne ne la sépare du joueur.

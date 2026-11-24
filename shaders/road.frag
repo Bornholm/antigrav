@@ -43,12 +43,18 @@ void main() {
     // les traînées allongées d'une chaussée mouillée.
     vec2 suv = gl_FragCoord.xy * g.screen.xy;
     float spread = mix(0.010, 0.060, 1.0 - nv) * (0.6 + 0.4 * wet);
+    // Décalage aléatoire par pixel : cinq lectures régulières dessineraient
+    // cinq copies décalées du reflet, le bruit les fond en un flou.
+    float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
     vec3 refl = vec3(0.0);
-    const float weights[5] = float[](0.30, 0.25, 0.20, 0.15, 0.10);
+    float total = 0.0;
     for (int i = 0; i < 5; i++) {
-        float t = float(i) / 4.0;
-        refl += texture(reflectionTex, suv + vec2(0.0, -spread * t)).rgb * weights[i];
+        float t = (float(i) + jitter) / 5.0;
+        float w = 1.0 - 0.7 * t;
+        refl += texture(reflectionTex, suv + vec2(0.0, -spread * t)).rgb * w;
+        total += w;
     }
+    refl /= total;
     float fresnel = 0.05 + 0.95 * pow(1.0 - nv, 3.0);
     vec3 c = vec3(0.003, 0.004, 0.008) + refl * fresnel * wet * 1.1;
 

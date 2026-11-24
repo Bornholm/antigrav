@@ -1,22 +1,85 @@
 #include "gfx/renderer.h"
 
+#include "gfx/geometry.h"
 #include "gfx/pipeline.h"
+
+#include <glm/gtc/matrix_transform.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstring>
 
 namespace gfx {
 
 namespace {
 
+const uint32_t kWorldVert[] =
+#include "world_vert.inc"
+    ;
+const uint32_t kSkyVert[] =
+#include "sky_vert.inc"
+    ;
 const uint32_t kFullscreenVert[] =
 #include "fullscreen_vert.inc"
     ;
-const uint32_t kBootFrag[] =
-#include "boot_frag.inc"
+const uint32_t kRoadFrag[] =
+#include "road_frag.inc"
+    ;
+const uint32_t kNeonFrag[] =
+#include "neon_frag.inc"
+    ;
+const uint32_t kBuildingFrag[] =
+#include "building_frag.inc"
+    ;
+const uint32_t kShipFrag[] =
+#include "ship_frag.inc"
+    ;
+const uint32_t kSkyFrag[] =
+#include "sky_frag.inc"
+    ;
+const uint32_t kTrailFrag[] =
+#include "trail_frag.inc"
+    ;
+const uint32_t kBloomDownFrag[] =
+#include "bloom_down_frag.inc"
+    ;
+const uint32_t kBloomUpFrag[] =
+#include "bloom_up_frag.inc"
+    ;
+const uint32_t kCompositeFrag[] =
+#include "composite_frag.inc"
     ;
 
-struct FullscreenPush {
-    float rotation[4];
-    float params[4];
+// Flottants 11 et 10 bits sans alpha : moitié moins de mémoire qu'un RGBA16F,
+// ce qui compte sur un GPU limité par sa bande passante.
+const VkFormat kHdrFormat = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+const VkFormat kDepthFormat = VK_FORMAT_D32_SFLOAT;
+const VkSampleCountFlagBits kSamples = VK_SAMPLE_COUNT_4_BIT;
+
+// Miroir de shaders/common.glsl, disposition std140.
+struct Globals {
+    glm::mat4 viewProj;
+    glm::vec4 camPos;
+    glm::vec4 camRight;
+    glm::vec4 camUp;
+    glm::vec4 camForward;
+    glm::vec4 fog;
+    glm::vec4 screen;
 };
+
+struct ScenePush {
+    glm::mat4 model{1.0f};
+    glm::vec4 colorA{1.0f};
+    glm::vec4 colorB{1.0f};
+};
+
+struct PostPush {
+    float rotation[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+    float params[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+};
+
+const VkShaderStageFlags kPushStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
 // Matrice qui fait passer des coordonnées de l'image physique à celles du jeu.
 // À confirmer sur le téléphone : le sens dépend de la convention du pilote.
@@ -37,62 +100,582 @@ void rotationMatrix(int degrees, float out[4]) {
     }
 }
 
-} // namespace
-
-void Renderer::init(Gpu& gpuRef, VkFormat outputFormat) {
-    gpu = &gpuRef;
-
-    VkPushConstantRange range{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                              sizeof(FullscreenPush)};
-    VkPipelineLayoutCreateInfo lci{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-    lci.pushConstantRangeCount = 1;
-    lci.pPushConstantRanges = &range;
-    VK_CHECK(vkCreatePipelineLayout(gpu->device, &lci, nullptr, &bootLayout));
-
-    PipelineDesc desc;
-    desc.vert = kFullscreenVert;
-    desc.frag = kBootFrag;
-    desc.layout = bootLayout;
-    desc.colorFormats = {outputFormat};
-    desc.name = "boot";
-    bootPipeline = createPipeline(*gpu, desc);
+// Symétrie par rapport au plan passant par point, de normale normal.
+glm::mat4 mirrorMatrix(const glm::vec3& point, const glm::vec3& normal) {
+    glm::mat4 m{1.0f};
+    for (int c = 0; c < 3; c++)
+        for (int r = 0; r < 3; r++) m[c][r] = (c == r ? 1.0f : 0.0f) - 2.0f * normal[r] * normal[c];
+    m[3] = glm::vec4(2.0f * glm::dot(point, normal) * normal, 1.0f);
+    return m;
 }
 
-void Renderer::shutdown() {
-    vkDestroyPipeline(gpu->device, bootPipeline, nullptr);
-    vkDestroyPipelineLayout(gpu->device, bootLayout, nullptr);
-    *this = Renderer{};
+glm::vec3 mirrorVector(const glm::vec3& v, const glm::vec3& normal) {
+    return v - 2.0f * glm::dot(v, normal) * normal;
 }
 
-void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameParams& params) {
+// Projection à profondeur inversée et plan lointain à l'infini : 1 au plan
+// proche, 0 à l'infini. La précision reste bonne jusqu'à la ville à l'horizon.
+glm::mat4 projection(float fovY, float aspect, float nearPlane) {
+    float f = 1.0f / std::tan(fovY * 0.5f);
+    glm::mat4 p{0.0f};
+    p[0][0] = f / aspect;
+    p[1][1] = -f;
+    p[2][3] = -1.0f;
+    p[3][2] = nearPlane;
+    return p;
+}
+
+void bindMesh(VkCommandBuffer cmd, const Mesh& mesh) {
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.vertices.buffer, &offset);
+    vkCmdBindIndexBuffer(cmd, mesh.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+}
+
+void pushScene(VkCommandBuffer cmd, VkPipelineLayout layout, const ScenePush& push) {
+    vkCmdPushConstants(cmd, layout, kPushStages, 0, sizeof(push), &push);
+}
+
+void beginColorPass(VkCommandBuffer cmd, VkImageView view, VkExtent2D extent,
+                    VkAttachmentLoadOp loadOp) {
     VkRenderingAttachmentInfo color{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-    color.imageView = target.view;
+    color.imageView = view;
     color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    // Chaque pixel est réécrit, donc rien à charger depuis la mémoire.
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color.loadOp = loadOp;
     color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
     VkRenderingInfo info{VK_STRUCTURE_TYPE_RENDERING_INFO};
-    info.renderArea = {{0, 0}, target.extent};
+    info.renderArea = {{0, 0}, extent};
     info.layerCount = 1;
     info.colorAttachmentCount = 1;
     info.pColorAttachments = &color;
-
     vkCmdBeginRendering(cmd, &info);
-    setViewport(cmd, target.extent);
+    setViewport(cmd, extent);
+}
 
-    FullscreenPush push{};
-    rotationMatrix(target.rotation, push.rotation);
-    push.params[0] = params.time;
-    push.params[1] = static_cast<float>(target.logicalExtent.width) /
-                     static_cast<float>(target.logicalExtent.height);
+} // namespace
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bootPipeline);
-    vkCmdPushConstants(cmd, bootLayout,
-                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                       sizeof(push), &push);
+void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
+    gpu = &gpuRef;
+    outputFormat = output;
+    VkDevice dev = gpu->device;
+
+    VkSamplerCreateInfo sci{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    sci.magFilter = VK_FILTER_LINEAR;
+    sci.minFilter = VK_FILTER_LINEAR;
+    sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    sci.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sci.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    VK_CHECK(vkCreateSampler(dev, &sci, nullptr, &sampler));
+
+    // Jeu 0 de la scène : les données globales de la vue, avec un décalage
+    // dynamique pour passer de la vue normale à la vue en miroir.
+    VkDescriptorSetLayoutBinding globalsBinding{};
+    globalsBinding.binding = 0;
+    globalsBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    globalsBinding.descriptorCount = 1;
+    globalsBinding.stageFlags = kPushStages;
+    VkDescriptorSetLayoutCreateInfo glci{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    glci.bindingCount = 1;
+    glci.pBindings = &globalsBinding;
+    VK_CHECK(vkCreateDescriptorSetLayout(dev, &glci, nullptr, &globalsLayout));
+
+    VkDescriptorSetLayoutBinding texBindings[2]{};
+    for (uint32_t i = 0; i < 2; i++) {
+        texBindings[i].binding = i;
+        texBindings[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        texBindings[i].descriptorCount = 1;
+        texBindings[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+    VkDescriptorSetLayoutCreateInfo tlci{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    tlci.bindingCount = 2;
+    tlci.pBindings = texBindings;
+    VK_CHECK(vkCreateDescriptorSetLayout(dev, &tlci, nullptr, &texturesLayout));
+
+    {
+        VkDescriptorSetLayout sets[2] = {globalsLayout, texturesLayout};
+        VkPushConstantRange range{kPushStages, 0, sizeof(ScenePush)};
+        VkPipelineLayoutCreateInfo lci{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+        lci.setLayoutCount = 2;
+        lci.pSetLayouts = sets;
+        lci.pushConstantRangeCount = 1;
+        lci.pPushConstantRanges = &range;
+        VK_CHECK(vkCreatePipelineLayout(dev, &lci, nullptr, &sceneLayout));
+    }
+    {
+        VkPushConstantRange range{kPushStages, 0, sizeof(PostPush)};
+        VkPipelineLayoutCreateInfo lci{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+        lci.setLayoutCount = 1;
+        lci.pSetLayouts = &texturesLayout;
+        lci.pushConstantRangeCount = 1;
+        lci.pPushConstantRanges = &range;
+        VK_CHECK(vkCreatePipelineLayout(dev, &lci, nullptr, &postLayout));
+    }
+
+    {
+        VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, kFramesInFlight};
+        VkDescriptorPoolCreateInfo pci{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        pci.maxSets = kFramesInFlight;
+        pci.poolSizeCount = 1;
+        pci.pPoolSizes = &size;
+        VK_CHECK(vkCreateDescriptorPool(dev, &pci, nullptr, &staticPool));
+    }
+    {
+        const uint32_t sets = kBloomLevels + 3;
+        VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, sets * 2};
+        VkDescriptorPoolCreateInfo pci{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        pci.maxSets = sets;
+        pci.poolSizeCount = 1;
+        pci.pPoolSizes = &size;
+        VK_CHECK(vkCreateDescriptorPool(dev, &pci, nullptr, &targetPool));
+    }
+
+    // Deux vues par image, alignées sur la contrainte du pilote.
+    VkDeviceSize align = gpu->properties.limits.minUniformBufferOffsetAlignment;
+    globalsStride = static_cast<uint32_t>((sizeof(Globals) + align - 1) / align * align);
+    for (int i = 0; i < kFramesInFlight; i++) {
+        globalsBuffer[i] = gpu->createBuffer(globalsStride * 2,
+                                             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true, "globals");
+        VkDescriptorSetAllocateInfo ai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        ai.descriptorPool = staticPool;
+        ai.descriptorSetCount = 1;
+        ai.pSetLayouts = &globalsLayout;
+        VK_CHECK(vkAllocateDescriptorSets(dev, &ai, &globalsSet[i]));
+
+        VkDescriptorBufferInfo info{globalsBuffer[i].buffer, 0, sizeof(Globals)};
+        VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        write.dstSet = globalsSet[i];
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        write.pBufferInfo = &info;
+        vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
+    }
+
+    // Pipelines. Tous créés ici : aucune compilation pendant une course.
+    std::vector<VkVertexInputAttributeDescription> attributes = {
+        {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
+        {1, 0, VK_FORMAT_R32_SFLOAT, offsetof(Vertex, height)},
+        {2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+        {3, 0, VK_FORMAT_R32_SFLOAT, offsetof(Vertex, kind)},
+        {4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)},
+        {5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color)},
+    };
+
+    struct MaterialDef {
+        Material material;
+        std::span<const uint32_t> vert;
+        std::span<const uint32_t> frag;
+        bool mesh;
+        bool depthWrite;
+        Blend blend;
+        const char* name;
+    };
+    const MaterialDef defs[] = {
+        {Material::Road, kWorldVert, kRoadFrag, true, true, Blend::Opaque, "road"},
+        {Material::Neon, kWorldVert, kNeonFrag, true, true, Blend::Opaque, "neon"},
+        {Material::Building, kWorldVert, kBuildingFrag, true, true, Blend::Opaque, "building"},
+        {Material::Ship, kWorldVert, kShipFrag, true, true, Blend::Opaque, "ship"},
+        {Material::Sky, kSkyVert, kSkyFrag, false, false, Blend::Opaque, "sky"},
+        {Material::Trail, kWorldVert, kTrailFrag, true, false, Blend::Additive, "trail"},
+    };
+    for (const MaterialDef& def : defs) {
+        PipelineDesc desc;
+        desc.vert = def.vert;
+        desc.frag = def.frag;
+        desc.layout = sceneLayout;
+        if (def.mesh) {
+            desc.vertexStride = sizeof(Vertex);
+            desc.attributes = attributes;
+        }
+        desc.colorFormats = {kHdrFormat};
+        desc.depthFormat = kDepthFormat;
+        desc.depthTest = true;
+        desc.depthWrite = def.depthWrite;
+        desc.blend = def.blend;
+        desc.name = def.name;
+
+        desc.samples = kSamples;
+        scenePipelines[static_cast<int>(def.material)] = createPipeline(*gpu, desc);
+        desc.samples = VK_SAMPLE_COUNT_1_BIT;
+        reflectionPipelines[static_cast<int>(def.material)] = createPipeline(*gpu, desc);
+    }
+
+    PipelineDesc post;
+    post.vert = kFullscreenVert;
+    post.layout = postLayout;
+    post.colorFormats = {kHdrFormat};
+    post.frag = kBloomDownFrag;
+    post.name = "bloom down";
+    bloomDownPipeline = createPipeline(*gpu, post);
+    post.frag = kBloomUpFrag;
+    post.blend = Blend::Additive;
+    post.name = "bloom up";
+    bloomUpPipeline = createPipeline(*gpu, post);
+    post.frag = kCompositeFrag;
+    post.blend = Blend::Opaque;
+    post.colorFormats = {outputFormat};
+    post.name = "composite";
+    compositePipeline = createPipeline(*gpu, post);
+
+    road = uploadMesh(*gpu, buildRoad(track), "road");
+    rails = uploadMesh(*gpu, buildRails(track), "rails");
+    city = uploadMesh(*gpu, buildCity(track), "city");
+    ship = uploadMesh(*gpu, buildShip(), "ship");
+    trail = uploadMesh(*gpu, buildTrail(), "trail");
+}
+
+void Renderer::shutdown() {
+    VkDevice dev = gpu->device;
+    destroyTargets();
+    destroyMesh(*gpu, road);
+    destroyMesh(*gpu, rails);
+    destroyMesh(*gpu, city);
+    destroyMesh(*gpu, ship);
+    destroyMesh(*gpu, trail);
+    for (int i = 0; i < static_cast<int>(Material::Count); i++) {
+        vkDestroyPipeline(dev, scenePipelines[i], nullptr);
+        vkDestroyPipeline(dev, reflectionPipelines[i], nullptr);
+    }
+    vkDestroyPipeline(dev, bloomDownPipeline, nullptr);
+    vkDestroyPipeline(dev, bloomUpPipeline, nullptr);
+    vkDestroyPipeline(dev, compositePipeline, nullptr);
+    for (int i = 0; i < kFramesInFlight; i++) gpu->destroyBuffer(globalsBuffer[i]);
+    vkDestroyDescriptorPool(dev, staticPool, nullptr);
+    vkDestroyDescriptorPool(dev, targetPool, nullptr);
+    vkDestroyPipelineLayout(dev, sceneLayout, nullptr);
+    vkDestroyPipelineLayout(dev, postLayout, nullptr);
+    vkDestroyDescriptorSetLayout(dev, globalsLayout, nullptr);
+    vkDestroyDescriptorSetLayout(dev, texturesLayout, nullptr);
+    vkDestroySampler(dev, sampler, nullptr);
+    *this = Renderer{};
+}
+
+void Renderer::destroyTargets() {
+    gpu->destroyImage(reflectionColor);
+    gpu->destroyImage(reflectionDepth);
+    gpu->destroyImage(msaaColor);
+    gpu->destroyImage(msaaDepth);
+    gpu->destroyImage(sceneColor);
+    for (Image& level : bloom) gpu->destroyImage(level);
+}
+
+void Renderer::createTargets(VkExtent2D extent) {
+    destroyTargets();
+    sceneExtent = extent;
+    auto halved = [](VkExtent2D e, int shift) {
+        return VkExtent2D{std::max(1u, e.width >> shift), std::max(1u, e.height >> shift)};
+    };
+    const VkImageUsageFlags sampled =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+    ImageDesc desc;
+    desc.extent = halved(extent, 1);
+    desc.format = kHdrFormat;
+    desc.usage = sampled;
+    desc.name = "reflection color";
+    reflectionColor = gpu->createImage(desc);
+
+    desc.format = kDepthFormat;
+    desc.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    desc.transient = true;
+    desc.name = "reflection depth";
+    reflectionDepth = gpu->createImage(desc);
+
+    desc.extent = extent;
+    desc.samples = kSamples;
+    desc.name = "msaa depth";
+    msaaDepth = gpu->createImage(desc);
+
+    desc.format = kHdrFormat;
+    desc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    desc.name = "msaa color";
+    msaaColor = gpu->createImage(desc);
+
+    desc.samples = VK_SAMPLE_COUNT_1_BIT;
+    desc.transient = false;
+    desc.usage = sampled;
+    desc.name = "scene color";
+    sceneColor = gpu->createImage(desc);
+
+    for (int i = 0; i < kBloomLevels; i++) {
+        desc.extent = halved(extent, i + 1);
+        desc.name = "bloom";
+        bloom[i] = gpu->createImage(desc);
+    }
+
+    // Les jeux de descripteurs pointent sur les images, donc ils suivent.
+    VkDevice dev = gpu->device;
+    VK_CHECK(vkResetDescriptorPool(dev, targetPool, 0));
+    auto makeSet = [&](VkImageView a, VkImageView b) {
+        VkDescriptorSetAllocateInfo ai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        ai.descriptorPool = targetPool;
+        ai.descriptorSetCount = 1;
+        ai.pSetLayouts = &texturesLayout;
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        VK_CHECK(vkAllocateDescriptorSets(dev, &ai, &set));
+
+        VkDescriptorImageInfo infos[2] = {
+            {sampler, a, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+            {sampler, b, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        };
+        VkWriteDescriptorSet writes[2]{};
+        for (uint32_t i = 0; i < 2; i++) {
+            writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[i].dstSet = set;
+            writes[i].dstBinding = i;
+            writes[i].descriptorCount = 1;
+            writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[i].pImageInfo = &infos[i];
+        }
+        vkUpdateDescriptorSets(dev, 2, writes, 0, nullptr);
+        return set;
+    };
+    reflectionSet = makeSet(reflectionColor.view, reflectionColor.view);
+    sceneSet = makeSet(sceneColor.view, sceneColor.view);
+    for (int i = 0; i < kBloomLevels; i++) bloomSet[i] = makeSet(bloom[i].view, bloom[i].view);
+    compositeSet = makeSet(sceneColor.view, bloom[0].view);
+}
+
+void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool reflection) {
+    const VkPipeline* pipelines = reflection ? reflectionPipelines : scenePipelines;
+    auto bind = [&](Material m) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines[static_cast<int>(m)]);
+    };
+
+    uint32_t offset = reflection ? globalsStride : 0;
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, sceneLayout, 0, 1,
+                            &globalsSet[params.slot], 1, &offset);
+
+    ScenePush identity;
+    pushScene(cmd, sceneLayout, identity);
+
+    if (!reflection) {
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, sceneLayout, 1, 1,
+                                &reflectionSet, 0, nullptr);
+        bind(Material::Road);
+        bindMesh(cmd, road);
+        vkCmdDrawIndexed(cmd, road.indexCount, 1, 0, 0, 0);
+    }
+
+    bind(Material::Neon);
+    bindMesh(cmd, rails);
+    vkCmdDrawIndexed(cmd, rails.indexCount, 1, 0, 0, 0);
+
+    bind(Material::Building);
+    bindMesh(cmd, city);
+    ScenePush cityPush;
+    if (reflection) cityPush.model = mirrorMatrix(params.planePoint, params.planeNormal);
+    pushScene(cmd, sceneLayout, cityPush);
+    vkCmdDrawIndexed(cmd, city.indexCount, 1, 0, 0, 0);
+
+    auto shipPush = [&](const ShipDraw& s) {
+        ScenePush push;
+        push.model = reflection ? mirrorMatrix(s.planePoint, s.planeNormal) * s.model : s.model;
+        push.colorA = s.trim;
+        push.colorB = s.engine;
+        return push;
+    };
+
+    bind(Material::Ship);
+    bindMesh(cmd, ship);
+    for (int i = 0; i < params.shipCount; i++) {
+        pushScene(cmd, sceneLayout, shipPush(params.ships[i]));
+        vkCmdDrawIndexed(cmd, ship.indexCount, 1, 0, 0, 0);
+    }
+
+    // Le ciel passe après les objets opaques : le test de profondeur ne
+    // laisse que les pixels encore vides.
+    bind(Material::Sky);
     vkCmdDraw(cmd, 3, 1, 0, 0);
-    vkCmdEndRendering(cmd);
+
+    bind(Material::Trail);
+    bindMesh(cmd, trail);
+    for (int i = 0; i < params.shipCount; i++) {
+        pushScene(cmd, sceneLayout, shipPush(params.ships[i]));
+        vkCmdDrawIndexed(cmd, trail.indexCount, 1, 0, 0, 0);
+    }
+}
+
+void Renderer::drawBloom(VkCommandBuffer cmd) {
+    auto pushPost = [&](float tx, float ty, float z) {
+        PostPush push;
+        push.params[0] = tx;
+        push.params[1] = ty;
+        push.params[2] = z;
+        vkCmdPushConstants(cmd, postLayout, kPushStages, 0, sizeof(push), &push);
+    };
+
+    // Réductions successives.
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bloomDownPipeline);
+    for (int i = 0; i < kBloomLevels; i++) {
+        VkExtent2D srcExtent = i == 0 ? sceneExtent : bloom[i - 1].extent;
+        VkDescriptorSet src = i == 0 ? sceneSet : bloomSet[i - 1];
+        transition(cmd, bloom[i].image, VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        beginColorPass(cmd, bloom[i].view, bloom[i].extent, VK_ATTACHMENT_LOAD_OP_DONT_CARE);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, postLayout, 0, 1, &src, 0,
+                                nullptr);
+        pushPost(1.0f / static_cast<float>(srcExtent.width),
+                 1.0f / static_cast<float>(srcExtent.height),
+                 i == 0 ? settings.bloomThreshold : 0.0f);
+        vkCmdDraw(cmd, 3, 1, 0, 0);
+        vkCmdEndRendering(cmd);
+        transition(cmd, bloom[i].image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+
+    // Agrandissements, chacun ajouté au niveau au-dessus.
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bloomUpPipeline);
+    for (int i = kBloomLevels - 2; i >= 0; i--) {
+        transition(cmd, bloom[i].image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        beginColorPass(cmd, bloom[i].view, bloom[i].extent, VK_ATTACHMENT_LOAD_OP_LOAD);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, postLayout, 0, 1,
+                                &bloomSet[i + 1], 0, nullptr);
+        pushPost(1.0f / static_cast<float>(bloom[i + 1].extent.width),
+                 1.0f / static_cast<float>(bloom[i + 1].extent.height), 1.0f);
+        vkCmdDraw(cmd, 3, 1, 0, 0);
+        vkCmdEndRendering(cmd);
+        transition(cmd, bloom[i].image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+}
+
+void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameParams& params) {
+    VkExtent2D wanted{
+        std::max(1u, static_cast<uint32_t>(std::lround(
+                         static_cast<float>(target.logicalExtent.width) * settings.renderScale))),
+        std::max(1u, static_cast<uint32_t>(std::lround(
+                         static_cast<float>(target.logicalExtent.height) * settings.renderScale)))};
+    if (wanted.width != sceneExtent.width || wanted.height != sceneExtent.height) {
+        VK_CHECK(vkDeviceWaitIdle(gpu->device));
+        createTargets(wanted);
+    }
+
+    // Données globales des deux vues.
+    float aspect = static_cast<float>(sceneExtent.width) / static_cast<float>(sceneExtent.height);
+    glm::vec3 forward = glm::normalize(params.camTarget - params.camPos);
+    glm::vec3 right = glm::normalize(glm::cross(forward, params.camUp));
+    glm::vec3 up = glm::cross(right, forward);
+    float tanY = std::tan(params.fovY * 0.5f);
+    float tanX = tanY * aspect;
+
+    Globals scene;
+    scene.viewProj = projection(params.fovY, aspect, 0.3f) *
+                     glm::lookAt(params.camPos, params.camPos + forward, up);
+    scene.camPos = glm::vec4(params.camPos, params.time);
+    scene.camRight = glm::vec4(right * tanX, 1.0f);
+    scene.camUp = glm::vec4(up * tanY, 0.0f);
+    scene.camForward = glm::vec4(forward, 0.0f);
+    scene.fog = glm::vec4(0.045f, 0.012f, 0.085f, 0.00075f);
+    scene.screen = glm::vec4(1.0f / static_cast<float>(sceneExtent.width),
+                             1.0f / static_cast<float>(sceneExtent.height), params.speed, 0.0f);
+
+    // Vue en miroir : même caméra, géométrie retournée sous la piste, et
+    // directions du ciel réfléchies.
+    Globals mirror = scene;
+    const glm::vec3& n = params.planeNormal;
+    mirror.camRight = glm::vec4(mirrorVector(right, n) * tanX, -1.0f);
+    mirror.camUp = glm::vec4(mirrorVector(up, n) * tanY, 0.0f);
+    mirror.camForward = glm::vec4(mirrorVector(forward, n), 0.0f);
+
+    Buffer& ubo = globalsBuffer[params.slot];
+    std::memcpy(ubo.mapped, &scene, sizeof(scene));
+    std::memcpy(static_cast<char*>(ubo.mapped) + globalsStride, &mirror, sizeof(mirror));
+    vmaFlushAllocation(gpu->allocator, ubo.alloc, 0, VK_WHOLE_SIZE);
+
+    // Passe 1 : reflet, à demi-résolution.
+    {
+        transition(cmd, reflectionColor.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        transition(cmd, reflectionDepth.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        VkRenderingAttachmentInfo color{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+        color.imageView = reflectionColor.view;
+        color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        VkRenderingAttachmentInfo depth{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+        depth.imageView = reflectionDepth.view;
+        depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth.clearValue.depthStencil = {0.0f, 0};
+
+        VkRenderingInfo info{VK_STRUCTURE_TYPE_RENDERING_INFO};
+        info.renderArea = {{0, 0}, reflectionColor.extent};
+        info.layerCount = 1;
+        info.colorAttachmentCount = 1;
+        info.pColorAttachments = &color;
+        info.pDepthAttachment = &depth;
+        vkCmdBeginRendering(cmd, &info);
+        setViewport(cmd, reflectionColor.extent);
+        if (settings.reflections) drawWorld(cmd, params, true);
+        vkCmdEndRendering(cmd);
+
+        transition(cmd, reflectionColor.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+
+    // Passe 2 : scène en MSAA. Les images multi-échantillonnées et la
+    // profondeur ne sont jamais conservées : seule la résolution est écrite.
+    {
+        transition(cmd, msaaColor.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        transition(cmd, msaaDepth.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+        transition(cmd, sceneColor.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+        VkRenderingAttachmentInfo color{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+        color.imageView = msaaColor.view;
+        color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        color.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+        color.resolveImageView = sceneColor.view;
+        color.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        color.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        VkRenderingAttachmentInfo depth{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+        depth.imageView = msaaDepth.view;
+        depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth.clearValue.depthStencil = {0.0f, 0};
+
+        VkRenderingInfo info{VK_STRUCTURE_TYPE_RENDERING_INFO};
+        info.renderArea = {{0, 0}, sceneExtent};
+        info.layerCount = 1;
+        info.colorAttachmentCount = 1;
+        info.pColorAttachments = &color;
+        info.pDepthAttachment = &depth;
+        vkCmdBeginRendering(cmd, &info);
+        setViewport(cmd, sceneExtent);
+        drawWorld(cmd, params, false);
+        vkCmdEndRendering(cmd);
+
+        transition(cmd, sceneColor.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+
+    // Passe 3 : bloom.
+    drawBloom(cmd);
+
+    // Passe 4 : composition dans l'image de sortie.
+    {
+        beginColorPass(cmd, target.view, target.extent, VK_ATTACHMENT_LOAD_OP_DONT_CARE);
+        PostPush push;
+        rotationMatrix(target.rotation, push.rotation);
+        push.params[0] = settings.bloom ? settings.bloomStrength : 0.0f;
+        push.params[1] = settings.exposure;
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, postLayout, 0, 1,
+                                &compositeSet, 0, nullptr);
+        vkCmdPushConstants(cmd, postLayout, kPushStages, 0, sizeof(push), &push);
+        vkCmdDraw(cmd, 3, 1, 0, 0);
+        vkCmdEndRendering(cmd);
+    }
 }
 
 } // namespace gfx

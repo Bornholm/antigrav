@@ -102,7 +102,11 @@ set(GAME_SOURCES
   src/gfx/swapchain.cpp
   src/gfx/pipeline.cpp
   src/gfx/renderer.cpp
-  src/gfx/capture.cpp)
+  src/gfx/capture.cpp
+  src/gfx/mesh.cpp
+  src/gfx/geometry.cpp
+  src/sim/track.cpp
+  src/game/demo.cpp)
 
 if(ANDROID)
   # SDL charge le jeu comme bibliothèque partagée nommée "main".

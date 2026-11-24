@@ -1,4 +1,5 @@
 #include "core/log.h"
+#include "game/demo.h"
 #include "gfx/capture.h"
 #include "gfx/gpu.h"
 #include "gfx/renderer.h"
@@ -23,6 +24,8 @@ struct Options {
     int frames = 0;      // 0 : boucle jusqu'à la fermeture
     std::string out;     // chemin PNG ; contient %d pour écrire chaque image
     float fps = 60.0f;   // pas de temps du mode sans fenêtre
+    float startTime = 0.0f;
+    gfx::RenderSettings render;
 };
 
 Options parseOptions(int argc, char** argv) {
@@ -43,6 +46,10 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--frames")) o.frames = std::atoi(value());
         else if (!std::strcmp(a, "--out")) o.out = value();
         else if (!std::strcmp(a, "--fps")) o.fps = static_cast<float>(std::atof(value()));
+        else if (!std::strcmp(a, "--time")) o.startTime = static_cast<float>(std::atof(value()));
+        else if (!std::strcmp(a, "--scale")) o.render.renderScale = static_cast<float>(std::atof(value()));
+        else if (!std::strcmp(a, "--no-bloom")) o.render.bloom = false;
+        else if (!std::strcmp(a, "--no-reflections")) o.render.reflections = false;
         else if (!std::strcmp(a, "--size")) {
             if (std::sscanf(value(), "%dx%d", &o.width, &o.height) != 2)
                 fatal("Option --size: format attendu LxH");
@@ -52,7 +59,7 @@ Options parseOptions(int argc, char** argv) {
     return o;
 }
 
-constexpr int kFramesInFlight = 2;
+using gfx::kFramesInFlight;
 
 struct FrameData {
     VkCommandPool pool = VK_NULL_HANDLE;
@@ -144,8 +151,12 @@ int runHeadless(const Options& opt) {
     gfx::Capture capture;
     capture.init(gpu, extent);
 
+    game::Demo demo;
+    demo.init();
+
     gfx::Renderer renderer;
-    renderer.init(gpu, format);
+    renderer.init(gpu, format, demo.track);
+    renderer.settings = opt.render;
 
     FrameData frames[kFramesInFlight];
     createFrames(gpu, frames);
@@ -162,7 +173,8 @@ int runHeadless(const Options& opt) {
                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         gfx::FrameTarget ft{target.view, extent, extent, 0};
         gfx::FrameParams params;
-        params.time = static_cast<float>(i) / opt.fps;
+        params.slot = i % kFramesInFlight;
+        demo.fill(opt.startTime + static_cast<float>(i) / opt.fps, params);
         renderer.draw(cmd, ft, params);
 
         const bool save = !opt.out.empty() && (everyFrame || i == opt.frames - 1);
@@ -223,8 +235,12 @@ int runWindowed(const Options& opt) {
     bool haveSwapchain = swapchain.create(gpu, w, h, opt.vsync);
     if (!haveSwapchain) fatal("Surface de taille nulle au démarrage");
 
+    game::Demo demo;
+    demo.init();
+
     gfx::Renderer renderer;
-    renderer.init(gpu, swapchain.format);
+    renderer.init(gpu, swapchain.format, demo.track);
+    renderer.settings = opt.render;
 
     FrameData frames[kFramesInFlight];
     createFrames(gpu, frames);
@@ -307,7 +323,10 @@ int runWindowed(const Options& opt) {
         gfx::FrameTarget ft{swapchain.views[imageIndex], swapchain.extent,
                             swapchain.logicalExtent, swapchain.rotation};
         gfx::FrameParams params;
-        params.time = static_cast<float>(static_cast<double>(SDL_GetTicksNS() - start) * 1e-9);
+        params.slot = static_cast<int>(frameIndex % kFramesInFlight);
+        demo.fill(opt.startTime +
+                      static_cast<float>(static_cast<double>(SDL_GetTicksNS() - start) * 1e-9),
+                  params);
         renderer.draw(cmd, ft, params);
 
         gfx::transition(cmd, swapchain.images[imageIndex],

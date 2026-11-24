@@ -1,0 +1,39 @@
+// Données partagées par tous les shaders de scène.
+
+layout(set = 0, binding = 0) uniform Globals {
+    mat4 viewProj;
+    vec4 camPos;     // xyz position, w temps en secondes
+    vec4 camRight;   // xyz axe droit multiplié par tan(fov horizontal / 2), w signe du miroir
+    vec4 camUp;      // xyz axe haut multiplié par tan(fov vertical / 2)
+    vec4 camForward; // xyz axe de visée
+    vec4 fog;        // rgb couleur de la brume, a densité
+    vec4 screen;     // xy inverse de la taille de la cible de scène, z vitesse en m/s
+} g;
+
+layout(push_constant) uniform Push {
+    mat4 model;
+    vec4 colorA;
+    vec4 colorB;
+} pc;
+
+const vec3 CYAN = vec3(0.05, 0.75, 1.0);
+const vec3 MAGENTA = vec3(1.0, 0.08, 0.75);
+
+float hash11(float p) {
+    p = fract(p * 0.1031);
+    p *= p + 33.33;
+    p *= p + p;
+    return fract(p);
+}
+
+float hash21(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+vec3 applyFog(vec3 color, vec3 worldPos) {
+    float dist = length(worldPos - g.camPos.xyz);
+    float visible = exp(-dist * g.fog.a);
+    return mix(g.fog.rgb, color, visible);
+}

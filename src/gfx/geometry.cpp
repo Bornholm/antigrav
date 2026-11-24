@@ -311,7 +311,7 @@ MeshData buildScenery(const sim::Track& track, const Theme& theme) {
     // Distance horizontale à la piste, et hauteur de la piste au plus proche.
     auto nearestTrack = [&](float x, float z, float& trackY) {
         float best = 1e18f;
-        for (int i = 0; i < frameCount; i += 10) {
+        for (int i = 0; i < frameCount; i += 20) {
             const glm::vec3& p = track.frames[i].pos;
             float dx = p.x - x, dz = p.z - z;
             float d = dx * dx + dz * dz;
@@ -394,10 +394,12 @@ MeshData buildScenery(const sim::Track& track, const Theme& theme) {
                     {{0.0f, tallness}, {1.0f, tallness}, {1.0f, tallness}});
     };
 
-    const int wanted = theme.scenery == Scenery::Canyon ? 1300
-                       : (theme.scenery == Scenery::Station ? 700 : 1500);
+    // Densité constante le long de la piste, quelle que soit sa longueur.
+    const float perKm = theme.scenery == Scenery::Canyon ? 120.0f
+                        : (theme.scenery == Scenery::Station ? 65.0f : 140.0f);
+    const int wanted = static_cast<int>(perKm * track.length / 1000.0f);
     int placed = 0;
-    for (int attempt = 0; attempt < 60000 && placed < wanted; attempt++) {
+    for (int attempt = 0; attempt < wanted * 40 && placed < wanted; attempt++) {
         float x = rng.range(lo.x - margin, hi.x + margin);
         float z = rng.range(lo.z - margin, hi.z + margin);
         float trackY = 0.0f;
@@ -741,6 +743,80 @@ MeshData buildMissile() {
                 0.0f, fin, core + glm::vec3(1.0f, 1.0f, 0.0f) * 1e-3f);
     }
     return mesh;
+}
+
+std::vector<uint32_t> sortByChunk(MeshData& mesh, const sim::Track& track) {
+    const int frameCount = static_cast<int>(track.frames.size());
+    const float total = track.step * static_cast<float>(frameCount);
+    const int chunks = std::max(1, static_cast<int>(std::ceil(total / kChunkLength)));
+
+    // Grille horizontale des points de la piste, pour trouver le plus proche
+    // sans tout parcourir.
+    const float cell = 500.0f;
+    glm::vec2 lo{1e9f}, hi{-1e9f};
+    for (const sim::TrackFrame& f : track.frames) {
+        lo = glm::min(lo, glm::vec2(f.pos.x, f.pos.z));
+        hi = glm::max(hi, glm::vec2(f.pos.x, f.pos.z));
+    }
+    const int nx = static_cast<int>((hi.x - lo.x) / cell) + 1, nz = static_cast<int>((hi.y - lo.y) / cell) + 1;
+    std::vector<std::vector<int>> grid(static_cast<size_t>(nx) * static_cast<size_t>(nz));
+    auto cellOf = [&](float x, float z, int& cx, int& cz) {
+        cx = std::clamp(static_cast<int>((x - lo.x) / cell), 0, nx - 1);
+        cz = std::clamp(static_cast<int>((z - lo.y) / cell), 0, nz - 1);
+    };
+    for (int i = 0; i < frameCount; i += 8) {
+        int cx, cz;
+        cellOf(track.frames[i].pos.x, track.frames[i].pos.z, cx, cz);
+        grid[static_cast<size_t>(cz) * static_cast<size_t>(nx) + static_cast<size_t>(cx)].push_back(i);
+    }
+    auto nearestFrame = [&](float x, float z) {
+        int cx, cz;
+        cellOf(x, z, cx, cz);
+        int best = 0;
+        float bestDist = 1e18f;
+        // Anneaux de cellules de plus en plus larges ; un de plus après le
+        // premier résultat, car un point plus proche peut s'y trouver.
+        int stopAt = std::max(nx, nz);
+        for (int ring = 0; ring <= stopAt; ring++) {
+            for (int dz = -ring; dz <= ring; dz++)
+                for (int dx = -ring; dx <= ring; dx++) {
+                    if (std::max(std::abs(dx), std::abs(dz)) != ring) continue;
+                    const int gx = cx + dx, gz = cz + dz;
+                    if (gx < 0 || gz < 0 || gx >= nx || gz >= nz) continue;
+                    for (int i : grid[static_cast<size_t>(gz) * static_cast<size_t>(nx) + static_cast<size_t>(gx)]) {
+                        const glm::vec3& p = track.frames[i].pos;
+                        const float d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+                        if (d < bestDist) {
+                            bestDist = d;
+                            best = i;
+                        }
+                    }
+                }
+            if (bestDist < 1e17f && stopAt > ring + 1) stopAt = ring + 1;
+        }
+        return best;
+    };
+
+    const size_t triangles = mesh.indices.size() / 3;
+    std::vector<int> chunkOf(triangles);
+    std::vector<uint32_t> first(static_cast<size_t>(chunks) + 1, 0);
+    for (size_t t = 0; t < triangles; t++) {
+        const glm::vec3 c = (mesh.vertices[mesh.indices[t * 3]].pos + mesh.vertices[mesh.indices[t * 3 + 1]].pos +
+                             mesh.vertices[mesh.indices[t * 3 + 2]].pos) / 3.0f;
+        const int frame = nearestFrame(c.x, c.z);
+        chunkOf[t] = std::min(chunks - 1, static_cast<int>(track.step * static_cast<float>(frame) / kChunkLength));
+        first[static_cast<size_t>(chunkOf[t]) + 1] += 3;
+    }
+    for (int c = 0; c < chunks; c++) first[static_cast<size_t>(c) + 1] += first[static_cast<size_t>(c)];
+    std::vector<uint32_t> sorted(mesh.indices.size());
+    std::vector<uint32_t> cursor(first.begin(), first.end() - 1);
+    for (size_t t = 0; t < triangles; t++) {
+        uint32_t& at = cursor[static_cast<size_t>(chunkOf[t])];
+        for (int k = 0; k < 3; k++) sorted[at + static_cast<uint32_t>(k)] = mesh.indices[t * 3 + static_cast<size_t>(k)];
+        at += 3;
+    }
+    mesh.indices.swap(sorted);
+    return first;
 }
 
 } // namespace gfx

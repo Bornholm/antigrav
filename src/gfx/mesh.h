@@ -41,6 +41,9 @@ struct Mesh {
     Buffer vertices;
     Buffer indices;
     uint32_t indexCount = 0;
+    // Maillage de piste : premier indice de chaque tronçon, puis le total.
+    // Vide pour un maillage dessiné d'un bloc.
+    std::vector<uint32_t> chunks;
 };
 
 Mesh uploadMesh(Gpu& gpu, const MeshData& data, const char* name);

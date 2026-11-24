@@ -1,5 +1,7 @@
 #include "gfx/renderer.h"
 
+#include "core/log.h"
+
 #include "gfx/geometry.h"
 #include "gfx/pipeline.h"
 
@@ -449,11 +451,20 @@ void Renderer::loadTrack(const sim::Track& track, int trackId) {
     destroyMesh(*gpu, city);
     theme = themeFor(trackId);
     loadedTrack = trackId;
-    road = uploadMesh(*gpu, buildRoad(track), "road");
-    rails = uploadMesh(*gpu, buildRails(track, theme), "rails");
-    gates = uploadMesh(*gpu, buildGates(track, theme), "gates");
-    features = uploadMesh(*gpu, buildFeatures(track), "features");
-    city = uploadMesh(*gpu, buildScenery(track, theme), "scenery");
+    trackLead = track.lead;
+    auto upload = [&](MeshData data, const char* name) {
+        std::vector<uint32_t> chunks = sortByChunk(data, track);
+        Mesh mesh = uploadMesh(*gpu, data, name);
+        mesh.chunks = std::move(chunks);
+        return mesh;
+    };
+    road = upload(buildRoad(track), "road");
+    rails = upload(buildRails(track, theme), "rails");
+    gates = upload(buildGates(track, theme), "gates");
+    features = upload(buildFeatures(track), "features");
+    city = upload(buildScenery(track, theme), "scenery");
+    logInfo("Piste chargée : %u triangles, dont %u de décor", (road.indexCount + rails.indexCount + gates.indexCount +
+            features.indexCount + city.indexCount) / 3, city.indexCount / 3);
 }
 
 void Renderer::shutdown() {
@@ -627,21 +638,35 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     ScenePush identity;
     pushScene(cmd, sceneLayout, identity);
 
+    // Tronçons de piste visibles : un peu derrière la caméra, loin devant.
+    auto drawNear = [&](const Mesh& mesh, float behind, float ahead) {
+        const int count = static_cast<int>(mesh.chunks.size()) - 1;
+        if (count < 1) {
+            vkCmdDrawIndexed(cmd, mesh.indexCount, 1, 0, 0, 0);
+            return;
+        }
+        const float at = params.trackDist + trackLead;
+        const int c0 = std::clamp(static_cast<int>((at - behind) / kChunkLength), 0, count);
+        const int c1 = std::clamp(static_cast<int>((at + ahead) / kChunkLength) + 1, c0, count);
+        const uint32_t first = mesh.chunks[c0], last = mesh.chunks[c1];
+        if (last > first) vkCmdDrawIndexed(cmd, last - first, 1, first, 0, 0);
+    };
+
     if (!reflection) {
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, sceneLayout, 1, 1,
                                 &reflectionSet, 0, nullptr);
         bind(Material::Road);
         bindMesh(cmd, road);
-        vkCmdDrawIndexed(cmd, road.indexCount, 1, 0, 0, 0);
+        drawNear(road, 800.0f, 6000.0f);
     }
 
     bind(Material::Neon);
     bindMesh(cmd, rails);
-    vkCmdDrawIndexed(cmd, rails.indexCount, 1, 0, 0, 0);
+    drawNear(rails, 800.0f, 6000.0f);
     bindMesh(cmd, gates);
-    vkCmdDrawIndexed(cmd, gates.indexCount, 1, 0, 0, 0);
+    drawNear(gates, 800.0f, 6000.0f);
     bindMesh(cmd, features);
-    vkCmdDrawIndexed(cmd, features.indexCount, 1, 0, 0, 0);
+    drawNear(features, 800.0f, 6000.0f);
 
     // Missiles : même matériau lumineux que les rails.
     auto missileModel = [&](const MissileDraw& m) {
@@ -663,7 +688,7 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     ScenePush cityPush;
     if (reflection) cityPush.model = mirrorMatrix(params.planePoint, params.planeNormal);
     pushScene(cmd, sceneLayout, cityPush);
-    vkCmdDrawIndexed(cmd, city.indexCount, 1, 0, 0, 0);
+    drawNear(city, 2500.0f, 8000.0f);
 
     auto shipPush = [&](const ShipDraw& s) {
         ScenePush push;

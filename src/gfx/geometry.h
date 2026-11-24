@@ -4,6 +4,9 @@
 #include "gfx/theme.h"
 #include "sim/track.h"
 
+#include <cstdint>
+#include <vector>
+
 namespace gfx {
 
 // Géométrie procédurale. Tout est généré au chargement, rien n'est lu sur disque.
@@ -13,6 +16,14 @@ MeshData buildGates(const sim::Track& track, const Theme& theme);
 // Plaques de boost, champs de freinage et barrières du circuit.
 MeshData buildFeatures(const sim::Track& track);
 MeshData buildScenery(const sim::Track& track, const Theme& theme);
+
+// Longueur d'un tronçon de piste, en mètres. Le rendu ne dessine que les
+// tronçons proches de la caméra.
+constexpr float kChunkLength = 400.0f;
+// Trie les triangles par tronçon, d'après le point de la piste le plus proche
+// de leur centre. Renvoie le premier indice de chaque tronçon, suivi du
+// nombre total d'indices.
+std::vector<uint32_t> sortByChunk(MeshData& mesh, const sim::Track& track);
 
 // variant : modèle de vaisseau, de 0 à sim::kShipCount - 1.
 MeshData buildShip(int variant);

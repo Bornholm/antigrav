@@ -182,6 +182,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
 
     const sim::Vehicle& player = world.vehicles[localIndex];
     out.speed = player.speed;
+    out.trackDist = playerDist;
     // Battement : 1 sur chaque temps du morceau, plus fort sur le premier de
     // la mesure, puis retombe.
     {

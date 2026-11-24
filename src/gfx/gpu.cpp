@@ -105,10 +105,14 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
     std::vector<VkPhysicalDevice> physicals(physCount);
     vkEnumeratePhysicalDevices(instance, &physCount, physicals.data());
 
+    VkPhysicalDeviceProperties tooOld{};
     for (VkPhysicalDevice candidate : physicals) {
         VkPhysicalDeviceProperties props;
         vkGetPhysicalDeviceProperties(candidate, &props);
-        if (props.apiVersion < VK_API_VERSION_1_3) continue;
+        if (props.apiVersion < VK_API_VERSION_1_3) {
+            tooOld = props;
+            continue;
+        }
 
         uint32_t famCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(candidate, &famCount, nullptr);
@@ -128,6 +132,10 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
         }
         if (physical) break;
     }
+    if (!physical && tooOld.apiVersion)
+        fatal("Ce jeu demande Vulkan 1.3. Le GPU de cet appareil, %s, s'arrête à Vulkan %u.%u.",
+              tooOld.deviceName, VK_API_VERSION_MAJOR(tooOld.apiVersion),
+              VK_API_VERSION_MINOR(tooOld.apiVersion));
     if (!physical) fatal("Aucun GPU compatible Vulkan 1.3 trouvé");
     logInfo("GPU: %s, Vulkan %u.%u.%u", properties.deviceName,
             VK_API_VERSION_MAJOR(properties.apiVersion),

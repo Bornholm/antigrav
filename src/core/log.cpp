@@ -19,9 +19,17 @@ void logWarn(const char* fmt, ...) {
 }
 
 void fatal(const char* fmt, ...) {
+    char message[512];
     va_list ap;
     va_start(ap, fmt);
-    SDL_LogMessageV(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_CRITICAL, fmt, ap);
+    SDL_vsnprintf(message, sizeof(message), fmt, ap);
     va_end(ap);
+    SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "%s", message);
+#ifdef __ANDROID__
+    // Sur un téléphone personne ne lit le journal : sans cette fenêtre, le jeu
+    // se ferme sans explication.
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Antigrav ne peut pas démarrer", message,
+                             nullptr);
+#endif
     std::abort();
 }

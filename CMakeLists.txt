@@ -118,7 +118,7 @@ set_target_properties(sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(NOT ANDROID)
   enable_testing()
-  add_executable(sim_tests tests/sim_tests.cpp)
+  add_executable(sim_tests tests/sim_tests.cpp src/game/synth.cpp)
   target_link_libraries(sim_tests PRIVATE sim)
   add_test(NAME sim COMMAND sim_tests)
 endif()
@@ -136,6 +136,8 @@ set(GAME_SOURCES
   src/gfx/hud.cpp
   src/game/hud.cpp
   src/game/input.cpp
+  src/game/synth.cpp
+  src/game/audio.cpp
   src/game/race.cpp)
 
 if(ANDROID)

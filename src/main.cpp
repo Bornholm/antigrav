@@ -1,4 +1,5 @@
 #include "core/log.h"
+#include "game/audio.h"
 #include "game/race.h"
 #include "gfx/capture.h"
 #include "gfx/gpu.h"
@@ -12,6 +13,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -22,6 +24,33 @@ void logGpuStats(const gfx::Renderer& renderer) {
             "scène en %ux%u",
             st.averageTotalMs(), st.averageMs(0), st.averageMs(1), st.averageMs(2),
             st.averageMs(3), renderer.sceneExtent.width, renderer.sceneExtent.height);
+}
+
+// Fichier WAV 16 bits stéréo, pour sonoriser les vidéos du mode sans fenêtre.
+bool writeWav(const char* path, const std::vector<float>& samples, int sampleRate) {
+    FILE* f = std::fopen(path, "wb");
+    if (!f) return false;
+    uint32_t dataBytes = static_cast<uint32_t>(samples.size() * 2);
+    auto u32 = [&](uint32_t v) { std::fwrite(&v, 4, 1, f); };
+    auto u16 = [&](uint16_t v) { std::fwrite(&v, 2, 1, f); };
+    std::fwrite("RIFF", 1, 4, f);
+    u32(36 + dataBytes);
+    std::fwrite("WAVEfmt ", 1, 8, f);
+    u32(16);
+    u16(1);
+    u16(2);
+    u32(static_cast<uint32_t>(sampleRate));
+    u32(static_cast<uint32_t>(sampleRate) * 4);
+    u16(4);
+    u16(16);
+    std::fwrite("data", 1, 4, f);
+    u32(dataBytes);
+    for (float s : samples) {
+        float clamped = s < -1.0f ? -1.0f : (s > 1.0f ? 1.0f : s);
+        u16(static_cast<uint16_t>(static_cast<int16_t>(clamped * 32767.0f)));
+    }
+    std::fclose(f);
+    return true;
 }
 
 struct Options {
@@ -37,6 +66,8 @@ struct Options {
     bool hud = true;
     bool autopilot = false;
     bool stats = false;
+    bool audio = true;
+    std::string wav;     // mode sans fenêtre : écrit le son de la course dans ce fichier
     int gridStart = -1;  // -1 : selon le mode, 0 : départ lancé, 1 : grille
     gfx::RenderSettings render;
 };
@@ -64,6 +95,8 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--no-hud")) o.hud = false;
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
         else if (!std::strcmp(a, "--stats")) o.stats = true;
+        else if (!std::strcmp(a, "--no-audio")) o.audio = false;
+        else if (!std::strcmp(a, "--wav")) o.wav = value();
         else if (!std::strcmp(a, "--grid-start")) o.gridStart = 1;
         else if (!std::strcmp(a, "--rolling-start")) o.gridStart = 0;
         else if (!std::strcmp(a, "--no-bloom")) o.render.bloom = false;
@@ -172,6 +205,9 @@ int runHeadless(const Options& opt) {
     game::Race race;
     race.init(opt.gridStart == 1);
     race.autopilot = true;
+    game::Synth synth;
+    std::vector<float> wavSamples;
+    if (!opt.wav.empty()) race.synth = &synth;
     // Avance jusqu'à l'instant demandé avant la première image.
     for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
         race.update(sim::kFixedDt, game::Controls{});
@@ -197,6 +233,16 @@ int runHeadless(const Options& opt) {
         gfx::FrameParams params;
         params.slot = i % kFramesInFlight;
         race.update(1.0f / opt.fps, game::Controls{});
+        if (race.synth) {
+            // Le son avance du même pas que l'image, donc il reste synchrone.
+            size_t wanted = static_cast<size_t>(
+                static_cast<double>(i + 1) * game::Synth::kSampleRate / opt.fps);
+            size_t have = wavSamples.size() / 2;
+            if (wanted > have) {
+                wavSamples.resize(wanted * 2);
+                synth.render(wavSamples.data() + have * 2, static_cast<int>(wanted - have));
+            }
+        }
         race.fill(renderer.fonts,
                   {static_cast<float>(extent.width), static_cast<float>(extent.height)}, params);
         if (!opt.hud) params.hud = nullptr;
@@ -225,6 +271,8 @@ int runHeadless(const Options& opt) {
             seconds, written, gpu.validationErrors);
 
     logGpuStats(renderer);
+    if (!opt.wav.empty() && !writeWav(opt.wav.c_str(), wavSamples, game::Synth::kSampleRate))
+        fatal("Écriture impossible: %s", opt.wav.c_str());
 
     uint32_t errors = gpu.validationErrors;
     destroyFrames(gpu, frames);
@@ -266,6 +314,8 @@ int runWindowed(const Options& opt) {
     race.init(opt.gridStart != 0);
     race.autopilot = opt.autopilot;
     game::InputReader input;
+    game::Audio audio;
+    if (opt.audio && audio.init()) race.synth = &audio.synth;
 
     gfx::Renderer renderer;
     renderer.init(gpu, swapchain.format, race.track);
@@ -309,6 +359,7 @@ int runWindowed(const Options& opt) {
                     gpu.destroySurface();
                     haveSwapchain = false;
                     background = true;
+                    audio.setPaused(true);
                 }
                 break;
             case SDL_EVENT_DID_ENTER_FOREGROUND:
@@ -316,6 +367,7 @@ int runWindowed(const Options& opt) {
                     gpu.createSurface(window);
                     background = false;
                     needResize = true;
+                    audio.setPaused(false);
                 }
                 break;
             default:
@@ -410,6 +462,7 @@ int runWindowed(const Options& opt) {
             seconds > 0.0 ? static_cast<double>(frameIndex) / seconds : 0.0);
     logGpuStats(renderer);
 
+    audio.shutdown();
     destroyFrames(gpu, frames);
     renderer.shutdown();
     swapchain.destroy(gpu);

@@ -82,6 +82,7 @@ void Race::update(float dt, const Controls& input) {
     accumulator += std::min(dt, 0.1f);
     while (accumulator >= sim::kFixedDt) {
         previous = world;
+        float countdownBefore = world.countdown;
         sim::Input inputs[sim::kMaxVehicles];
         for (int i = 0; i < world.count; i++)
             inputs[i] = sim::autopilot(world.vehicles[i], track, kRacers[i].lane);
@@ -92,7 +93,18 @@ void Race::update(float dt, const Controls& input) {
         }
         sim::step(world, track, inputs);
         accumulator -= sim::kFixedDt;
+
+        // Un bip à chaque seconde du compte à rebours, un signal au départ.
+        if (synth && countdownBefore > 0.0f) {
+            if (world.countdown <= 0.0f) synth->beep(1);
+            else if (std::ceil(world.countdown) != std::ceil(countdownBefore) ||
+                     countdownBefore == 3.0f)
+                synth->beep(0);
+        }
     }
+    if (synth)
+        synth->setEngine(world.vehicles[0].speed, world.vehicles[0].boosting,
+                         world.vehicles[0].scraping);
 
     // Caméra : suit le joueur avec un léger retard, s'élargit avec la vitesse.
     const sim::Vehicle& player = world.vehicles[0];

@@ -1,10 +1,13 @@
 // Tests de la simulation. Aucun cadre de test : un échec affiche la ligne et
 // fait sortir le programme avec un code non nul.
+#include "game/synth.h"
 #include "sim/track.h"
 #include "sim/world.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 namespace {
 
@@ -175,6 +178,33 @@ void testCountdownAndFinish() {
                 CHECK(sim::rankOf(world, i) < sim::rankOf(world, j));
 }
 
+void testSynth() {
+    game::Synth synth;
+    std::vector<float> buffer(48000 * 2);
+
+    // À l'arrêt, le moteur tourne au ralenti : faible mais pas muet.
+    synth.setEngine(0.0f, false, false);
+    synth.render(buffer.data(), 48000);
+    float idlePeak = 0.0f;
+    for (float s : buffer) idlePeak = std::max(idlePeak, std::abs(s));
+    CHECK(idlePeak > 0.005f && idlePeak < 0.5f);
+
+    // À pleine vitesse avec boost, frottement et bip : plus fort, jamais saturé.
+    synth.setEngine(400.0f, true, true);
+    synth.beep(1);
+    for (int pass = 0; pass < 3; pass++) synth.render(buffer.data(), 48000);
+    float peak = 0.0f;
+    double energy = 0.0;
+    for (float s : buffer) {
+        CHECK(std::isfinite(s));
+        peak = std::max(peak, std::abs(s));
+        energy += static_cast<double>(s) * s;
+    }
+    CHECK(peak > idlePeak);
+    CHECK(peak <= 1.0f);
+    CHECK(energy / buffer.size() > 1e-4);
+}
+
 void testRanking() {
     sim::World world;
     world.count = 3;
@@ -196,6 +226,7 @@ int main() {
     testWallAndBoost();
     testRanking();
     testCountdownAndFinish();
+    testSynth();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");
     return failures == 0 ? 0 : 1;
 }

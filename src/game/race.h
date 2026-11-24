@@ -2,6 +2,7 @@
 
 #include "game/hud.h"
 #include "game/input.h"
+#include "game/synth.h"
 #include "gfx/renderer.h"
 #include "sim/track.h"
 #include "sim/world.h"
@@ -21,6 +22,8 @@ struct Race {
     std::vector<glm::vec2> minimap;
     gfx::HudBatch hud;
     Controls controls;
+    // Synthétiseur à tenir informé de l'état de la course. Peut rester nul.
+    Synth* synth = nullptr;
 
     // Caméra lissée.
     float camLateral = 0.0f;

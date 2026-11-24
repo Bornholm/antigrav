@@ -27,11 +27,13 @@ void main() {
         vec3 env = skyColor(reflect(-v, n));
         float fresnel = 0.08 + 0.92 * pow(1.0 - nv, 4.0);
         // Coque sombre et brillante, éclairée par le ciel et par ses liserés.
-        vec3 keyDir = normalize(vec3(0.25, 0.9, 0.35));
+        // Coque sombre. Un éclairage zénithal froid détache les facettes, le
+        // ciel se reflète aux angles rasants et les liserés colorent les bords.
+        vec3 keyDir = normalize(vec3(0.2, 0.92, 0.3));
         float key = max(dot(n, keyDir), 0.0);
-        c = color.rgb * (0.010 + 0.045 * key) * vec3(0.75, 0.7, 1.0);
-        c += env * fresnel * 0.35;
-        c += pc.colorA.rgb * 0.012 * pow(1.0 - nv, 2.0);
+        c = color.rgb * (0.010 + 0.050 * key * key) * vec3(0.72, 0.74, 1.0);
+        c += env * fresnel * 0.12;
+        c += pc.colorA.rgb * 0.020 * pow(1.0 - nv, 2.0);
     }
     outColor = vec4(applyFog(c, worldPos), 1.0);
 }

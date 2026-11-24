@@ -73,7 +73,7 @@ void Demo::fill(float time, const gfx::FontAtlas& fonts, glm::vec2 screen,
 
         gfx::ShipDraw& ship = out.ships[out.shipCount++];
         // Le maillage regarde vers -Z, donc son axe +Z pointe vers l'arrière.
-        const float scale = 1.3f;
+        const float scale = 1.15f;
         ship.model = glm::mat4(glm::vec4(right * scale, 0.0f), glm::vec4(up * scale, 0.0f),
                                glm::vec4(-f.tangent * scale, 0.0f), glm::vec4(pos, 1.0f));
         ship.planePoint = f.pos;
@@ -99,8 +99,8 @@ void Demo::fill(float time, const gfx::FontAtlas& fonts, glm::vec2 screen,
 
     // Caméra de poursuite : derrière et au-dessus du joueur, inclinée avec la
     // piste, et qui regarde loin devant.
-    sim::TrackFrame camFrame = track.at(playerDist - 9.0f);
-    out.camPos = camFrame.pos + camFrame.right * (playerLateral * 0.7f) + camFrame.up * 4.4f;
+    sim::TrackFrame camFrame = track.at(playerDist - 10.0f);
+    out.camPos = camFrame.pos + camFrame.right * (playerLateral * 0.7f) + camFrame.up * 4.8f;
     out.camTarget = track.point(playerDist + 26.0f, playerLateral * 0.4f, 0.0f);
     out.camUp = camFrame.up;
     out.fovY = 1.12f;

@@ -211,80 +211,102 @@ MeshData buildCity(const sim::Track& track) {
 }
 
 // Repère du vaisseau : +X à droite, +Y en haut, -Z vers l'avant.
+// Silhouette en flèche : fuselage central relevé, ailes en deux panneaux dont
+// le second plonge et dépasse derrière les tuyères.
 MeshData buildShip() {
     MeshData mesh;
-    const glm::vec3 core{0.0f, 0.45f, 0.0f};
-    const glm::vec4 hull{0.55f, 0.6f, 0.8f, 1.0f};
+    const glm::vec3 core{0.0f, 0.5f, 0.0f};
+    const glm::vec3 below{0.0f, -10.0f, 0.0f};
+    const glm::vec4 hullLight{0.75f, 0.80f, 1.0f, 1.0f};
+    const glm::vec4 hullMid{0.42f, 0.46f, 0.66f, 1.0f};
+    const glm::vec4 hullDark{0.20f, 0.22f, 0.36f, 1.0f};
     const glm::vec4 white{1.0f};
 
     for (float s : {-1.0f, 1.0f}) {
         auto P = [s](float x, float y, float z) { return glm::vec3(x * s, y, z); };
-        glm::vec3 nose = P(0.0f, 0.34f, -3.7f);
-        glm::vec3 noseLow = P(0.0f, 0.10f, -3.3f);
-        glm::vec3 canopy = P(0.0f, 0.78f, -1.1f);
-        glm::vec3 spine = P(0.0f, 0.98f, 1.7f);
-        glm::vec3 shoulder = P(0.58f, 0.44f, -1.6f);
-        glm::vec3 rearTop = P(0.98f, 0.80f, 1.95f);
-        glm::vec3 rearLow = P(1.08f, 0.08f, 2.05f);
-        glm::vec3 rearLowMid = P(0.0f, 0.08f, 2.05f);
-        glm::vec3 belly = P(0.48f, 0.06f, -1.8f);
+        auto strip = [&](glm::vec3 a, glm::vec3 b, float width) {
+            // Liseré lumineux posé juste au-dessus d'une arête.
+            glm::vec3 along = glm::normalize(b - a);
+            glm::vec3 side = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), along)) * width;
+            if (glm::dot(side, glm::vec3(s, 0.0f, 0.0f)) > 0.0f) side = -side;
+            const glm::vec3 lift{0.0f, 0.03f, 0.0f};
+            addFace(mesh, {a + lift, b + lift, b + lift + side, a + lift + side}, 1.0f, white,
+                    below);
+        };
 
         // Fuselage.
-        addFace(mesh, {nose, shoulder, canopy}, 0.0f, hull, core);
-        addFace(mesh, {canopy, shoulder, rearTop, spine}, 0.0f, hull, core);
-        addFace(mesh, {nose, noseLow, belly, shoulder}, 0.0f, hull, core);
-        addFace(mesh, {shoulder, belly, rearLow, rearTop}, 0.0f, hull, core);
-        addFace(mesh, {spine, rearTop, rearLow, rearLowMid}, 0.0f, hull, core);
-        addFace(mesh, {noseLow, belly, rearLow, rearLowMid}, 0.0f, hull, core);
+        glm::vec3 nose = P(0.0f, 0.36f, -4.0f);
+        glm::vec3 noseLow = P(0.0f, 0.10f, -3.5f);
+        glm::vec3 canopyFront = P(0.0f, 0.62f, -2.2f);
+        glm::vec3 canopyTop = P(0.0f, 1.02f, -0.6f);
+        glm::vec3 spine = P(0.0f, 1.12f, 1.75f);
+        glm::vec3 shoulder = P(0.62f, 0.46f, -1.9f);
+        glm::vec3 flank = P(0.92f, 0.62f, -0.2f);
+        glm::vec3 rearTop = P(1.02f, 0.92f, 1.95f);
+        glm::vec3 rearLow = P(1.12f, 0.06f, 2.05f);
+        glm::vec3 rearLowMid = P(0.0f, 0.06f, 2.05f);
+        glm::vec3 belly = P(0.50f, 0.05f, -2.0f);
 
-        // Aile en delta.
-        glm::vec3 wingRootFront = P(0.72f, 0.36f, -0.9f);
-        glm::vec3 wingTipFront = P(3.0f, 0.20f, 1.25f);
-        glm::vec3 wingTipRear = P(3.1f, 0.18f, 2.35f);
-        glm::vec3 wingRootRear = P(1.05f, 0.30f, 2.05f);
-        const glm::vec3 below{0.0f, -10.0f, 0.0f};
-        addFace(mesh, {wingRootFront, wingTipFront, wingTipRear, wingRootRear}, 0.0f, hull,
-                below);
+        addFace(mesh, {nose, shoulder, canopyFront}, 0.0f, hullMid, core);
+        addFace(mesh, {canopyFront, shoulder, flank, canopyTop}, 0.0f, hullDark, core);
+        addFace(mesh, {canopyTop, flank, rearTop, spine}, 0.0f, hullLight, core);
+        addFace(mesh, {nose, noseLow, belly, shoulder}, 0.0f, hullDark, core);
+        addFace(mesh, {shoulder, belly, rearLow, flank}, 0.0f, hullMid, core);
+        addFace(mesh, {flank, rearLow, rearTop}, 0.0f, hullMid, core);
+        addFace(mesh, {spine, rearTop, rearLow, rearLowMid}, 0.0f, hullDark, core);
+        addFace(mesh, {noseLow, belly, rearLow, rearLowMid}, 0.0f, hullDark, core);
+
+        // Aile : panneau intérieur presque plat, panneau extérieur qui plonge.
+        glm::vec3 rootFront = P(0.80f, 0.50f, -1.3f);
+        glm::vec3 rootRear = P(1.05f, 0.62f, 1.95f);
+        glm::vec3 midFront = P(1.75f, 0.46f, 0.35f);
+        glm::vec3 midRear = P(1.85f, 0.50f, 2.30f);
+        glm::vec3 tipFront = P(2.75f, 0.14f, 1.75f);
+        glm::vec3 tipRear = P(2.95f, 0.10f, 3.05f);
+        const glm::vec3 thick{0.0f, -0.20f, 0.0f};
+
+        addFace(mesh, {rootFront, midFront, midRear, rootRear}, 0.0f, hullMid, below);
+        addFace(mesh, {midFront, tipFront, tipRear, midRear}, 0.0f, hullLight, below);
+        // Tranche arrière, visible depuis la caméra de poursuite.
+        addFace(mesh, {rootRear, midRear, midRear + thick, rootRear + thick}, 0.0f, hullDark,
+                core);
+        addFace(mesh, {midRear, tipRear, tipRear + thick * 0.4f, midRear + thick}, 0.0f,
+                hullDark, core);
+        // Dessous.
+        addFace(mesh, {rootFront + thick, midFront + thick, midRear + thick, rootRear + thick},
+                0.0f, hullDark, core + glm::vec3(0.0f, 10.0f, 0.0f));
 
         // Dérive en bout d'aile.
-        glm::vec3 finBase = P(2.98f, 0.20f, 1.5f);
-        glm::vec3 finTop = P(3.08f, 1.05f, 2.45f);
-        addFace(mesh, {finBase, wingTipRear, finTop}, 0.0f, hull, core);
+        glm::vec3 finFront = P(2.72f, 0.15f, 2.0f);
+        glm::vec3 finTop = P(2.90f, 0.95f, 3.1f);
+        addFace(mesh, {finFront, tipRear, finTop}, 0.0f, hullMid, core);
 
-        // Liserés lumineux : arêtes du fuselage, bord d'attaque, bord de fuite,
-        // arête de dérive.
-        const glm::vec3 lift{0.0f, 0.025f, 0.0f};
-        const glm::vec3 back{0.0f, 0.0f, 0.13f};
-        auto edge = [&](glm::vec3 a, glm::vec3 b) {
-            glm::vec3 w = P(0.07f, 0.0f, 0.0f);
-            addFace(mesh, {a + lift, b + lift, b + lift + w, a + lift + w}, 1.0f, white, below);
-        };
-        edge(nose, shoulder);
-        edge(shoulder, rearTop);
-        addFace(mesh, {wingRootFront + lift, wingTipFront + lift, wingTipFront + lift + back,
-                       wingRootFront + lift + back},
-                1.0f, white, below);
-        addFace(mesh, {wingRootRear + lift, wingTipRear + lift, wingTipRear + lift - back,
-                       wingRootRear + lift - back},
-                1.0f, white, below);
-        addFace(mesh, {finBase + P(0.03f, 0.0f, 0.0f), finTop + P(0.03f, 0.0f, 0.0f),
-                       finTop + P(0.03f, 0.0f, -0.12f), finBase + P(0.03f, 0.0f, -0.12f)},
+        // Liserés.
+        strip(nose, shoulder, 0.07f);
+        strip(shoulder, flank, 0.07f);
+        strip(flank, rearTop, 0.07f);
+        strip(midFront, tipFront, 0.10f);
+        strip(tipFront, tipRear, 0.10f);
+        strip(rootFront, midFront, 0.08f);
+        strip(midRear, tipRear, 0.10f);
+        addFace(mesh, {finFront + P(0.03f, 0.0f, 0.0f), finTop + P(0.03f, 0.0f, 0.0f),
+                       finTop + P(0.03f, -0.12f, -0.05f), finFront + P(0.03f, 0.0f, 0.16f)},
                 1.0f, white, core);
 
         // Tuyères.
         for (float cx : {0.33f, 0.76f}) {
             float x0 = cx - 0.17f, x1 = cx + 0.17f;
             addFace(mesh,
-                    {P(x0, 0.18f, 2.07f), P(x1, 0.18f, 2.07f), P(x1, 0.50f, 2.03f),
-                     P(x0, 0.50f, 2.03f)},
+                    {P(x0, 0.16f, 2.07f), P(x1, 0.16f, 2.07f), P(x1, 0.58f, 2.02f),
+                     P(x0, 0.58f, 2.02f)},
                     2.0f, white, core, {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}});
         }
     }
 
     // Barre lumineuse arrière.
     addFace(mesh,
-            {{-0.62f, 0.62f, 2.0f}, {0.62f, 0.62f, 2.0f}, {0.62f, 0.72f, 1.99f},
-             {-0.62f, 0.72f, 1.99f}},
+            {{-0.70f, 0.72f, 1.99f}, {0.70f, 0.72f, 1.99f}, {0.70f, 0.83f, 1.98f},
+             {-0.70f, 0.83f, 1.98f}},
             1.0f, white, core);
     return mesh;
 }

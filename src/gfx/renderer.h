@@ -64,6 +64,27 @@ struct RenderSettings {
 
 enum class Material { Road, Neon, Building, Ship, Sky, Trail, Count };
 
+// Temps GPU de chaque passe, mesurés par des horodatages dans la commande.
+// Les budgets du plan se vérifient avec ces chiffres, pas à l'estime.
+struct GpuStats {
+    static constexpr int kPasses = 4; // reflet, scène, bloom, composition
+    double sumMs[kPasses] = {};
+    double lastMs[kPasses] = {};
+    uint64_t samples = 0;
+
+    double averageMs(int pass) const { return samples ? sumMs[pass] / samples : 0.0; }
+    double averageTotalMs() const {
+        double total = 0.0;
+        for (int i = 0; i < kPasses; i++) total += averageMs(i);
+        return total;
+    }
+    double lastTotalMs() const {
+        double total = 0.0;
+        for (double ms : lastMs) total += ms;
+        return total;
+    }
+};
+
 struct Renderer {
     Gpu* gpu = nullptr;
     RenderSettings settings;
@@ -108,6 +129,12 @@ struct Renderer {
     Buffer hudBuffer[kFramesInFlight];
     static constexpr uint32_t kMaxHudVertices = 24000;
 
+    // Horodatages : un groupe de requêtes par frame en vol.
+    static constexpr uint32_t kTimestamps = GpuStats::kPasses + 1;
+    VkQueryPool queryPool = VK_NULL_HANDLE;
+    bool queryPending[kFramesInFlight] = {};
+    GpuStats stats;
+
     void init(Gpu& gpu, VkFormat outputFormat, const sim::Track& track);
     void shutdown();
 
@@ -118,6 +145,7 @@ struct Renderer {
     void createTargets(VkExtent2D extent);
     void destroyTargets();
     void drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool reflection);
+    void collectStats(int slot);
     void drawBloom(VkCommandBuffer cmd);
 };
 

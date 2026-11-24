@@ -15,6 +15,15 @@
 
 namespace {
 
+void logGpuStats(const gfx::Renderer& renderer) {
+    const gfx::GpuStats& st = renderer.stats;
+    if (st.samples == 0) return;
+    logInfo("GPU par image: %.2f ms (reflet %.2f, scène %.2f, bloom %.2f, composition %.2f), "
+            "scène en %ux%u",
+            st.averageTotalMs(), st.averageMs(0), st.averageMs(1), st.averageMs(2),
+            st.averageMs(3), renderer.sceneExtent.width, renderer.sceneExtent.height);
+}
+
 struct Options {
     bool headless = false;
     bool validation = false;
@@ -27,6 +36,7 @@ struct Options {
     float startTime = 0.0f;
     bool hud = true;
     bool autopilot = false;
+    bool stats = false;
     int gridStart = -1;  // -1 : selon le mode, 0 : départ lancé, 1 : grille
     gfx::RenderSettings render;
 };
@@ -53,6 +63,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--scale")) o.render.renderScale = static_cast<float>(std::atof(value()));
         else if (!std::strcmp(a, "--no-hud")) o.hud = false;
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
+        else if (!std::strcmp(a, "--stats")) o.stats = true;
         else if (!std::strcmp(a, "--grid-start")) o.gridStart = 1;
         else if (!std::strcmp(a, "--rolling-start")) o.gridStart = 0;
         else if (!std::strcmp(a, "--no-bloom")) o.render.bloom = false;
@@ -213,6 +224,8 @@ int runHeadless(const Options& opt) {
     logInfo("%d images rendues en %.3f s, %d écrites, %u erreurs de validation", opt.frames,
             seconds, written, gpu.validationErrors);
 
+    logGpuStats(renderer);
+
     uint32_t errors = gpu.validationErrors;
     destroyFrames(gpu, frames);
     renderer.shutdown();
@@ -267,6 +280,9 @@ int runWindowed(const Options& opt) {
     uint64_t frameIndex = 0;
     Uint64 start = SDL_GetTicksNS();
     Uint64 lastTick = start;
+    Uint64 statsTick = 0;
+    double cpuMsSmoothed = 16.0;
+    char statsText[160] = "";
 
     while (running) {
         glm::vec2 screen{static_cast<float>(swapchain.logicalExtent.width),
@@ -349,6 +365,17 @@ int runWindowed(const Options& opt) {
                   static_cast<float>(swapchain.logicalExtent.height)};
         race.update(dt, input.read(screen));
 
+        // Mesures lissées, rafraîchies deux fois par seconde.
+        cpuMsSmoothed += (static_cast<double>(dt) * 1000.0 - cpuMsSmoothed) * 0.05;
+        if (opt.stats && now - statsTick > 500000000ull) {
+            statsTick = now;
+            std::snprintf(statsText, sizeof(statsText),
+                          "GPU %.1f ms   image %.1f ms   %.0f i/s   3D %ux%u",
+                          renderer.stats.lastTotalMs(), cpuMsSmoothed, 1000.0 / cpuMsSmoothed,
+                          renderer.sceneExtent.width, renderer.sceneExtent.height);
+        }
+        race.statsLine = statsText;
+
         gfx::FrameParams params;
         params.slot = static_cast<int>(frameIndex % kFramesInFlight);
         race.fill(renderer.fonts, screen, params);
@@ -381,6 +408,7 @@ int runWindowed(const Options& opt) {
     logInfo("%llu images en %.2f s, %.1f images par seconde",
             static_cast<unsigned long long>(frameIndex), seconds,
             seconds > 0.0 ? static_cast<double>(frameIndex) / seconds : 0.0);
+    logGpuStats(renderer);
 
     destroyFrames(gpu, frames);
     renderer.shutdown();

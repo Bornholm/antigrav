@@ -30,7 +30,8 @@ struct Race {
     // gridStart : départ arrêté avec compte à rebours. Sinon les vaisseaux
     // sont déjà lancés, ce qui sert aux démonstrations et aux captures.
     void init(bool gridStart);
-    float finishRaceTime = 0.0f;
+    // Texte de mesures à afficher en bas de l'écran, fourni par la boucle principale.
+    const char* statsLine = "";
     // Avance la simulation du temps écoulé depuis la dernière image.
     void update(float dt, const Controls& input);
     // screen : taille de l'écran vue par le jeu, en pixels.

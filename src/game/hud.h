@@ -33,6 +33,8 @@ struct HudState {
     float countdown = 0.0f; // secondes avant le départ
     float raceTime = 0.0f;
     bool finished = false;
+    // Ligne de mesures affichée en bas de l'écran, vide pour la masquer.
+    const char* statsLine = "";
     bool pressed[static_cast<int>(Button::Count)] = {};
 };
 

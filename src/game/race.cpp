@@ -170,6 +170,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.countdown = world.countdown;
     state.raceTime = player.finished ? player.finishTime : world.raceTime;
     state.finished = player.finished;
+    state.statsLine = statsLine;
     state.speedKmh = player.speed * 3.6f;
     state.minimap = &minimap;
     float wrapped = std::fmod(playerDist, track.length);

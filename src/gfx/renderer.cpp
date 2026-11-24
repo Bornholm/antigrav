@@ -381,6 +381,18 @@ void Renderer::init(Gpu& gpuRef, VkFormat output, const sim::Track& track) {
         hudBuffer[i] = gpu->createBuffer(kMaxHudVertices * sizeof(HudVertex),
                                          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, true, "hud");
 
+    // Les horodatages ne sont pas garantis sur tous les pilotes.
+    uint32_t famCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(gpu->physical, &famCount, nullptr);
+    std::vector<VkQueueFamilyProperties> fams(famCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(gpu->physical, &famCount, fams.data());
+    if (fams[gpu->queueFamily].timestampValidBits > 0) {
+        VkQueryPoolCreateInfo qci{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+        qci.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        qci.queryCount = kTimestamps * kFramesInFlight;
+        VK_CHECK(vkCreateQueryPool(dev, &qci, nullptr, &queryPool));
+    }
+
     road = uploadMesh(*gpu, buildRoad(track), "road");
     rails = uploadMesh(*gpu, buildRails(track), "rails");
     gates = uploadMesh(*gpu, buildGates(track), "gates");
@@ -406,6 +418,7 @@ void Renderer::shutdown() {
     vkDestroyPipeline(dev, bloomUpPipeline, nullptr);
     vkDestroyPipeline(dev, compositePipeline, nullptr);
     vkDestroyPipeline(dev, hudPipeline, nullptr);
+    if (queryPool) vkDestroyQueryPool(dev, queryPool, nullptr);
     gpu->destroyImage(fontTexture);
     for (int i = 0; i < kFramesInFlight; i++) gpu->destroyBuffer(hudBuffer[i]);
     for (int i = 0; i < kFramesInFlight; i++) gpu->destroyBuffer(globalsBuffer[i]);
@@ -612,7 +625,36 @@ void Renderer::drawBloom(VkCommandBuffer cmd) {
     }
 }
 
+// Relit les horodatages de la dernière image rendue dans ce slot. L'appelant a
+// déjà attendu la fin de cette image, donc les résultats sont disponibles.
+void Renderer::collectStats(int slot) {
+    if (!queryPool || !queryPending[slot]) return;
+    uint64_t ticks[kTimestamps] = {};
+    VkResult result = vkGetQueryPoolResults(gpu->device, queryPool, slot * kTimestamps,
+                                            kTimestamps, sizeof(ticks), ticks, sizeof(uint64_t),
+                                            VK_QUERY_RESULT_64_BIT);
+    queryPending[slot] = false;
+    if (result != VK_SUCCESS) return;
+    double period = gpu->properties.limits.timestampPeriod * 1e-6; // ticks vers millisecondes
+    for (int i = 0; i < GpuStats::kPasses; i++) {
+        double ms = static_cast<double>(ticks[i + 1] - ticks[i]) * period;
+        stats.lastMs[i] = ms;
+        stats.sumMs[i] += ms;
+    }
+    stats.samples++;
+}
+
 void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameParams& params) {
+    collectStats(params.slot);
+    uint32_t firstQuery = static_cast<uint32_t>(params.slot) * kTimestamps;
+    auto stamp = [&](uint32_t index) {
+        if (queryPool)
+            vkCmdWriteTimestamp2(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, queryPool,
+                                 firstQuery + index);
+    };
+    if (queryPool) vkCmdResetQueryPool(cmd, queryPool, firstQuery, kTimestamps);
+    stamp(0);
+
     VkExtent2D wanted{
         std::max(1u, static_cast<uint32_t>(std::lround(
                          static_cast<float>(target.logicalExtent.width) * settings.renderScale))),
@@ -688,6 +730,8 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
+    stamp(1);
+
     // Passe 2 : scène en MSAA. Les images multi-échantillonnées et la
     // profondeur ne sont jamais conservées : seule la résolution est écrite.
     {
@@ -728,8 +772,11 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
+    stamp(2);
+
     // Passe 3 : bloom.
     drawBloom(cmd);
+    stamp(3);
 
     // Passe 4 : composition dans l'image de sortie.
     {
@@ -764,6 +811,8 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
         }
         vkCmdEndRendering(cmd);
     }
+    stamp(4);
+    queryPending[params.slot] = true;
 }
 
 } // namespace gfx

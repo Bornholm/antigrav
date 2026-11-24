@@ -275,6 +275,13 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
                  alpha(kYellow, 1.0f - s.raceTime / 1.2f), Align::Center, 0.2f);
     }
 
+    if (s.statsLine[0]) {
+        hud.anchor = Anchor::Center;
+        hud.text(FontId::Medium, s.statsLine, {800.0f, 884.0f}, 15.0f, alpha(kWhite, 0.85f),
+                 Align::Center, 0.0f);
+    }
+
+    hud.anchor = Anchor::Center;
     if (s.finished) {
         hud.quad({0.0f, 318.0f}, {1600.0f, 318.0f}, {1600.0f, 482.0f}, {0.0f, 482.0f},
                  vec4(0.02f, 0.02f, 0.08f, 0.72f));

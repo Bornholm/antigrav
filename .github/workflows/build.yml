@@ -67,7 +67,7 @@ jobs:
       - name: Préparer l'archive
         run: |
           mkdir -p dist/antigrav-linux-x86_64
-          cp build/antigrav README.md dist/antigrav-linux-x86_64/
+          cp build/antigrav README.md LICENSE dist/antigrav-linux-x86_64/
           strip dist/antigrav-linux-x86_64/antigrav
           tar -C dist -czf dist/antigrav-linux-x86_64.tar.gz antigrav-linux-x86_64
 

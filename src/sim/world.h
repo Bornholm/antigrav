@@ -20,8 +20,8 @@ constexpr float kMissileCost = 0.25f;
 constexpr float kShieldCost = 0.35f;
 constexpr float kShieldDuration = 2.5f; // secondes
 constexpr float kStunDuration = 1.2f;   // secondes sans contrôle après un impact
-constexpr float kAbsorbGain = 0.25f;
-constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand son missile touche    // énergie rendue par un missile absorbé
+constexpr float kAbsorbGain = 0.25f;    // énergie rendue par un missile absorbé
+constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand son missile touche
 
 struct Input {
     float steer = 0.0f; // -1 à gauche, +1 à droite

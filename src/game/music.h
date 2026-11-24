@@ -1,5 +1,7 @@
 #pragma once
 
+#include "music/analysis.h"
+
 #include <atomic>
 
 struct stb_vorbis;
@@ -21,7 +23,21 @@ class Music {
     void shutdown();
     // Morceau à jouer en boucle, ou -1 pour le silence. Le changement se fait
     // en fondu.
-    void play(int piece) { wanted_.store(piece); }
+    void play(int piece) {
+        synced_.store(false);
+        wanted_.store(piece);
+    }
+    // Lecture calée sur la course : le morceau se joue une fois, à l'instant
+    // donné par le jeu à chaque image. Un instant négatif, ou `running` à
+    // faux, donne le silence.
+    void sync(int piece, double time, bool running) {
+        syncTime_.store(time);
+        syncRunning_.store(running);
+        synced_.store(true);
+        wanted_.store(piece);
+    }
+    // Partition du morceau d'un circuit, analysée à la première demande.
+    static const music::Partition& partition(int track);
     void setVolume(float volume) { volume_.store(volume); }
 
     // Ajoute la musique à `frames` échantillons stéréo entrelacés à 48 kHz.
@@ -31,7 +47,11 @@ class Music {
     stb_vorbis* decoders_[kCount] = {};
     std::atomic<int> wanted_{-1};
     std::atomic<float> volume_{0.5f};
+    std::atomic<bool> synced_{false};
+    std::atomic<bool> syncRunning_{false};
+    std::atomic<double> syncTime_{0.0};
     int current_ = -1;
+    long long position_ = 0; // échantillons lus dans le morceau courant
     float gain_ = 0.0f;
 };
 

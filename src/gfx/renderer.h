@@ -49,6 +49,7 @@ struct FrameParams {
     int slot = 0; // indice de frame en vol
     float time = 0.0f;
     float speed = 0.0f;
+    float pulse = 0.0f; // battement de la musique, 1 sur le temps puis retombe
     glm::vec3 camPos{0.0f};
     glm::vec3 camTarget{0.0f, 0.0f, -1.0f};
     glm::vec3 camUp{0.0f, 1.0f, 0.0f};

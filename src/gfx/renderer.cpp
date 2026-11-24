@@ -817,7 +817,7 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
     scene.skyMid = glm::vec4(theme.skyMid, 0.0f);
     scene.skyHaze = glm::vec4(theme.skyHaze, static_cast<float>(theme.sky));
     scene.screen = glm::vec4(1.0f / static_cast<float>(sceneExtent.width),
-                             1.0f / static_cast<float>(sceneExtent.height), params.speed, 0.0f);
+                             1.0f / static_cast<float>(sceneExtent.height), params.speed, params.pulse);
 
     // Vue en miroir : même caméra, géométrie retournée sous la piste, et
     // directions du ciel réfléchies.

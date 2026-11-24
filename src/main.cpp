@@ -66,6 +66,7 @@ struct Options {
     float startTime = 0.0f;
     bool hud = true;
     bool autopilot = false;
+    bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
     int track = 0;
     bool race = false;   // démarre directement en course, sans menu
@@ -103,6 +104,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--scale")) o.render.renderScale = static_cast<float>(std::atof(value()));
         else if (!std::strcmp(a, "--no-hud")) o.hud = false;
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
+        else if (!std::strcmp(a, "--sync")) o.sync = true;
         else if (!std::strcmp(a, "--stats")) o.stats = true;
         else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
         else if (!std::strcmp(a, "--ship")) o.ship = std::atoi(value());
@@ -214,6 +216,7 @@ int runHeadless(const Options& opt) {
     capture.init(gpu, extent);
 
     game::Synth synth;
+    game::Music wavMusic; // musique du fichier son, mixée au même pas que l'image
     std::vector<float> wavSamples;
     game::App app;
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
@@ -224,7 +227,9 @@ int runHeadless(const Options& opt) {
         game::RaceConfig config = game::defaultConfig(opt.track, opt.gridStart == 1);
         config.racers[0].ship = app.ship;
         if (!opt.wav.empty()) app.synth = &synth;
+        if (!opt.wav.empty() && opt.music && wavMusic.init()) app.music = &wavMusic;
         app.startQuickRace(config, true);
+        race.pinToSync = opt.sync;
         // Avance jusqu'à l'instant demandé avant la première image.
         for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
             race.update(sim::kFixedDt, game::Controls{});
@@ -285,6 +290,7 @@ int runHeadless(const Options& opt) {
             if (wanted > have) {
                 wavSamples.resize(wanted * 2);
                 synth.render(wavSamples.data() + have * 2, static_cast<int>(wanted - have));
+                if (app.music) app.music->mix(wavSamples.data() + have * 2, static_cast<int>(wanted - have));
             }
         }
         app.fill(renderer.fonts, screenSize, params);

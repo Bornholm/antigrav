@@ -1,5 +1,8 @@
 #include "game/race.h"
 
+#include "game/music.h"
+#include "sim/generate.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -48,25 +51,14 @@ RaceConfig defaultConfig(int track, bool gridStart) {
 }
 
 void Race::init(const RaceConfig& cfg, int local) {
+    // La piste se génère à partir de la partition du morceau.
+    sim::setSong(cfg.track, Music::partition(cfg.track));
     start(cfg, local);
     accumulator = 0.0f;
     camLateral = world.vehicles[localIndex].lateral;
     for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
 
-    // Tracé vu de dessus pour la minimap, normalisé en gardant les proportions.
-    glm::vec2 lo{1e9f}, hi{-1e9f};
-    const int count = static_cast<int>(track.frames.size());
-    const int stride = std::max(1, count / 160);
     minimap.clear();
-    for (int i = 0; i < count; i += stride) {
-        glm::vec2 p{track.frames[i].pos.x, track.frames[i].pos.z};
-        minimap.push_back(p);
-        lo = glm::min(lo, p);
-        hi = glm::max(hi, p);
-    }
-    glm::vec2 center = (lo + hi) * 0.5f;
-    float extent = std::max(hi.x - lo.x, hi.y - lo.y) * 0.5f;
-    for (glm::vec2& p : minimap) p = (p - center) / extent;
 }
 
 void Race::update(float dt, const Controls& input) {
@@ -84,6 +76,13 @@ void Race::update(float dt, const Controls& input) {
         if (clientTick) clientTick(clientUser, *this, local);
         else tick(local);
         accumulator -= sim::kFixedDt;
+        if (pinToSync && world.countdown <= 0.0f) {
+            // Démonstration : le vaisseau reste sur le point de synchronisation,
+            // pour vérifier que la piste tombe sur la musique.
+            sim::Vehicle& v = world.vehicles[localIndex];
+            v.dist = track.distAt(world.raceTime);
+            v.speed = track.at(v.dist).pace;
+        }
 
         // Un bip à chaque seconde du compte à rebours, un signal au départ.
         if (synth && countdownBefore > 0.0f) {
@@ -183,6 +182,19 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
 
     const sim::Vehicle& player = world.vehicles[localIndex];
     out.speed = player.speed;
+    // Battement : 1 sur chaque temps du morceau, plus fort sur le premier de
+    // la mesure, puis retombe.
+    {
+        const std::vector<music::Beat>& beats = sim::song(config.track).beats;
+        const float songTime = world.raceTime;
+        auto next = std::upper_bound(beats.begin(), beats.end(), songTime,
+                                     [](float t, const music::Beat& b) { return t < b.time; });
+        out.pulse = 0.0f;
+        if (next != beats.begin() && world.countdown <= 0.0f && songTime < track.duration) {
+            const music::Beat& last = *(next - 1);
+            out.pulse = (last.bar == 0 ? 1.0f : 0.55f) * std::exp(-(songTime - last.time) * 7.0f);
+        }
+    }
 
     // Caméra de poursuite : derrière et au-dessus du joueur, inclinée avec la
     // piste, et qui regarde loin devant.
@@ -214,16 +226,34 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.energy = player.energy;
     state.position = sim::rankOf(world, localIndex);
     state.racers = world.count;
-    state.lap = sim::lapOf(world, track, player);
-    state.laps = world.laps;
+    state.remaining = std::max(0.0f, track.duration - world.raceTime);
     state.countdown = world.countdown;
     state.raceTime = player.finished ? player.finishTime : world.raceTime;
     state.finished = player.finished;
     state.speedKmh = player.speed * 3.6f;
-    state.minimap = &minimap;
-    float wrapped = std::fmod(playerDist, track.length);
-    if (wrapped < 0.0f) wrapped += track.length;
-    state.progress = wrapped / track.length;
+    // Radar : la piste à venir vue de dessus, dans le repère du vaisseau.
+    {
+        const sim::TrackFrame here = track.at(playerDist);
+        const glm::vec3 forward = glm::normalize(glm::vec3(here.tangent.x, 0.0f, here.tangent.z));
+        const glm::vec3 side{-forward.z, 0.0f, forward.x};
+        const float behind = 250.0f, range = 2600.0f;
+        minimap.clear();
+        for (float d = -behind; d <= range; d += 60.0f) {
+            const glm::vec3 rel = track.at(playerDist + d).pos - here.pos;
+            // L'avant du vaisseau pointe vers le haut du cadre.
+            minimap.push_back({glm::dot(rel, side) / (range * 0.5f),
+                               0.8f - 1.7f * (glm::dot(rel, forward) + behind) / (range + behind)});
+        }
+        state.minimap = &minimap;
+        state.progress = behind / (range + behind);
+    }
+    // Avancement de chaque vaisseau dans le morceau.
+    state.markCount = world.count;
+    for (int i = 0; i < world.count; i++) {
+        state.marks[i] = std::clamp(world.vehicles[i].dist / track.length, 0.0f, 1.0f);
+        state.markColors[i] = glm::vec4(kSlotColors[i].trim, 1.0f);
+    }
+    state.localMark = localIndex;
     state.boosting = player.boosting;
     for (int b = 0; b < static_cast<int>(Button::Count); b++) state.pressed[b] = controls.pressed[b];
     state.statsLine = statsLine;

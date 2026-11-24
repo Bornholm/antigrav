@@ -14,7 +14,8 @@ layout(location = 0) out vec4 outColor;
 void main() {
     vec3 c;
     if (kind < 0.5) {
-        c = color.rgb * color.a;
+        // Les néons battent avec la musique.
+        c = color.rgb * color.a * (1.0 + 0.7 * g.screen.w);
     } else {
         // Panneaux sombres avec un liseré tous les huit mètres.
         float seam = smoothstep(0.485, 0.5, abs(fract(uv.y / 8.0) - 0.5));

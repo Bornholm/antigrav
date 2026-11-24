@@ -210,6 +210,6 @@ endif()
 
 add_dependencies(${GAME_TARGET} shaders)
 target_include_directories(${GAME_TARGET} PRIVATE src ${SHADER_OUT_DIR})
-target_link_libraries(${GAME_TARGET} PRIVATE net sim third_party SDL3::SDL3)
+target_link_libraries(${GAME_TARGET} PRIVATE net sim music_decode third_party SDL3::SDL3)
 target_compile_options(${GAME_TARGET} PRIVATE
   -Wall -Wextra -Wno-missing-field-initializers -fno-exceptions -fno-rtti)

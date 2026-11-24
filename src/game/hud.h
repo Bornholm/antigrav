@@ -21,14 +21,19 @@ struct HudState {
     float energy = 1.0f; // 0 à 1
     int position = 1;
     int racers = 1;
-    int lap = 1;
-    int laps = 3;
+    float remaining = 0.0f; // secondes de morceau restantes
     float speedKmh = 0.0f;
     int tagCount = 0;
     NameTag tags[8];
-    // Tracé du circuit vu de dessus, normalisé dans [-1, 1].
+    // Piste à venir vue de dessus, normalisée dans [-1, 1], du point le plus
+    // en arrière au plus lointain.
     const std::vector<glm::vec2>* minimap = nullptr;
-    float progress = 0.0f; // position du joueur sur le tour, 0 à 1
+    float progress = 0.0f; // position du joueur le long de ce tracé, 0 à 1
+    // Avancement des vaisseaux dans le morceau, 0 à 1.
+    int markCount = 0;
+    float marks[8] = {};
+    glm::vec4 markColors[8];
+    int localMark = 0;
     bool boosting = false;
     float countdown = 0.0f; // secondes avant le départ
     float raceTime = 0.0f;

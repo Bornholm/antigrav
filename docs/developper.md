@@ -6,7 +6,9 @@
 ctest --test-dir build
 ```
 
-Quatre suites : `music` pour l'analyse audio sur des signaux synthétiques, `sim` pour la simulation, `net` pour le réseau en boucle locale, y compris avec 25 % de paquets perdus, et `balance` qui échoue si un vaisseau ou une personnalité d'IA domine.
+Trois suites : `music` pour l'analyse audio sur des signaux synthétiques, `sim` pour la simulation et la génération des pistes, `net` pour le réseau en boucle locale, y compris avec 25 % de paquets perdus.
+
+`build/balance` joue 864 courses entre IA sur les pistes des morceaux livrés et signale un vaisseau ou une personnalité qui domine. Il n'est plus lancé par `ctest` tant que les règles de la course calée sur la musique ne sont pas posées.
 
 Essai réseau entre deux instances sur la même machine, chacune filmée :
 

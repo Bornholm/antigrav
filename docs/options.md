@@ -3,8 +3,9 @@
 | Option | Effet |
 |---|---|
 | `--race` | démarre directement une course, sans menu |
-| `--track N`, `--ship N` | circuit de 0 à 2, vaisseau de 0 à 3 |
+| `--track N`, `--ship N` | morceau de 0 à 2, vaisseau de 0 à 3 |
 | `--autopilot` | l'ordinateur pilote aussi le vaisseau du joueur |
+| `--sync` | mode sans fenêtre : tient le vaisseau filmé à la vitesse de la musique, pour vérifier que la piste tombe sur les temps |
 | `--grid-start`, `--rolling-start` | départ arrêté ou lancé |
 | `--size LxH` | taille de la fenêtre ou de l'image |
 | `--scale N` | échelle de la 3D par rapport à la sortie, 0.7 par exemple |

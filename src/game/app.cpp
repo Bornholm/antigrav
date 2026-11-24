@@ -145,10 +145,19 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                  glm::vec2 screenSize, const gfx::FontAtlas& fonts) {
     now = time;
     race.statsLine = statsLine;
-    // Thème dans les menus, morceau du circuit en course.
-    if (music)
-        music->play(screen == Screen::Race ? Music::kFirstTrack + race.config.track
-                                           : Music::kTheme);
+    // Thème dans les menus. En course, le morceau du circuit, calé sur le
+    // temps de course : il démarre au signal du départ.
+    if (music) {
+        if (screen == Screen::Race) {
+            const double songTime = race.world.countdown > 0.0f ? -1.0 : race.world.raceTime;
+            music->sync(Music::kFirstTrack + race.config.track, songTime, songTime != lastSongTime);
+            lastSongTime = songTime;
+        } else {
+            music->play(Music::kTheme);
+        }
+    }
+    // La démonstration derrière les menus repart quand son morceau est fini.
+    if (screen != Screen::Race && !inRace && race.finished()) startAttract();
 
     // Réseau : lit les paquets, puis réagit aux changements d'état.
     net.poll(now, inRace ? &race : nullptr);
@@ -320,7 +329,7 @@ void App::drawMenus(glm::vec2) {
     auto raceSettings = [&](float x, float y, bool hostControls) {
         int d = 0;
         if (hostControls) {
-            if ((d = ui.selector({x, y}, 330.0f, "CIRCUIT", sim::trackInfo(track).name)) != 0) {
+            if ((d = ui.selector({x, y}, 330.0f, "MORCEAU", sim::trackInfo(track).name)) != 0) {
                 track = (track + d + sim::kTrackCount) % sim::kTrackCount;
                 laps = sim::trackInfo(track).laps;
                 if (net.role == net::Role::Host) net.lobby.track = track;
@@ -341,10 +350,6 @@ void App::drawMenus(glm::vec2) {
         y += 72.0f;
         if ((d = ui.selector({x, y}, 330.0f, "CARACTÈRES", kPersonalityLabels[personality])) != 0)
             personality = (personality + d + 5) % 5;
-        y += 72.0f;
-        std::snprintf(buf, sizeof(buf), "%d", laps);
-        if ((d = ui.selector({x, y}, 330.0f, "TOURS", buf)) != 0)
-            laps = std::clamp(laps + d, 1, 9);
         return y + 72.0f;
     };
 

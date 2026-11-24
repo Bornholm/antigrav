@@ -7,7 +7,7 @@ layout(set = 0, binding = 0) uniform Globals {
     vec4 camUp;      // xyz axe haut multiplié par tan(fov vertical / 2)
     vec4 camForward; // xyz axe de visée
     vec4 fog;        // rgb couleur de la brume, a densité
-    vec4 screen;     // xy inverse de la taille de la cible de scène, z vitesse en m/s
+    vec4 screen;     // xy inverse de la taille de la cible de scène, z vitesse en m/s, w pulsation de la musique de 0 à 1
     vec4 neonA;      // couleurs du thème du circuit
     vec4 neonB;
     vec4 skyZenith;

@@ -46,8 +46,9 @@ void drawStandings(gfx::HudBatch& hud, const HudState& s) {
     hud.text(FontId::Bold, buf, {146.0f + w, 106.0f}, 37.0f, kWhite);
     hud.line({30.0f, 121.0f}, {248.0f, 121.0f}, 2.0f, alpha(kCyan, 0.85f), 0.5f);
 
-    hud.text(FontId::Medium, "TOUR", {34.0f, 158.0f}, 27.0f, alpha(kWhite, 0.92f));
-    std::snprintf(buf, sizeof(buf), "%d / %d", s.lap, s.laps);
+    hud.text(FontId::Medium, "FIN", {34.0f, 158.0f}, 27.0f, alpha(kWhite, 0.92f));
+    const int left = static_cast<int>(std::ceil(s.remaining));
+    std::snprintf(buf, sizeof(buf), "%d:%02d", left / 60, left % 60);
     hud.text(FontId::Bold, buf, {146.0f, 160.0f}, 37.0f, kWhite);
     hud.line({30.0f, 174.0f}, {236.0f, 174.0f}, 2.0f, alpha(kCyan, 0.85f), 0.5f);
 }
@@ -116,22 +117,41 @@ void drawMinimap(gfx::HudBatch& hud, const HudState& s) {
     const std::vector<vec2>& pts = *s.minimap;
     const vec2 half{70.0f, 54.0f};
     const size_t n = pts.size();
-    for (size_t i = 0; i < n; i++) {
+    auto inside = [&](vec2 p) { return std::abs(p.x) <= 1.0f && std::abs(p.y) <= 1.0f; };
+    for (size_t i = 0; i + 1 < n; i++) {
+        if (!inside(pts[i]) || !inside(pts[i + 1])) continue;
         float t = static_cast<float>(i) / static_cast<float>(n);
-        vec4 color = glm::mix(kCyan, kMagenta, 0.5f + 0.5f * std::sin(t * 12.566f + 1.0f));
-        color = glm::mix(color, kCyan, 0.55f);
-        hud.line(center + pts[i] * half, center + pts[(i + 1) % n] * half, 4.0f, color, 0.12f);
+        vec4 color = glm::mix(kMagenta, kCyan, 0.35f + 0.65f * t);
+        hud.line(center + pts[i] * half, center + pts[i + 1] * half, 4.0f, color, 0.12f);
     }
 
     // Marqueur du joueur.
-    float f = std::clamp(s.progress, 0.0f, 0.9999f) * static_cast<float>(n);
-    size_t i0 = static_cast<size_t>(f);
-    vec2 p0 = pts[i0], p1 = pts[(i0 + 1) % n];
+    float f = std::clamp(s.progress, 0.0f, 0.9999f) * static_cast<float>(n - 1);
+    size_t i0 = std::min(static_cast<size_t>(f), n - 2);
+    vec2 p0 = pts[i0], p1 = pts[i0 + 1];
     vec2 pos = center + glm::mix(p0, p1, f - std::floor(f)) * half;
     vec2 dir = glm::normalize((p1 - p0) * half);
     vec2 side{-dir.y, dir.x};
     hud.tri(pos + dir * 9.0f, pos - dir * 6.0f + side * 6.0f, pos - dir * 6.0f - side * 6.0f,
             kYellow);
+}
+
+// Barre du morceau : où en est chaque vaisseau entre la première note et la
+// dernière.
+void drawSongBar(gfx::HudBatch& hud, const HudState& s) {
+    hud.anchor = Anchor::Center;
+    const float x0 = 560.0f, x1 = 1040.0f, y = 96.0f;
+    hud.line({x0, y}, {x1, y}, 3.0f, alpha(kWhite, 0.28f));
+    for (int i = 0; i < s.markCount; i++) {
+        if (i == s.localMark) continue;
+        const float x = x0 + (x1 - x0) * s.marks[i];
+        hud.line({x, y - 6.0f}, {x, y + 6.0f}, 3.0f, alpha(s.markColors[i], 0.9f));
+    }
+    if (s.localMark < s.markCount) {
+        const float x = x0 + (x1 - x0) * s.marks[s.localMark];
+        hud.line({x0, y}, {x, y}, 3.0f, kCyan, 0.4f);
+        hud.tri({x, y - 4.0f}, {x - 7.0f, y - 15.0f}, {x + 7.0f, y - 15.0f}, kYellow);
+    }
 }
 
 void drawButtons(gfx::HudBatch& hud, const HudState& s) {
@@ -305,6 +325,7 @@ void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewPr
     drawEnergy(hud, state);
     drawSpeed(hud, state);
     drawMinimap(hud, state);
+    drawSongBar(hud, state);
     drawButtons(hud, state);
     drawRaceFlow(hud, state);
 }

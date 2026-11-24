@@ -27,6 +27,7 @@ struct Race : sim::Session {
     Synth* synth = nullptr;
     // Texte de mesures à afficher en bas de l'écran, fourni par la boucle principale.
     const char* statsLine = "";
+    bool pinToSync = false; // tient le vaisseau local sur le point de synchronisation
     bool showHud = true;
 
     // Caméra lissée.

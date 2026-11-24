@@ -33,15 +33,21 @@ FetchContent_Declare(stb
   SOURCE_SUBDIR _none)
 FetchContent_MakeAvailable(vulkan_headers volk vma glm stb)
 
-if(ANDROID)
-  # SDL est compilé avec le jeu. ANTIGRAV_SDL_ARCHIVE peut désigner une archive
-  # déjà téléchargée.
+# SDL est compilé avec le jeu sur Android, et sur Linux quand le système ne
+# fournit pas SDL3 : l'exécutable l'embarque alors en statique.
+# ANTIGRAV_SDL_ARCHIVE peut désigner une archive déjà téléchargée.
+option(ANTIGRAV_BUNDLED_SDL "Compiler SDL3 avec le jeu" ${ANDROID})
+if(ANTIGRAV_BUNDLED_SDL)
   set(ANTIGRAV_SDL_ARCHIVE "https://www.libsdl.org/release/SDL3-3.4.16.tar.gz"
       CACHE STRING "Archive des sources de SDL3")
   FetchContent_Declare(SDL3 URL ${ANTIGRAV_SDL_ARCHIVE}
     URL_HASH SHA256=7322236cd12090c3eb40b9728be4d49c76f66ad17d04369584d4ecad5cf77c68)
-  set(SDL_SHARED ON CACHE BOOL "" FORCE)
-  set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+  set(SDL_SHARED ${ANDROID} CACHE BOOL "" FORCE)
+  if(ANDROID)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+  else()
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+  endif()
   set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(SDL3)
 else()

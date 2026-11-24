@@ -1,0 +1,125 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SDL_VERSION: 3.4.16
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Ubuntu 24.04 ne fournit pas SDL3 : le jeu le compile et l'embarque.
+      # Ces paquets sont les en-têtes dont SDL a besoin pour X11, Wayland
+      # et le son.
+      - name: Installer les dépendances
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build glslc pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libxfixes-dev libxss-dev libxtst-dev libxkbcommon-dev \
+            libwayland-dev libdecor-0-dev libegl-dev libgles-dev \
+            libdrm-dev libgbm-dev libasound2-dev libpulse-dev \
+            libpipewire-0.3-dev libudev-dev libdbus-1-dev
+
+      - name: Restaurer l'archive de SDL
+        uses: actions/cache@v4
+        with:
+          path: .cache/sdl
+          key: sdl-${{ env.SDL_VERSION }}
+
+      - name: Télécharger SDL
+        run: |
+          mkdir -p .cache/sdl
+          test -f .cache/sdl/SDL3-$SDL_VERSION.tar.gz || curl -fL --retry 3 \
+            -o .cache/sdl/SDL3-$SDL_VERSION.tar.gz \
+            https://www.libsdl.org/release/SDL3-$SDL_VERSION.tar.gz
+
+      - name: Configurer
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DANTIGRAV_BUNDLED_SDL=ON \
+            -DANTIGRAV_SDL_ARCHIVE=$PWD/.cache/sdl/SDL3-$SDL_VERSION.tar.gz
+
+      - name: Compiler
+        run: cmake --build build
+
+      - name: Tester
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Préparer l'archive
+        run: |
+          mkdir -p dist/antigrav-linux-x86_64
+          cp build/antigrav README.md dist/antigrav-linux-x86_64/
+          strip dist/antigrav-linux-x86_64/antigrav
+          tar -C dist -czf dist/antigrav-linux-x86_64.tar.gz antigrav-linux-x86_64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: antigrav-linux-x86_64
+          path: dist/antigrav-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Le dépôt n'a pas de wrapper Gradle : la version est fixée ici.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.7.1
+
+      - name: Installer le NDK et CMake
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" "ndk;27.2.12479018" "cmake;3.22.1"
+
+      - name: Restaurer l'archive de SDL
+        uses: actions/cache@v4
+        with:
+          path: .cache/sdl
+          key: sdl-${{ env.SDL_VERSION }}
+
+      - name: Télécharger SDL
+        run: |
+          mkdir -p .cache/sdl
+          test -f .cache/sdl/SDL3-$SDL_VERSION.tar.gz || curl -fL --retry 3 \
+            -o .cache/sdl/SDL3-$SDL_VERSION.tar.gz \
+            https://www.libsdl.org/release/SDL3-$SDL_VERSION.tar.gz
+
+      - name: Compiler l'APK
+        working-directory: android
+        run: gradle assembleDebug
+
+      - name: Renommer l'APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk antigrav-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: antigrav-android-debug
+          path: antigrav-debug.apk
+          if-no-files-found: error

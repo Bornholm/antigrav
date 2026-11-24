@@ -12,6 +12,8 @@ cmake --build build
 ./build/antigrav
 ```
 
+Si la distribution ne fournit pas SDL3, ajouter `-DANTIGRAV_BUNDLED_SDL=ON` : CMake télécharge SDL et le lie en statique dans l'exécutable.
+
 ## Jouer
 
 Le jeu s'ouvre sur le menu. **Solo** règle le circuit, le vaisseau, le nombre d'IA de 0 à 7, leur caractère et le nombre de tours. **Multijoueur** héberge une partie ou rejoint celles trouvées sur le réseau local.
@@ -108,3 +110,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 SDL est compilé avec le jeu. Pour éviter de le retélécharger, placer l'archive `SDL3-3.4.16.tar.gz` dans `.cache/sdl/`.
+
+## Intégration continue
+
+`.github/workflows/build.yml` compile le jeu pour Linux, lance les tests, puis compile l'APK de debug. Il tourne à chaque push sur `master`, sur les pull requests, sur les tags `v*` et à la demande. Les deux résultats sont à télécharger dans les artefacts de l'exécution : `antigrav-linux-x86_64` et `antigrav-android-debug`.

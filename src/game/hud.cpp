@@ -195,29 +195,15 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
         hud.text(FontId::Bold, "BOOST", c + vec2(0.0f, 46.0f), 28.0f, kWhite, Align::Center);
     }
     {
-        // Grisé quand la jauge ne suffit pas.
-        bool down = shapeOf(Button::Missile, c, r);
-        float on = s.canFire ? 1.0f : 0.32f;
-        const vec4 pink = alpha(vec4(1.0f, 0.45f, 0.85f, 1.0f), on);
-        hud.circle(c, r, down ? vec4(0.5f, 0.12f, 0.4f, 0.6f) : vec4(0.10f, 0.03f, 0.09f, 0.5f),
-                   pink, down ? 5.0f : 3.0f);
-        hud.line(c + vec2(-16.0f, 14.0f), c + vec2(14.0f, -14.0f), 16.0f, pink);
-        hud.line(c + vec2(14.0f, -14.0f), c + vec2(24.0f, -24.0f), 8.0f, alpha(kWhite, on));
-        hud.line(c + vec2(-22.0f, 6.0f), c + vec2(-8.0f, 22.0f), 6.0f, alpha(kWhite, on));
-        hud.line(c + vec2(-24.0f, 22.0f), c + vec2(-33.0f, 31.0f), 6.0f, alpha(pink, 0.8f));
-    }
-    {
-        bool down = shapeOf(Button::Shield, c, r) || s.shielded;
-        float on = (s.canShield || s.shielded) ? 1.0f : 0.32f;
-        const vec4 cyan = alpha(kCyan, on);
-        hud.circle(c, r, down ? vec4(0.08f, 0.40f, 0.55f, 0.6f) : vec4(0.03f, 0.08f, 0.12f, 0.5f),
-                   cyan, down ? 5.0f : 3.0f);
-        const vec2 topP = c + vec2(0.0f, -30.0f), tr = c + vec2(26.0f, -20.0f),
-                   br = c + vec2(26.0f, 3.0f), bot = c + vec2(0.0f, 31.0f),
-                   bl = c + vec2(-26.0f, 3.0f), tl = c + vec2(-26.0f, -20.0f);
-        hud.quad(topP + vec2(0.0f, 9.0f), tr + vec2(-8.0f, 6.0f), br + vec2(-8.0f, -3.0f),
-                 bot + vec2(0.0f, -12.0f), alpha(cyan, 0.55f));
-        polyline(hud, {topP, tr, br, bot, bl, tl, topP}, 4.5f, cyan, 0.3f);
+        // Série d'accords : une pastille par accord, la décharge part quand
+        // elles sont toutes allumées.
+        shapeOf(Button::Boost, c, r);
+        const float step = 34.0f, x0 = c.x - step * 0.5f * static_cast<float>(s.comboSize - 1);
+        for (int i = 0; i < s.comboSize; i++) {
+            const vec2 p{x0 + step * static_cast<float>(i), c.y - r - 26.0f};
+            const bool lit = i < s.combo;
+            hud.circle(p, 10.0f, lit ? kMagenta : vec4(0.10f, 0.03f, 0.09f, 0.5f), alpha(kMagenta, lit ? 1.0f : 0.5f), 2.5f);
+        }
     }
 }
 
@@ -301,6 +287,17 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         std::snprintf(buf, sizeof(buf), "%+.1f s", s.gap);
         hud.text(FontId::Medium, "ÉCART", {34.0f, 244.0f}, 20.0f, alpha(kWhite, 0.75f));
         hud.text(FontId::Bold, buf, {146.0f, 245.0f}, 24.0f, s.gap >= 0.0f ? vec4(0.45f, 1.0f, 0.5f, 1.0f) : kMagenta);
+    }
+    // Armure : la jauge peut encaisser une barrière.
+    hud.text(FontId::Medium, "ARMURE", {34.0f, 280.0f}, 20.0f, alpha(kWhite, 0.75f));
+    hud.text(FontId::Bold, s.armored ? "PRÊTE" : "VIDE", {146.0f, 281.0f}, 24.0f, s.armored ? kCyan : alpha(kWhite, 0.4f));
+    if (s.incoming) {
+        hud.anchor = Anchor::Center;
+        hud.vAnchor = gfx::VAnchor::Bottom;
+        hud.text(FontId::Bold, "DÉCHARGE ! PAREZ EN RYTHME", {800.0f, 720.0f}, 30.0f, kMagenta, Align::Center, 0.2f,
+                 alpha(kMagenta, 0.5f));
+        hud.anchor = Anchor::Left;
+        hud.vAnchor = gfx::VAnchor::Top;
     }
     if (s.accord > 0.0f) {
         hud.anchor = Anchor::Center;

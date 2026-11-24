@@ -37,9 +37,6 @@ struct AiProfile {
     float lineGain;    // à quel point il coupe l'intérieur des virages
     float boostStart;  // énergie à partir de laquelle il lance un boost
     float boostStop;   // énergie à laquelle il le coupe : sa réserve
-    float fireEnergy;  // énergie minimale pour tirer ; au-delà de 1, ne tire jamais
-    float fireRange;   // portée de tir, en mètres
-    float shieldRange; // distance du missile qui déclenche le bouclier ; 0, jamais
     bool ram;          // se rabat sur les adversaires à sa hauteur
     bool block;        // ferme la porte à celui qui le suit
     float weave;       // amplitude de ses changements de couloir, en mètres

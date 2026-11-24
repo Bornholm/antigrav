@@ -97,7 +97,6 @@ void playRace(float dropRate, int latencyTicks) {
         hostInput.boost = (t / 240) % 2 == 0;
         clientInput.steer = 0.6f * std::sin(static_cast<float>(t) * 0.031f + 1.0f);
         clientInput.boost = (t / 200) % 2 == 1;
-        clientInput.fire = t % 400 == 100;
 
         client.clientTick(clientSession, clientInput);
         if (t >= latencyTicks) {

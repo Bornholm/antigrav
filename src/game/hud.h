@@ -43,9 +43,10 @@ struct HudState {
     bool finished = false;
     // Ligne de mesures affichée en bas de l'écran, vide pour la masquer.
     const char* statsLine = "";
-    bool canFire = true;
-    bool canShield = true;
-    bool shielded = false;
+    int combo = 0;        // accords d'affilée, sur comboSize
+    int comboSize = 4;
+    bool armored = false; // la jauge suffit à encaisser une barrière
+    bool incoming = false; // une décharge arrive sur le joueur
     bool gridStart = false; // départ arrêté : affiche le signal du départ
     bool pressed[static_cast<int>(Button::Count)] = {};
 };

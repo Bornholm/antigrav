@@ -18,9 +18,7 @@ ButtonShape buttonShape(Button button, glm::vec2 screen) {
     static const Def defs[] = {
         {gfx::Anchor::Left, {128.0f, 756.0f}, 104.0f},
         {gfx::Anchor::Left, {356.0f, 756.0f}, 104.0f},
-        {gfx::Anchor::Right, {1427.0f, 742.0f}, 96.0f},
-        {gfx::Anchor::Right, {1316.0f, 588.0f}, 60.0f},
-        {gfx::Anchor::Right, {1476.0f, 563.0f}, 58.0f},
+        {gfx::Anchor::Right, {1418.0f, 734.0f}, 118.0f},
     };
     const Def& def = defs[static_cast<int>(button)];
     return {gfx::HudBatch::place(def.center, def.anchor, gfx::VAnchor::Bottom, screen),
@@ -103,12 +101,6 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
         case SDL_SCANCODE_W:
             keyBoost = down;
             break;
-        case SDL_SCANCODE_E:
-            keyMissile = down;
-            break;
-        case SDL_SCANCODE_Q:
-            keyShield = down;
-            break;
         default:
             break;
         }
@@ -142,12 +134,6 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
             break;
         case SDL_GAMEPAD_BUTTON_SOUTH:
             padBoost = down;
-            break;
-        case SDL_GAMEPAD_BUTTON_WEST:
-            padMissile = down;
-            break;
-        case SDL_GAMEPAD_BUTTON_EAST:
-            padShield = down;
             break;
         default:
             break;
@@ -213,8 +199,6 @@ Controls InputReader::read(glm::vec2 screen) const {
     on(Button::Left) |= keyLeft || padLeft;
     on(Button::Right) |= keyRight || padRight;
     on(Button::Boost) |= keyBoost || padBoost || padTrigger;
-    on(Button::Missile) |= keyMissile || padMissile;
-    on(Button::Shield) |= keyShield || padShield;
     c.steer = (on(Button::Right) ? 1.0f : 0.0f) - (on(Button::Left) ? 1.0f : 0.0f);
     // Le stick donne un braquage progressif, que les boutons n'ont pas.
     if (c.steer == 0.0f) c.steer = padSteer;

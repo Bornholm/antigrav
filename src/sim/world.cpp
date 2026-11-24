@@ -25,22 +25,23 @@ struct Clock {
 };
 
 // Effet des éléments de piste sur un vaisseau qui vient d'avancer de `before`
-// à v.dist. Un bouclier levé encaisse une barrière.
+// à v.dist.
 void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float before) {
 
     float moved = v.dist - before;
-    bool shielded = v.shieldTime > 0.0f;
     for (const Feature& f : track.features) {
         if (f.type == FeatureType::Barrier) {
             // À cette vitesse un pas dépasse l'épaisseur de la barrière : on
             // teste le franchissement, pas la présence.
             if (track.ahead(before, f.dist) >= moved) continue;
             if (std::abs(v.lateral - f.lateral) > f.halfWidth + kHitRadius) continue;
-            if (shielded) {
-                v.shieldTime = 0.0f; // le bouclier se brise à sa place
-                shielded = false;
+            if (v.energy >= kArmorCost) {
+                // Armure : la jauge encaisse le choc à la place du vaisseau.
+                v.energy -= kArmorCost;
+                v.shieldTime = kArmorFlash;
                 continue;
             }
+            v.combo = 0;
             v.speed *= 1.0f - kBarrierLoss / stats.sturdy;
             v.stunTime = std::max(v.stunTime, kBarrierStun / stats.sturdy);
             v.energy = std::max(0.0f, v.energy - kBarrierEnergy);
@@ -85,8 +86,12 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
         track.onBeat(clock.own ? f.time : clock.raceTime, kBeatTolerance)) {
         v.accord = kAccordTime;
         v.accordCooldown = kAccordCooldown;
+        v.combo++;
         v.energy = std::min(1.0f, v.energy + kAccordEnergy);
     }
+    // Un appui à côté du temps casse la série, un choc aussi.
+    else if (pressed && v.accordCooldown <= 0.0f) v.combo = 0;
+    if (stunned) v.combo = 0;
     if (stunned || !in.boost) v.accord = 0.0f;
     const bool accord = v.accord > 0.0f;
 
@@ -121,8 +126,7 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
         v.lateral = side * limit;
         if (v.lateralVel * side > 0.0f) v.lateralVel *= -0.35f;
         v.speed -= v.speed * (0.55f / stats.sturdy) * dt;
-        // Le bouclier protège aussi des murets.
-        if (v.shieldTime <= 0.0f) v.energy -= 0.12f * dt;
+        v.energy -= 0.12f * dt;
         v.scraping = true;
     }
     v.energy = std::clamp(v.energy, 0.0f, 1.0f);
@@ -137,33 +141,31 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
     v.roll += (rollTarget - v.roll) * std::min(1.0f, 7.0f * dt);
 }
 
-// Appuis sur missile et bouclier. Seul le front montant compte : rester appuyé
-// ne tire pas en rafale.
-void useItems(World& world, int index, const Input& in) {
+// Série d'accords complète : la décharge part seule sur le vaisseau de devant.
+// En tête de course il n'y a personne à viser, la série rend de l'énergie.
+void useItems(World& world, int index) {
     Vehicle& v = world.vehicles[index];
-    bool canAct = !v.finished && v.stunTime <= 0.0f;
-
-    if (in.fire && !v.fireHeld && canAct && v.energy >= kMissileCost) {
-        for (Missile& m : world.missiles) {
-            if (m.active) continue;
-            m = Missile{};
-            m.active = true;
-            m.owner = index;
-            m.dist = v.dist + 7.0f;
-            m.lateral = v.lateral;
-            m.speed = v.speed + 170.0f;
-            m.life = 3.5f;
-            v.energy -= kMissileCost;
-            break;
-        }
+    if (v.combo < kComboSize || v.finished) return;
+    v.combo = 0;
+    bool someoneAhead = false;
+    for (int i = 0; i < world.count; i++)
+        someoneAhead = someoneAhead || (i != index && world.vehicles[i].dist > v.dist + 10.0f &&
+                                        world.vehicles[i].dist < v.dist + 900.0f);
+    if (!someoneAhead) {
+        v.energy = std::min(1.0f, v.energy + kLeaderGain);
+        return;
     }
-    if (in.shield && !v.shieldHeld && canAct && v.shieldTime <= 0.0f &&
-        v.energy >= kShieldCost) {
-        v.shieldTime = kShieldDuration;
-        v.energy -= kShieldCost;
+    for (Missile& m : world.missiles) {
+        if (m.active) continue;
+        m = Missile{};
+        m.active = true;
+        m.owner = index;
+        m.dist = v.dist + 7.0f;
+        m.lateral = v.lateral;
+        m.speed = v.speed + 170.0f;
+        m.life = 4.5f;
+        break;
     }
-    v.fireHeld = in.fire;
-    v.shieldHeld = in.shield;
 }
 
 void stepMissiles(World& world, const Track& track, float dt) {
@@ -173,7 +175,7 @@ void stepMissiles(World& world, const Track& track, float dt) {
 
         // Cible : le vaisseau le plus proche devant, autre que le tireur.
         const Vehicle* target = nullptr;
-        float best = 600.0f;
+        float best = 900.0f;
         for (int i = 0; i < world.count; i++) {
             if (i == m.owner) continue;
             float ahead = world.vehicles[i].dist - m.dist;
@@ -208,10 +210,12 @@ void stepMissiles(World& world, const Track& track, float dt) {
             if (std::abs(v.dist - m.dist) > 6.5f || std::abs(v.lateral - m.lateral) > 3.8f)
                 continue;
             m.active = false;
-            // Un bouclier levé absorbe le missile et en récupère l'énergie : se
-            // défendre au bon moment rapporte plus que tirer à l'aveugle.
-            if (v.shieldTime > 0.0f) v.energy = std::min(1.0f, v.energy + kAbsorbGain);
-            if (v.shieldTime <= 0.0f) {
+            // Parade : la cible est en plein accord. Elle absorbe la décharge
+            // et en récupère l'énergie.
+            if (v.accord > 0.0f) {
+                v.energy = std::min(1.0f, v.energy + kAbsorbGain);
+                v.shieldTime = kArmorFlash;
+            } else {
                 const ShipStats& stats = shipStats(v.ship);
                 v.stunTime = kStunDuration / stats.sturdy;
                 v.speed *= 1.0f - 0.4f / stats.sturdy;
@@ -248,7 +252,7 @@ void step(World& world, const Track& track, const Input* inputs) {
     for (int i = 0; i < world.count; i++) {
         Vehicle& v = world.vehicles[i];
         float before = v.dist;
-        useItems(world, i, inputs[i]);
+        useItems(world, i);
         stepVehicleDt(v, inputs[i], track, clock, kFixedDt);
         if (!v.finished && v.dist >= finishDist) {
             v.finished = true;
@@ -317,7 +321,6 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
                                          static_cast<float>(index) * 2.1f);
 
     // Réactions aux autres vaisseaux.
-    bool targetInSight = false;
     for (int i = 0; i < world.count; i++) {
         if (i == index) continue;
         const Vehicle& other = world.vehicles[i];
@@ -330,9 +333,6 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
         } else if (!profile.ram && along > 0.0f && along < 30.0f && std::abs(across) < 6.5f) {
             line += across > 0.0f ? -7.5f : 7.5f; // double par le côté libre
         }
-        if (along > 25.0f && along < profile.fireRange && std::abs(across) < 5.0f &&
-            other.stunTime <= 0.0f && other.shieldTime <= 0.0f)
-            targetInSight = true;
     }
     line = std::clamp(line, -limit, limit);
 
@@ -405,18 +405,13 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
         if (!in.boost && onBeat && v.accordCooldown <= 0.0f && straight) in.boost = true;
     }
 
-    // Un appui bref : la simulation ne tire que sur le front montant.
-    bool pulse = world.tick % 30u == static_cast<uint32_t>(index) % 30u;
-    bool wantsFire = targetInSight && v.energy >= profile.fireEnergy;
-    if (whim && v.energy > kMissileCost + 0.05f && chance(index, slot, 3u) < 0.25f) wantsFire = true;
-    in.fire = wantsFire && pulse;
-
-    if (profile.shieldRange > 0.0f) {
+    // Parade : une décharge arrive par-derrière. S'il a du rythme, il place
+    // un accord sur le temps pour l'absorber.
+    if (inRhythm && onBeat && v.accordCooldown <= 0.0f && v.stunTime <= 0.0f) {
         for (const Missile& m : world.missiles) {
             if (!m.active || m.owner == index) continue;
-            float behind = v.dist - m.dist;
-            if (behind > 0.0f && behind < profile.shieldRange && std::abs(m.lateral - v.lateral) < 7.0f)
-                in.shield = true;
+            const float behind = v.dist - m.dist;
+            if (behind > 0.0f && behind < 140.0f) in.boost = true;
         }
     }
     return in;

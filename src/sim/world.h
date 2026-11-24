@@ -17,14 +17,18 @@ constexpr float kShipHalfWidth = 3.2f;
 // tir : les ailes passent au travers, ce qui laisse une chance d'esquiver.
 constexpr float kHitRadius = 0.9f;
 
-// Boost, missile et bouclier puisent dans la même jauge d'énergie.
+// La jauge d'énergie alimente le boost et sert d'armure : assez pleine, elle
+// encaisse une barrière à la place du vaisseau.
 constexpr int kMaxMissiles = 16;
-constexpr float kMissileCost = 0.25f;
-constexpr float kShieldCost = 0.35f;
-constexpr float kShieldDuration = 2.5f; // secondes
-constexpr float kStunDuration = 1.2f;   // secondes sans contrôle après un impact
-constexpr float kAbsorbGain = 0.25f;    // énergie rendue par un missile absorbé
-constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand son missile touche
+constexpr float kArmorCost = 0.33f;     // énergie que coûte une barrière encaissée
+constexpr float kArmorFlash = 0.5f;     // secondes d'affichage de la bulle d'armure
+// Décharge : gagnée en enchaînant des accords, elle part seule sur le vaisseau
+// de devant. Sa cible la pare en étant elle-même en plein accord.
+constexpr int kComboSize = 4;           // accords d'affilée pour une décharge
+constexpr float kStunDuration = 0.6f;   // secondes sans contrôle après une décharge
+constexpr float kAbsorbGain = 0.25f;    // énergie rendue par une décharge parée
+constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand sa décharge touche
+constexpr float kLeaderGain = 0.20f;    // énergie rendue quand il n'y a personne devant à viser
 
 // Éléments de piste, voir sim::Feature.
 constexpr float kBarrierLoss = 0.55f;    // part de vitesse perdue contre une barrière
@@ -35,7 +39,7 @@ constexpr float kBarrierEnergy = 0.15f;
 // Le point de synchronisation avance à la vitesse d'un vaisseau bien piloté,
 // qui prend ses plaques et place ses accords : c'est kSyncEdge fois la
 // vitesse de croisière. Rouler sans rien faire, c'est prendre du retard.
-constexpr float kSyncEdge = 1.07f;
+constexpr float kSyncEdge = 1.09f;
 constexpr float kWindow = 2.0f;          // secondes d'écart au point de synchronisation qui servent d'échelle
 constexpr float kLeadDrag = 0.10f;       // part de vitesse perdue à kWindow d'avance
 constexpr float kDraft = 0.16f;          // part de vitesse gagnée à kWindow de retard
@@ -48,8 +52,6 @@ constexpr float kPadEnergy = 0.12f;      // énergie rendue par une plaque
 struct Input {
     float steer = 0.0f; // -1 à gauche, +1 à droite
     bool boost = false;
-    bool fire = false;   // tire un missile à l'appui
-    bool shield = false; // lève le bouclier à l'appui
 };
 
 // État d'un vaisseau en coordonnées de piste. Structure plate : un état
@@ -66,16 +68,15 @@ struct Vehicle {
     bool scraping = false;   // frotte contre un muret
     bool finished = false;
     float finishTime = 0.0f; // temps de course au passage de la ligne
-    float shieldTime = 0.0f; // secondes de bouclier restantes
-    float stunTime = 0.0f;   // secondes restantes après un impact de missile
-    bool fireHeld = false;   // état précédent des commandes, pour détecter l'appui
-    bool boostHeld = false;
+    float shieldTime = 0.0f; // secondes d'affichage restantes de la bulle d'armure
+    float stunTime = 0.0f;   // secondes restantes sans contrôle après un choc
+    bool boostHeld = false;  // état précédent de la commande, pour détecter l'appui
+    int combo = 0;           // accords réussis d'affilée
     float accord = 0.0f;         // secondes restantes d'un boost lancé en rythme
     float accordCooldown = 0.0f; // secondes avant de pouvoir en relancer un
-    bool shieldHeld = false;
 };
 
-// Missile à tête chercheuse, lui aussi en coordonnées de piste.
+// Décharge à tête chercheuse, elle aussi en coordonnées de piste.
 struct Missile {
     bool active = false;
     int owner = 0;

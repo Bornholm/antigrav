@@ -70,8 +70,6 @@ void Race::update(float dt, const Controls& input) {
     sim::Input local;
     local.steer = input.steer;
     local.boost = input.pressed[static_cast<int>(Button::Boost)];
-    local.fire = input.pressed[static_cast<int>(Button::Missile)];
-    local.shield = input.pressed[static_cast<int>(Button::Shield)];
 
     // Une image très longue ne doit pas déclencher une rafale de pas.
     accumulator += std::min(dt, 0.1f);
@@ -282,10 +280,21 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.boosting = player.boosting;
     for (int b = 0; b < static_cast<int>(Button::Count); b++) state.pressed[b] = controls.pressed[b];
     state.statsLine = statsLine;
-    state.canFire = player.energy >= sim::kMissileCost && player.stunTime <= 0.0f;
-    state.canShield = player.energy >= sim::kShieldCost && player.shieldTime <= 0.0f &&
-                      player.stunTime <= 0.0f;
-    state.shielded = player.shieldTime > 0.0f;
+    state.combo = player.combo;
+    state.comboSize = sim::kComboSize;
+    state.armored = player.energy >= sim::kArmorCost;
+    // Une décharge arrive : elle est derrière, proche, et personne ne la sépare du joueur.
+    state.incoming = false;
+    for (const sim::Missile& m : world.missiles) {
+        if (!m.active || m.owner == localIndex) continue;
+        const float behind = player.dist - m.dist;
+        if (behind <= 0.0f || behind > 450.0f) continue;
+        bool shielded = false;
+        for (int i = 0; i < world.count; i++)
+            shielded = shielded || (i != localIndex && i != m.owner && world.vehicles[i].dist > m.dist &&
+                                    world.vehicles[i].dist < player.dist);
+        if (!shielded) state.incoming = true;
+    }
     state.gridStart = config.gridStart;
 
     hud.begin(fonts, screen.x, screen.y);

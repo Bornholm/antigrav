@@ -8,7 +8,7 @@
 
 ![Une course sur le morceau Néon City](docs/course.jpg)
 
-Antigrav est un jeu de course à plus de 1 000 km/h où chaque piste est générée à partir d'un morceau de musique : virages, relief, plaques de boost et obstacles suivent le tempo et l'intensité du morceau. On choisit parmi quatre vaisseaux, on gère une jauge d'énergie qui alimente le boost, le missile et le bouclier, et on court contre sept IA au plus ou contre d'autres joueurs en réseau local.
+Antigrav est un jeu de course à plus de 1 000 km/h où chaque piste est générée à partir d'un morceau de musique : virages, relief, plaques de boost et obstacles suivent le tempo et l'intensité du morceau. On choisit parmi quatre vaisseaux, on joue en rythme pour remplir une jauge d'énergie qui sert de boost et d'armure, et on court contre sept IA au plus ou contre d'autres joueurs en réseau local.
 
 Le moteur est écrit pour ce jeu, en C++20 sur Vulkan 1.1 et SDL3.
 

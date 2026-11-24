@@ -276,52 +276,70 @@ void testSynth() {
     CHECK(energy / buffer.size() > 1e-4);
 }
 
-void testMissileAndShield() {
+// Décharge : une série d'accords complète la fait partir seule sur le vaisseau
+// de devant, qui la pare s'il est lui-même en plein accord.
+void testDischarge() {
     sim::Track track = flatTrack();
     track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
-    auto setup = [&](bool shielded) {
+    struct Result {
+        bool stunned;
+        float minSpeed, shooterEnergy, targetEnergy;
+        int missiles;
+    };
+    auto setup = [&](bool parry) {
         sim::World world;
         world.ownClock = true;
-    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
         world.count = 2;
         for (int i = 0; i < 2; i++) {
             world.vehicles[i].dist = 300.0f + 80.0f * static_cast<float>(i);
             world.vehicles[i].speed = sim::kCruiseSpeed;
+            world.vehicles[i].energy = 0.5f;
         }
+        world.vehicles[0].combo = sim::kComboSize;
         sim::Input inputs[2];
-        inputs[0].fire = true;
-        inputs[1].shield = shielded;
-        float minSpeed = sim::kCruiseSpeed;
-        bool stunned = false;
+        if (parry) {
+            // La cible tient un accord pendant toute l'approche.
+            world.vehicles[1].accord = 10.0f;
+            world.vehicles[1].boostHeld = true;
+            inputs[1].boost = true;
+        }
+        Result r{false, sim::kCruiseSpeed, 0.0f, 0.0f, 0};
         for (int s = 0; s < 120; s++) {
             sim::step(world, track, inputs);
-            minSpeed = std::min(minSpeed, world.vehicles[1].speed);
-            stunned = stunned || world.vehicles[1].stunTime > 0.0f;
+            if (s == 0)
+                for (const sim::Missile& m : world.missiles) r.missiles += m.active;
+            r.minSpeed = std::min(r.minSpeed, world.vehicles[1].speed);
+            r.stunned = r.stunned || world.vehicles[1].stunTime > 0.0f;
         }
-        // Un seul missile part, même en gardant le bouton enfoncé.
-        CHECK(world.vehicles[0].energy > 1.0f - sim::kMissileCost - 0.01f);
-        return std::pair<bool, float>(stunned, minSpeed);
+        CHECK(world.vehicles[0].combo == 0);
+        r.shooterEnergy = world.vehicles[0].energy;
+        r.targetEnergy = world.vehicles[1].energy;
+        return r;
     };
 
-    auto hit = setup(false);
-    CHECK(hit.first);
-    CHECK(hit.second < sim::kCruiseSpeed * 0.75f);
+    Result hit = setup(false);
+    CHECK(hit.missiles == 1);
+    CHECK(hit.stunned);
+    CHECK(hit.minSpeed < sim::kCruiseSpeed * 0.8f);
+    CHECK(hit.shooterEnergy > 0.5f + sim::kHitGain * 0.8f);
 
-    auto blocked = setup(true);
-    CHECK(!blocked.first);
-    CHECK(blocked.second > sim::kCruiseSpeed * 0.95f);
+    Result parried = setup(true);
+    CHECK(parried.missiles == 1);
+    CHECK(!parried.stunned);
+    CHECK(parried.minSpeed > sim::kCruiseSpeed * 0.95f);
+    CHECK(parried.shooterEnergy < 0.6f);
 
-    // Sans énergie, ni missile ni bouclier.
+    // En tête, personne à viser : la série rend de l'énergie.
     sim::World world;
-    world.ownClock = true; // pas d'élastique : ces tests mesurent la physique seule
+    world.ownClock = true;
     world.count = 1;
     world.vehicles[0].speed = sim::kCruiseSpeed;
-    world.vehicles[0].energy = 0.05f;
+    world.vehicles[0].energy = 0.5f;
+    world.vehicles[0].combo = sim::kComboSize;
     sim::Input in;
-    in.fire = true;
-    in.shield = true;
     sim::step(world, track, &in);
-    CHECK(world.vehicles[0].shieldTime == 0.0f);
+    CHECK(world.vehicles[0].energy > 0.5f + sim::kLeaderGain * 0.9f);
+    CHECK(world.vehicles[0].combo == 0);
     for (const sim::Missile& m : world.missiles) CHECK(!m.active);
 }
 
@@ -352,10 +370,11 @@ void testFeatures() {
     sim::Vehicle aside = start;
     aside.lateral = 8.0f;
     CHECK(driveTo(track, aside, 240.0f).energy < 0.51f);
-    start.energy = 1.0f;
-    aside.energy = 1.0f;
-    sim::Vehicle shielded = start;
-    shielded.shieldTime = 2.0f;
+    // Jauge trop basse pour l'armure : les chocs qui suivent sont de vrais chocs.
+    start.energy = 0.2f;
+    aside.energy = 0.2f;
+    sim::Vehicle armored = start;
+    armored.energy = 1.0f;
 
     // Barrière : choc et perte de contrôle. Le pas de simulation est plus long
     // que la barrière, elle ne doit pas être traversée pour autant.
@@ -371,11 +390,12 @@ void testFeatures() {
     CHECK(driveTo(track, grazing, 210.0f).stunTime == 0.0f);
     grazing.lateral = 4.0f + sim::kHitRadius - 0.3f;
     CHECK(driveTo(track, grazing, 210.0f).stunTime > 0.0f);
-    // Le bouclier encaisse le choc et se brise.
-    v = driveTo(track, shielded, 210.0f);
+    // Armure : une jauge assez pleine encaisse le choc et y laisse un tiers.
+    v = driveTo(track, armored, 210.0f);
     CHECK(v.stunTime == 0.0f);
-    CHECK(v.shieldTime == 0.0f);
+    CHECK(v.shieldTime > 0.0f);
     CHECK(v.speed > sim::kCruiseSpeed * 0.95f);
+    CHECK(std::abs(v.energy - (1.0f - sim::kArmorCost)) < 0.02f);
 
     // Une barrière arrête un missile.
     {
@@ -563,7 +583,7 @@ int main() {
     testRanking();
     testCountdownAndFinish();
     testSynth();
-    testMissileAndShield();
+    testDischarge();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");
     return failures == 0 ? 0 : 1;
 }

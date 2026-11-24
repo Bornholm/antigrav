@@ -61,6 +61,9 @@ android {
 
     buildTypes {
         debug {
+            // Identifiant à part : la version de debug s'installe à côté de la
+            // version publiée. Son nom vient de src/debug/res.
+            applicationIdSuffix '.debug'
             if (fixedKey) {
                 signingConfig signingConfigs.fixed
             }

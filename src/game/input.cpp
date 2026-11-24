@@ -23,11 +23,8 @@ ButtonShape buttonShape(Button button, glm::vec2 screen) {
         {gfx::Anchor::Right, {1476.0f, 563.0f}, 58.0f},
     };
     const Def& def = defs[static_cast<int>(button)];
-    float scale = screen.y / gfx::HudBatch::kRefHeight;
-    float x = def.anchor == gfx::Anchor::Right
-                  ? screen.x - (gfx::HudBatch::kRefWidth - def.center.x) * scale
-                  : def.center.x * scale;
-    return {{x, def.center.y * scale}, def.radius * scale};
+    return {gfx::HudBatch::place(def.center, def.anchor, gfx::VAnchor::Bottom, screen),
+            def.radius * gfx::HudBatch::fitScale(screen)};
 }
 
 void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {

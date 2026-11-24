@@ -21,6 +21,7 @@ vec4 withAlpha(vec4 c, float a) { return {c.r, c.g, c.b, c.a * a}; }
 void Ui::begin(gfx::HudBatch& batch, const UiInput& input, float now) {
     hud = &batch;
     hud->anchor = gfx::Anchor::Center;
+    hud->vAnchor = gfx::VAnchor::Middle;
     in = input;
     time = now;
     count = 0;

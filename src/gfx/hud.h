@@ -37,13 +37,16 @@ struct FontAtlas {
 };
 
 enum class Anchor { Left, Center, Right };
+enum class VAnchor { Top, Middle, Bottom };
 enum class Align { Left, Center, Right };
 
 // Accumule les formes de l'interface d'une image.
 //
-// Les coordonnées sont données dans un repère de référence de 900 unités de
-// haut. `anchor` choisit le bord de l'écran auquel les abscisses s'accrochent,
-// ce qui garde la mise en page correcte sur tous les rapports d'écran.
+// Les coordonnées sont données dans un repère de référence de 1600 par 900.
+// L'échelle fait tenir ce repère entier dans l'écran. `anchor` choisit le bord
+// auquel les abscisses s'accrochent, `vAnchor` celui des ordonnées. La mise
+// en page tient ainsi sur tous les rapports d'écran, plus larges ou plus
+// étroits que le 16:9.
 struct HudBatch {
     static constexpr float kRefWidth = 1600.0f;
     static constexpr float kRefHeight = 900.0f;
@@ -53,8 +56,13 @@ struct HudBatch {
     glm::vec2 screen{kRefWidth, kRefHeight};
     float scale = 1.0f;
     Anchor anchor = Anchor::Left;
+    VAnchor vAnchor = VAnchor::Middle;
 
     void begin(const FontAtlas& atlas, float screenWidth, float screenHeight);
+
+    // Les mêmes règles, pour qui place des zones tactiles sans dessiner.
+    static float fitScale(glm::vec2 screen);
+    static glm::vec2 place(glm::vec2 ref, Anchor anchor, VAnchor vAnchor, glm::vec2 screen);
 
     // Repère de référence vers pixels.
     glm::vec2 px(glm::vec2 ref) const;

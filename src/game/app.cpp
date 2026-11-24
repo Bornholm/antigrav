@@ -274,7 +274,8 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
             } else if (ui.button({950.0f, 490.0f}, {130.0f, 38.0f}, "QUITTER", true, kMagenta)) {
                 abandon();
             }
-        } else if (ui.button({1225.0f, 62.0f}, {66.0f, 26.0f}, "MENU") || input.back) {
+        } else if ((menuHud.vAnchor = gfx::VAnchor::Top, ui.button({1225.0f, 62.0f}, {66.0f, 26.0f}, "MENU")) ||
+                   input.back) {
             confirmQuit = true;
             ui.reset();
         }

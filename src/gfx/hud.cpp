@@ -1,5 +1,7 @@
 #include "gfx/hud.h"
 
+#include <algorithm>
+
 #include "core/log.h"
 
 #include <stb_truetype.h>
@@ -91,11 +93,17 @@ void HudBatch::begin(const FontAtlas& atlas, float screenWidth, float screenHeig
     fonts = &atlas;
     verts.clear();
     screen = {screenWidth, screenHeight};
-    scale = screenHeight / kRefHeight;
+    scale = fitScale(screen);
     anchor = Anchor::Left;
+    vAnchor = VAnchor::Middle;
 }
 
-glm::vec2 HudBatch::px(glm::vec2 ref) const {
+float HudBatch::fitScale(glm::vec2 screen) {
+    return std::min(screen.y / kRefHeight, screen.x / kRefWidth);
+}
+
+glm::vec2 HudBatch::place(glm::vec2 ref, Anchor anchor, VAnchor vAnchor, glm::vec2 screen) {
+    const float scale = fitScale(screen);
     float x;
     switch (anchor) {
     case Anchor::Center:
@@ -108,8 +116,22 @@ glm::vec2 HudBatch::px(glm::vec2 ref) const {
         x = ref.x * scale;
         break;
     }
-    return {x, ref.y * scale};
+    float y;
+    switch (vAnchor) {
+    case VAnchor::Top:
+        y = ref.y * scale;
+        break;
+    case VAnchor::Bottom:
+        y = screen.y - (kRefHeight - ref.y) * scale;
+        break;
+    default:
+        y = screen.y * 0.5f + (ref.y - kRefHeight * 0.5f) * scale;
+        break;
+    }
+    return {x, y};
 }
+
+glm::vec2 HudBatch::px(glm::vec2 ref) const { return place(ref, anchor, vAnchor, screen); }
 
 void HudBatch::push(glm::vec2 posPx, glm::vec2 uv, glm::vec4 color, glm::vec4 color2,
                     glm::vec4 params, float mode) {

@@ -36,6 +36,7 @@ void formatThousands(char* out, size_t size, int value) {
 
 void drawStandings(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Left;
+    hud.vAnchor = gfx::VAnchor::Top;
     char buf[32];
 
     hud.text(FontId::Medium, "POS", {34.0f, 104.0f}, 27.0f, alpha(kWhite, 0.92f));
@@ -55,6 +56,7 @@ void drawStandings(gfx::HudBatch& hud, const HudState& s) {
 
 void drawEnergy(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Center;
+    hud.vAnchor = gfx::VAnchor::Top;
     const float top = 40.0f, bottom = 86.0f, mid = 63.0f;
     const vec2 a{498.0f, top}, b{1146.0f, top}, c{1132.0f, bottom}, d{498.0f, bottom},
         tip{480.0f, mid};
@@ -90,6 +92,7 @@ void drawEnergy(gfx::HudBatch& hud, const HudState& s) {
 
 void drawSpeed(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Center;
+    hud.vAnchor = gfx::VAnchor::Bottom;
     const vec2 a{560.0f, 782.0f}, b{1086.0f, 782.0f}, c{1040.0f, 852.0f}, d{514.0f, 852.0f};
     hud.quad(a, b, c, d, kPanel);
     polyline(hud, {a, b, c, d, a}, 2.0f, kCyan, 0.35f);
@@ -110,6 +113,7 @@ void drawSpeed(gfx::HudBatch& hud, const HudState& s) {
 
 void drawMinimap(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Right;
+    hud.vAnchor = gfx::VAnchor::Top;
     const vec2 center{1476.0f, 140.0f};
     hud.roundRect(center, {92.0f, 76.0f}, 14.0f, kPanel, vec4(0.85f, 0.88f, 1.0f, 0.55f), 1.5f);
     if (!s.minimap || s.minimap->size() < 2) return;
@@ -140,6 +144,7 @@ void drawMinimap(gfx::HudBatch& hud, const HudState& s) {
 // dernière.
 void drawSongBar(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Center;
+    hud.vAnchor = gfx::VAnchor::Top;
     const float x0 = 560.0f, x1 = 1040.0f, y = 96.0f;
     hud.line({x0, y}, {x1, y}, 3.0f, alpha(kWhite, 0.28f));
     for (int i = 0; i < s.markCount; i++) {
@@ -158,6 +163,7 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
     // Les formes viennent de buttonShape, en pixels : les mêmes que celles
     // testées au toucher. On les ramène au repère de référence.
     hud.anchor = Anchor::Left;
+    hud.vAnchor = gfx::VAnchor::Top;
     auto shapeOf = [&](Button b, vec2& c, float& r) {
         ButtonShape shape = buttonShape(b, hud.screen);
         c = shape.center / hud.scale;
@@ -218,6 +224,7 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
 void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
     // Positions calculées en pixels, puis ramenées au repère de référence.
     hud.anchor = Anchor::Left;
+    hud.vAnchor = gfx::VAnchor::Top;
     const float h = 27.0f, skew = 6.0f, rankW = 30.0f;
 
     struct Placed {
@@ -283,6 +290,7 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
 
     // Chrono sous le compteur de tours.
     hud.anchor = Anchor::Left;
+    hud.vAnchor = gfx::VAnchor::Top;
     int centis = static_cast<int>(s.raceTime * 100.0f);
     std::snprintf(buf, sizeof(buf), "%d:%02d.%02d", centis / 6000, (centis / 100) % 60,
                   centis % 100);
@@ -296,12 +304,13 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
     }
     if (s.accord > 0.0f) {
         hud.anchor = Anchor::Center;
+        hud.vAnchor = gfx::VAnchor::Bottom;
         hud.text(FontId::Bold, "EN RYTHME", {800.0f, 770.0f}, 30.0f + 8.0f * s.accord, alpha(kYellow, 0.4f + 0.6f * s.accord),
                  Align::Center, 0.2f, alpha(kYellow, 0.4f * s.accord));
-        hud.anchor = Anchor::Left;
     }
 
     hud.anchor = Anchor::Center;
+    hud.vAnchor = gfx::VAnchor::Middle;
     if (s.countdown > 0.0f) {
         std::snprintf(buf, sizeof(buf), "%d", static_cast<int>(std::ceil(s.countdown)));
         float pulse = 1.0f + 0.25f * (s.countdown - std::floor(s.countdown));
@@ -314,11 +323,13 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
 
     if (s.statsLine[0]) {
         hud.anchor = Anchor::Center;
+        hud.vAnchor = gfx::VAnchor::Bottom;
         hud.text(FontId::Medium, s.statsLine, {800.0f, 884.0f}, 15.0f, alpha(kWhite, 0.85f),
                  Align::Center, 0.0f);
     }
 
     hud.anchor = Anchor::Center;
+    hud.vAnchor = gfx::VAnchor::Middle;
     if (s.finished) {
         hud.quad({0.0f, 318.0f}, {1600.0f, 318.0f}, {1600.0f, 482.0f}, {0.0f, 482.0f},
                  vec4(0.02f, 0.02f, 0.08f, 0.72f));

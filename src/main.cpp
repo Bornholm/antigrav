@@ -426,7 +426,20 @@ int runWindowed(const Options& opt) {
         glm::vec2 screen{static_cast<float>(swapchain.logicalExtent.width),
                          static_cast<float>(swapchain.logicalExtent.height)};
         SDL_Event event;
+        // La souris arrive en unités de fenêtre, l'interface travaille en
+        // pixels : sur un écran à mise à l'échelle, les deux diffèrent.
+        int windowW = 0, windowH = 0;
+        SDL_GetWindowSize(window, &windowW, &windowH);
+        const glm::vec2 pointerScale{windowW > 0 ? screen.x / static_cast<float>(windowW) : 1.0f,
+                                     windowH > 0 ? screen.y / static_cast<float>(windowH) : 1.0f};
         while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+                event.button.x *= pointerScale.x;
+                event.button.y *= pointerScale.y;
+            } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                event.motion.x *= pointerScale.x;
+                event.motion.y *= pointerScale.y;
+            }
             input.handleEvent(event, screen);
             switch (event.type) {
             case SDL_EVENT_QUIT:

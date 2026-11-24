@@ -23,9 +23,11 @@ Mis à jour le 24 novembre 2026.
 |---|---|---|
 | 0, socle | Linux fait, Android à faire | Build CMake, Vulkan 1.3, fenêtre et mode sans fenêtre, validation propre. Le projet Android n'est pas encore construit. |
 | 1, rendu | Fait sur Linux | Les quatre passes, piste, ville, vaisseaux, HUD. À valider sur le Pixel. |
-| 2, course solo | En cours | Simulation à pas fixe, commandes, IA, tours, départ, arrivée. Manquent le son et la manette. |
+| 2, course solo | Fait sur Linux | Simulation à pas fixe, clavier, souris, manette, IA, tours, départ, arrivée, son synthétisé. La manette et le tactile réel n'ont pas été essayés. |
 | 3, multijoueur | Pas commencé | |
-| 4, contenu | Pas commencé | Les boutons missile et bouclier sont dessinés, sans effet. |
+| 4, contenu | Commencé | Missile à tête chercheuse et bouclier, payés par la jauge d'énergie. Un seul circuit, un seul modèle de vaisseau, pas de menus. |
+
+Écart avec le plan initial : il n'y a pas de boîtes d'objets à ramasser. Le mockup montre une seule jauge et deux boutons fixes, donc boost, missile et bouclier puisent tous dans l'énergie. La distribution pondérée par la position n'a plus d'objet tant que ce choix tient.
 
 Mesures sur la machine de développement, GPU Intel Arrow Lake, par image :
 

@@ -1,5 +1,7 @@
 #include "game/ui.h"
 
+#include "game/i18n.h"
+
 #include <cmath>
 
 namespace game {
@@ -45,6 +47,7 @@ bool Ui::tapped(vec2 center, vec2 half) const {
 }
 
 bool Ui::button(vec2 center, vec2 half, const char* label, bool enabled, vec4 accent) {
+    label = tr(label);
     int index = count++;
     bool focused = index == focus;
     bool hit = enabled && tapped(center, half);
@@ -64,6 +67,8 @@ bool Ui::button(vec2 center, vec2 half, const char* label, bool enabled, vec4 ac
 }
 
 int Ui::selector(vec2 center, float halfWidth, const char* label, const char* value) {
+    label = tr(label);
+    value = tr(value);
     int index = count++;
     bool focused = index == focus;
     const float halfH = 30.0f;
@@ -98,11 +103,13 @@ int Ui::selector(vec2 center, float halfWidth, const char* label, const char* va
 }
 
 void Ui::title(vec2 pos, const char* str, float size) {
+    str = tr(str);
     hud->text(FontId::Bold, str, pos, size, kWhite, Align::Center, 0.2f,
               vec4(1.0f, 0.2f, 0.85f, 0.85f));
 }
 
 void Ui::text(vec2 pos, const char* str, float size, vec4 color, Align align, FontId font) {
+    str = tr(str);
     hud->text(font, str, pos, size, color, align);
 }
 

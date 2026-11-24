@@ -1,6 +1,7 @@
 #include "game/app.h"
 
 #include "core/log.h"
+#include "game/i18n.h"
 
 #include <SDL3/SDL.h>
 
@@ -101,10 +102,10 @@ void App::selectSong(int index) {
 }
 
 void App::openSongDialog() {
-    static const SDL_DialogFileFilter filters[] = {
-        {"Musique", "mp3;ogg;flac;wav"},
-        {"Tous les fichiers", "*"},
-    };
+    // Les filtres doivent rester valides jusqu'au retour du sélecteur.
+    static SDL_DialogFileFilter filters[2];
+    filters[0] = {tr("Musique"), "mp3;ogg;flac;wav"};
+    filters[1] = {tr("Tous les fichiers"), "*"};
     {
         std::lock_guard<std::mutex> lock(dialogMutex);
         if (dialogOpen) return;
@@ -179,7 +180,7 @@ void App::receiveSong() {
     }
     if (!net.share.fetching() || net.share.wantedId != net.hostSongId)
         net.share.fetch(net.hostIp, ntohs(net.hostPort), net.hostSongId);
-    std::snprintf(songStatus, sizeof(songStatus), "Réception du morceau : %d %%",
+    std::snprintf(songStatus, sizeof(songStatus), tr("Réception du morceau : %d %%"),
                   static_cast<int>(net.share.progress() * 100.0f));
 }
 
@@ -197,8 +198,17 @@ void App::init(int startTrack) {
     songs.scan();
     track = std::clamp(startTrack, 0, sim::kSongSlots - 1);
     songIndex = track < sim::kTrackCount ? track : sim::kTrackCount;
-    std::snprintf(playerName, sizeof(playerName), "Pilote %02d",
-                  static_cast<int>(SDL_GetTicksNS() / 1000 % 90) + 10);
+    settings.load();
+    setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
+    if (settings.name[0]) {
+        std::snprintf(playerName, sizeof(playerName), "%s", settings.name);
+    } else {
+        // Pseudo par défaut, gardé ensuite : le joueur reste reconnaissable.
+        std::snprintf(playerName, sizeof(playerName), "%s %02d", tr("Pilote"),
+                      static_cast<int>(SDL_GetTicksNS() / 1000 % 90) + 10);
+        std::snprintf(settings.name, sizeof(settings.name), "%s", playerName);
+        settings.save();
+    }
     startAttract();
 }
 
@@ -256,6 +266,11 @@ void App::startQuickRace(const RaceConfig& config, bool autopilot) {
 }
 
 void App::startSolo() {
+    // Le morceau lancé passe en tête des derniers joués.
+    if (track == sim::kCustomTrack && !songs.loadedPath.empty()) {
+        const int entry = songs.markPlayed(songs.loadedPath);
+        if (entry >= 0) songIndex = sim::kTrackCount + entry;
+    }
     RaceConfig config;
     config.track = track;
     config.gridStart = true;
@@ -267,6 +282,10 @@ void App::startSolo() {
 }
 
 void App::startHosted() {
+    if (track == sim::kCustomTrack && !songs.loadedPath.empty()) {
+        const int entry = songs.markPlayed(songs.loadedPath);
+        if (entry >= 0) songIndex = sim::kTrackCount + entry;
+    }
     RaceConfig config = net.lobby;
     config.track = track;
     config.gridStart = true;
@@ -485,6 +504,12 @@ void App::drawMenus(glm::vec2) {
         }
         if (ui.button({800.0f, 640.0f}, big, "QUITTER", true, vec4(0.7f, 0.75f, 0.9f, 1.0f)))
             quit = true;
+        if (int d = ui.selector({800.0f, 760.0f}, 300.0f, "LANGUE", langName(lang())); d != 0) {
+            const int count = static_cast<int>(Lang::Count);
+            setLang(static_cast<Lang>((static_cast<int>(lang()) + d + count) % count));
+            settings.lang = lang();
+            settings.save();
+        }
         if (ui.in.back) quit = true;
         return;
     }
@@ -554,14 +579,21 @@ void App::drawMenus(glm::vec2) {
             net.client(playerName, ship);
         }
         if (ui.button({480.0f, 366.0f}, {330.0f, 40.0f}, "SAISIR UNE ADRESSE")) go(Screen::Address);
-        if (ui.button({480.0f, 462.0f}, {330.0f, 32.0f}, "RETOUR", true,
+        std::snprintf(buf, sizeof(buf), "%s : %s", tr("PSEUDO"), playerName);
+        if (ui.button({480.0f, 462.0f}, {330.0f, 40.0f}, buf)) {
+            std::snprintf(nameDraft, sizeof(nameDraft), "%s", playerName);
+            if (window) SDL_StartTextInput(window);
+            go(Screen::Name);
+            return;
+        }
+        if (ui.button({480.0f, 558.0f}, {330.0f, 32.0f}, "RETOUR", true,
                       vec4(0.7f, 0.75f, 0.9f, 1.0f)) ||
             ui.in.back) {
             net.close();
             go(Screen::Main);
             return;
         }
-        ui.text({480.0f, 540.0f}, notice, 18.0f, kYellow);
+        ui.text({480.0f, 636.0f}, notice, 18.0f, kYellow);
 
         ui.panel({1180.0f, 420.0f}, {290.0f, 200.0f});
         ui.text({1180.0f, 262.0f}, "PARTIES TROUVÉES", 22.0f, kCyan, Align::Center, FontId::Bold);
@@ -570,7 +602,7 @@ void App::drawMenus(glm::vec2) {
             const net::FoundHost& h = net.found[i];
             if (now - h.seen > 4.0) continue;
             std::snprintf(buf, sizeof(buf), "%s  %d/%d%s", h.name, h.players, sim::kMaxVehicles,
-                          h.racing ? "  en course" : "");
+                          h.racing ? tr("  en course") : "");
             if (ui.button({1180.0f, 320.0f + 78.0f * static_cast<float>(shown)}, {262.0f, 30.0f},
                           buf, !h.racing, kMagenta)) {
                 net.join(h.ip, h.port);
@@ -581,6 +613,57 @@ void App::drawMenus(glm::vec2) {
             shown++;
         }
         if (shown == 0) ui.text({1180.0f, 430.0f}, "Recherche en cours...", 20.0f, kDim);
+        return;
+    }
+
+    if (screen == Screen::Name) {
+        ui.title({800.0f, 130.0f}, "VOTRE PSEUDO", 56.0f);
+        // Seize caractères au plus, parmi ceux que la police sait dessiner.
+        auto length = [](const char* text) {
+            int count = 0;
+            for (const char* p = text; *p; p++) count += (static_cast<unsigned char>(*p) & 0xC0) != 0x80;
+            return count;
+        };
+        size_t len = std::strlen(nameDraft);
+        for (const char* p = ui.in.text; *p;) {
+            const unsigned char c = static_cast<unsigned char>(*p);
+            const int bytes = c < 0x80 ? 1 : (c & 0xE0) == 0xC0 ? 2 : (c & 0xF0) == 0xE0 ? 3 : 4;
+            // Latin-1 seulement : un octet, ou deux octets commençant par C2 ou C3.
+            const bool drawable = (bytes == 1 && c >= 32 && c != '=') || (bytes == 2 && (c == 0xC2 || c == 0xC3) && p[1]);
+            if (drawable && length(nameDraft) < 16 && len + static_cast<size_t>(bytes) < sizeof(nameDraft)) {
+                std::memcpy(nameDraft + len, p, static_cast<size_t>(bytes));
+                len += static_cast<size_t>(bytes);
+                nameDraft[len] = '\0';
+            }
+            for (int i = 0; i < bytes && *p; i++) p++;
+        }
+        if (ui.in.backspace && len > 0) {
+            // Retire le dernier caractère entier, pas seulement son dernier octet.
+            do len--;
+            while (len > 0 && (static_cast<unsigned char>(nameDraft[len]) & 0xC0) == 0x80);
+            nameDraft[len] = '\0';
+        }
+        ui.panel({800.0f, 262.0f}, {330.0f, 44.0f});
+        const bool blink = static_cast<int>(now * 2.0) % 2 == 0;
+        std::snprintf(buf, sizeof(buf), "%s%s", nameDraft, blink ? "_" : " ");
+        ui.text({800.0f, 278.0f}, buf, 38.0f, kWhite, Align::Center, FontId::Bold);
+        ui.text({800.0f, 340.0f}, "16 caractères au plus", 18.0f, kDim);
+        auto leave = [&] {
+            if (window) SDL_StopTextInput(window);
+            go(Screen::Multi);
+        };
+        // Un pseudo vide ou fait d'espaces n'est pas accepté.
+        bool blank = true;
+        for (const char* p = nameDraft; *p; p++) blank = blank && *p == ' ';
+        if (ui.button({800.0f, 440.0f}, {230.0f, 38.0f}, "VALIDER", !blank, kYellow) || (ui.in.accept && !blank)) {
+            std::snprintf(playerName, sizeof(playerName), "%s", nameDraft);
+            std::snprintf(settings.name, sizeof(settings.name), "%s", playerName);
+            settings.save();
+            net.client(playerName, ship); // le réseau reprend le nouveau nom
+            leave();
+            return;
+        }
+        if (ui.button({800.0f, 530.0f}, {230.0f, 30.0f}, "RETOUR", true, vec4(0.7f, 0.75f, 0.9f, 1.0f)) || ui.in.back) leave();
         return;
     }
 
@@ -652,8 +735,7 @@ void App::drawMenus(glm::vec2) {
             if (notice[0]) {
                 ui.text({480.0f, y + 74.0f}, notice, 18.0f, kYellow);
             } else if (!everyone && peers > 0) {
-                std::snprintf(buf, sizeof(buf), "Envoi du morceau : %d joueur%s sur %d prêt%s", ready, ready > 1 ? "s" : "", peers,
-                              ready > 1 ? "s" : "");
+                std::snprintf(buf, sizeof(buf), tr("Envoi du morceau : %d sur %d prêts"), ready, peers);
                 ui.text({480.0f, y + 74.0f}, buf, 18.0f, kYellow);
             }
             y += 92.0f;
@@ -674,7 +756,7 @@ void App::drawMenus(glm::vec2) {
         }
 
         ui.panel({1180.0f, 372.0f}, {290.0f, 182.0f});
-        std::snprintf(buf, sizeof(buf), "JOUEURS  %d", lobby.racerCount);
+        std::snprintf(buf, sizeof(buf), tr("JOUEURS  %d"), lobby.racerCount);
         ui.text({1180.0f, 232.0f}, buf, 22.0f, kCyan, Align::Center, FontId::Bold);
         for (int i = 0; i < lobby.racerCount; i++) {
             float rowY = 280.0f + 34.0f * static_cast<float>(i);
@@ -685,7 +767,7 @@ void App::drawMenus(glm::vec2) {
                     Align::Right);
         }
         if (hosting && opponents > 0) {
-            std::snprintf(buf, sizeof(buf), "+ %d IA", std::min(opponents,
+            std::snprintf(buf, sizeof(buf), tr("+ %d IA"), std::min(opponents,
                           sim::kMaxVehicles - lobby.racerCount));
             ui.text({1180.0f, 280.0f + 34.0f * static_cast<float>(lobby.racerCount) + 4.0f}, buf,
                     19.0f, kMagenta);

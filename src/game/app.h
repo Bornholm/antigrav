@@ -2,6 +2,7 @@
 
 #include "game/music.h"
 #include "game/race.h"
+#include "game/settings.h"
 #include "game/songs.h"
 #include "game/ui.h"
 #include "net/net.h"
@@ -12,7 +13,7 @@ struct SDL_Window;
 
 namespace game {
 
-enum class Screen { Main, Solo, Multi, Address, Lobby, Race };
+enum class Screen { Main, Solo, Multi, Address, Name, Lobby, Race };
 
 // Le jeu au-dessus d'une course : menus, réglages de partie, salon réseau.
 struct App {
@@ -25,6 +26,8 @@ struct App {
     Music* music = nullptr;
     SDL_Window* window = nullptr; // pour le sélecteur de fichiers
     SongLibrary songs;
+    Settings settings;
+    char nameDraft[20] = ""; // pseudo en cours de saisie
     bool quit = false;
     const char* statsLine = "";
 

@@ -5,6 +5,7 @@
 | `--race` | démarre directement une course, sans menu |
 | `--track N`, `--ship N` | morceau de 0 à 2, vaisseau de 0 à 3 |
 | `--autopilot` | l'ordinateur pilote aussi le vaisseau du joueur |
+| `--lang fr`, `--lang en`, `--lang es` | langue de l'interface pour ce lancement |
 | `--song fichier` | court directement sur ce fichier audio |
 | `--import fichier` | copie ce fichier dans la bibliothèque du joueur et le sélectionne |
 | `--sync` | mode sans fenêtre : tient le vaisseau filmé à la vitesse de la musique, pour vérifier que la piste tombe sur les temps |
@@ -20,5 +21,5 @@
 | `--time S` | démarrer à S secondes, mode sans fenêtre |
 | `--out chemin.png` | écrire la dernière image ; avec `%04d` dans le chemin, toutes les images |
 | `--wav chemin.wav` | écrire le son de la course, mode sans fenêtre |
-| `--screen nom` | mode sans fenêtre : capturer un écran de menu, `main`, `solo`, `multi`, `adresse` ou `salon` |
+| `--screen nom` | mode sans fenêtre : capturer un écran de menu, `main`, `solo`, `multi`, `adresse`, `pseudo` ou `salon` |
 | `--host-auto N`, `--join-auto`, `--realtime` | essai réseau sans interface, voir [Développer](developper.md) |

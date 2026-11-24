@@ -1,6 +1,7 @@
 #include "core/log.h"
 #include "game/audio.h"
 #include "game/app.h"
+#include "game/i18n.h"
 #include "gfx/capture.h"
 #include "gfx/gpu.h"
 #include "gfx/renderer.h"
@@ -67,6 +68,7 @@ struct Options {
     bool hud = true;
     bool autopilot = false;
     std::string song; // fichier audio sur lequel courir
+    std::string lang; // langue de l'interface pour ce lancement : fr, en ou es
     std::string importSong; // fichier audio à copier dans la bibliothèque du joueur
     bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
@@ -108,6 +110,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
         else if (!std::strcmp(a, "--sync")) o.sync = true;
         else if (!std::strcmp(a, "--song")) o.song = value();
+        else if (!std::strcmp(a, "--lang")) o.lang = value();
         else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
         else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
@@ -226,6 +229,8 @@ int runHeadless(const Options& opt) {
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
     if (!opt.wav.empty() && opt.music && wavMusic.init()) app.music = &wavMusic;
     app.init(opt.track);
+    if (!opt.lang.empty() && game::langFromCode(opt.lang.c_str()) != game::Lang::Count)
+        game::setLang(game::langFromCode(opt.lang.c_str()));
     int track = opt.track;
     if (!opt.song.empty()) {
         if (!app.useSongFile(opt.song)) fatal("%s : %s", opt.song.c_str(), app.songs.error.c_str());
@@ -250,6 +255,10 @@ int runHeadless(const Options& opt) {
         if (opt.screen == "solo") app.screen = game::Screen::Solo;
         else if (opt.screen == "multi") app.screen = game::Screen::Multi;
         else if (opt.screen == "adresse") app.screen = game::Screen::Address;
+        else if (opt.screen == "pseudo") {
+            std::snprintf(app.nameDraft, sizeof(app.nameDraft), "%s", app.playerName);
+            app.screen = game::Screen::Name;
+        }
         else if (opt.screen == "salon") {
             // Port à part pour une simple capture, port normal pour un essai réseau.
             app.net.host(app.playerName, app.ship, opt.hostAuto > 0 ? net::kPort : 47950);
@@ -405,6 +414,8 @@ int runWindowed(const Options& opt) {
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
     app.window = window;
     app.init(opt.track);
+    if (!opt.lang.empty() && game::langFromCode(opt.lang.c_str()) != game::Lang::Count)
+        game::setLang(game::langFromCode(opt.lang.c_str()));
     int track = opt.track;
     if (!opt.song.empty()) {
         if (!app.useSongFile(opt.song)) fatal("%s : %s", opt.song.c_str(), app.songs.error.c_str());

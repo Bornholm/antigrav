@@ -198,6 +198,8 @@ set(GAME_SOURCES
   src/game/audio.cpp
   src/game/music.cpp
   src/game/songs.cpp
+  src/game/i18n.cpp
+  src/game/settings.cpp
   ${MUSIC_ASM}
   src/game/race.cpp
   src/game/ui.cpp

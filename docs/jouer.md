@@ -9,27 +9,29 @@ Chaque piste est générée à partir d'un morceau de musique. La course va de s
 
 ## Courir sur ses propres morceaux
 
-Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis les morceaux déjà ouverts, puis « Ouvrir un fichier ». Cette dernière entrée ouvre le sélecteur de fichiers du système.
+Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis vos cinq derniers morceaux joués, du plus récent au plus ancien, puis « Ouvrir un fichier ». Cette dernière entrée ouvre le sélecteur de fichiers du système.
 
 - **Formats.** MP3, Ogg Vorbis, FLAC et WAV. L'AAC, le M4A et l'Opus ne sont pas lus.
 - **Durée.** 30 secondes au moins. Au-delà de 8 minutes, seules les 8 premières servent.
-- **Bibliothèque.** Le fichier ouvert est copié dans le dossier du jeu, qui garde les 12 derniers. Sur Linux, c'est `~/.local/share/antigrav/antigrav/songs`.
+- **Derniers joués.** Le fichier ouvert est copié dans le dossier du jeu, qui garde les cinq derniers morceaux joués. Sur Linux, c'est `~/.local/share/antigrav/antigrav/songs`.
 - **Décor.** Il dépend du morceau : la station pour un tempo rapide, la ville pour un son brillant, le canyon sinon.
 - **Sans tempo net.** Si le jeu ne trouve pas de pulsation régulière, il cale la piste sur une grille fixe et sur l'intensité du morceau, et l'indique sous le titre.
 
 
 ## Jouer en rythme
 
-- **Accord.** Enfoncer le BOOST pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. « EN RYTHME » s'affiche. Un anneau se referme sur le bouton à chaque temps : il faut appuyer quand il le touche. Après un accord, le bouton s'éteint environ deux secondes, le temps avant qu'un nouvel accord soit possible. Un appui raté affiche « TROP TÔT » ou « TROP TARD ».
+- **Accord.** Enfoncer le BOOST pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. Tout le retour est sur le vaisseau : un anneau s'y referme à chaque temps, et il faut appuyer quand il touche le cercle jaune. « EN RYTHME », « TROP TÔT » ou « TROP TARD » s'affiche au-dessus. Après un accord, l'anneau s'atténue environ deux secondes, le temps avant qu'un nouvel accord soit possible.
 - **Plaques.** Chaque plaque jaune recharge la jauge de 12 %.
 - **Jauge.** Elle ne se recharge presque plus seule : ce sont les plaques et les accords qui la remplissent. Elle sert au boost et à l'armure.
 - **Armure.** Si la jauge est au moins à un tiers quand le vaisseau touche une barrière, elle encaisse le choc et perd ce tiers. Sinon c'est le crash. Il faut donc choisir entre dépenser en boost et garder de quoi encaisser.
-- **Décharge.** Quatre accords d'affilée, comptés par les pastilles au-dessus du bouton BOOST, déclenchent une décharge qui part seule sur le vaisseau de devant. En tête de course, la série rend de l'énergie à la place. Un appui à côté du temps remet la série à zéro.
+- **Décharge.** Quatre accords d'affilée, comptés par les pastilles sous le vaisseau, déclenchent une décharge qui part seule sur le vaisseau de devant. En tête de course, la série rend de l'énergie à la place. Un appui à côté du temps remet la série à zéro.
 - **Parade.** Quand une décharge arrive, le jeu prévient. Réussir un accord à ce moment l'absorbe et rend de l'énergie. Sinon le vaisseau perd le contrôle une demi-seconde.
 
 Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'avance du vaisseau sur la musique. Un élastique freine qui prend de l'avance et aspire qui traîne, donc le peloton reste groupé autour de la musique.
 
 ## Menus et commandes
+
+Le menu principal propose la langue de l'interface : français, anglais ou espagnol. Au premier lancement, le jeu prend celle du système. Dans **Multijoueur**, le bouton PSEUDO ouvre la saisie du nom vu par les autres joueurs, 16 caractères au plus. Langue et pseudo sont gardés d'un lancement à l'autre.
 
 Le jeu s'ouvre sur le menu. **Solo** règle le morceau, le vaisseau, le nombre d'IA de 0 à 7 et leur caractère. **Multijoueur** héberge une partie ou rejoint celles trouvées sur le réseau local.
 

@@ -1,6 +1,7 @@
 #include "game/songs.h"
 
 #include "core/log.h"
+#include "game/i18n.h"
 #include "game/music.h"
 #include "game/synth.h"
 #include "music/analysis.h"
@@ -34,6 +35,42 @@ std::string libraryDir() {
     SDL_free(pref);
     SDL_CreateDirectory(dir.c_str());
     return dir + "/";
+}
+
+// Ordre des morceaux, du dernier joué au plus ancien : une ligne par nom de
+// fichier, dans le dossier du jeu.
+std::string orderPath() {
+    char* pref = SDL_GetPrefPath("antigrav", "antigrav");
+    if (!pref) return "";
+    std::string path = std::string(pref) + "recent.txt";
+    SDL_free(pref);
+    return path;
+}
+
+std::vector<std::string> loadOrder() {
+    std::vector<std::string> order;
+    size_t size = 0;
+    const std::string path = orderPath();
+    char* data = path.empty() ? nullptr : static_cast<char*>(SDL_LoadFile(path.c_str(), &size));
+    if (!data) return order;
+    std::string text(data, size);
+    SDL_free(data);
+    size_t at = 0;
+    while (at < text.size()) {
+        size_t end = text.find('\n', at);
+        if (end == std::string::npos) end = text.size();
+        if (end > at) order.push_back(text.substr(at, end - at));
+        at = end + 1;
+    }
+    return order;
+}
+
+void saveOrder(const std::vector<std::string>& order) {
+    const std::string path = orderPath();
+    if (path.empty()) return;
+    std::string text;
+    for (const std::string& name : order) text += name + "\n";
+    SDL_SaveFile(path.c_str(), text.data(), text.size());
 }
 
 int hexValue(char c) {
@@ -94,7 +131,18 @@ void SongLibrary::scan() {
             found.push_back({names[i], info.modify_time});
     }
     SDL_free(names);
-    std::sort(found.begin(), found.end(), [](const Found& a, const Found& b) { return a.modified > b.modified; });
+    // Les morceaux joués d'abord, dans l'ordre noté ; les autres ensuite, du
+    // plus récemment copié au plus ancien.
+    const std::vector<std::string> order = loadOrder();
+    auto rankOf = [&](const std::string& file) {
+        for (size_t i = 0; i < order.size(); i++)
+            if (order[i] == file) return static_cast<int>(i);
+        return static_cast<int>(order.size());
+    };
+    std::sort(found.begin(), found.end(), [&](const Found& a, const Found& b) {
+        const int ra = rankOf(a.file), rb = rankOf(b.file);
+        return ra != rb ? ra < rb : a.modified > b.modified;
+    });
     for (size_t i = 0; i < found.size(); i++) {
         // Au-delà de la limite, les plus anciens sont effacés.
         if (static_cast<int>(i) >= kMaxEntries) {
@@ -103,6 +151,20 @@ void SongLibrary::scan() {
         }
         entries.push_back({displayName(found[i].file), dir + found[i].file});
     }
+}
+
+int SongLibrary::markPlayed(const std::string& path) {
+    const size_t cut = path.find_last_of('/');
+    const std::string file = cut == std::string::npos ? path : path.substr(cut + 1);
+    std::vector<std::string> order = loadOrder();
+    order.erase(std::remove(order.begin(), order.end(), file), order.end());
+    order.insert(order.begin(), file);
+    if (order.size() > static_cast<size_t>(kMaxEntries)) order.resize(static_cast<size_t>(kMaxEntries));
+    saveOrder(order);
+    scan();
+    for (size_t i = 0; i < entries.size(); i++)
+        if (entries[i].path == path) return static_cast<int>(i);
+    return -1;
 }
 
 int SongLibrary::import(const std::string& source) {
@@ -125,7 +187,7 @@ int SongLibrary::import(const std::string& source) {
     std::string reason;
     if (!music::decodeMemory(static_cast<const unsigned char*>(data), size, audio, reason)) {
         SDL_free(data);
-        error = "Morceau refusé : " + reason;
+        error = std::string(tr("Morceau refusé : ")) + tr(reason.c_str());
         return -1;
     }
     const std::string file = baseName(source);
@@ -135,9 +197,8 @@ int SongLibrary::import(const std::string& source) {
         error = "Copie du morceau impossible";
         return -1;
     }
-    scan();
-    for (size_t i = 0; i < entries.size(); i++)
-        if (entries[i].path == dir + file) return static_cast<int>(i);
+    const int index = markPlayed(dir + file);
+    if (index >= 0) return index;
     error = "Copie du morceau impossible";
     return -1;
 }
@@ -192,9 +253,9 @@ void install(const music::Partition& partition, const char* name, float seconds)
     char tagline[64];
     const int whole = static_cast<int>(seconds);
     if (partition.beats.size() >= 16 && partition.confidence >= 0.1f)
-        std::snprintf(tagline, sizeof(tagline), "%.0f BPM, %d:%02d", partition.tempo, whole / 60, whole % 60);
+        std::snprintf(tagline, sizeof(tagline), tr("%.0f BPM, %d:%02d"), partition.tempo, whole / 60, whole % 60);
     else
-        std::snprintf(tagline, sizeof(tagline), "Sans tempo net, %d:%02d", whole / 60, whole % 60);
+        std::snprintf(tagline, sizeof(tagline), tr("Sans tempo net, %d:%02d"), whole / 60, whole % 60);
     sim::setCustomTrackInfo(name, tagline);
 
     // Décor : la station pour les tempos rapides, sinon la ville pour un son
@@ -307,7 +368,7 @@ bool SongLibrary::applyPackage(const std::vector<unsigned char>& bytes, Music* m
         music::Audio audio;
         std::string reason;
         if (!music::decodeMemory(p.audio.data(), p.audio.size(), audio, reason)) {
-            error = "Morceau reçu refusé : " + reason;
+            error = std::string(tr("Morceau reçu refusé : ")) + tr(reason.c_str());
             return false;
         }
         const float seconds = trim(audio);
@@ -332,7 +393,7 @@ bool SongLibrary::loadFile(const std::string& path, const std::string& name, Mus
     const bool ok = data && music::decodeMemory(static_cast<const unsigned char*>(data), size, audio, reason);
     SDL_free(data);
     if (!ok) {
-        error = "Morceau refusé : " + reason;
+        error = std::string(tr("Morceau refusé : ")) + tr(reason.c_str());
         return false;
     }
     if (static_cast<float>(audio.frames()) / static_cast<float>(audio.sampleRate) < kMinSeconds) {

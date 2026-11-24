@@ -1,5 +1,7 @@
 #include "game/input.h"
 
+#include <cstring>
+
 #include "gfx/hud.h"
 
 #include <SDL3/SDL.h>
@@ -66,6 +68,10 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
             ui.typed[ui.typedCount++] = c;
             ui.typed[ui.typedCount] = '\0';
         }
+    }
+    if (event.type == SDL_EVENT_TEXT_INPUT && event.text.text) {
+        const size_t have = std::strlen(ui.text), add = std::strlen(event.text.text);
+        if (have + add < sizeof(ui.text)) std::memcpy(ui.text + have, event.text.text, add + 1);
     }
     if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
         switch (event.gbutton.button) {

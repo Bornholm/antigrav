@@ -32,6 +32,7 @@ struct UiInput {
     char typed[8] = ""; // chiffres et points saisis au clavier
     int typedCount = 0;
     bool backspace = false;
+    char text[32] = ""; // texte saisi au clavier, du système ou physique, en UTF-8
 };
 
 // Réunit clavier, souris et écran tactile en un seul état de commandes.

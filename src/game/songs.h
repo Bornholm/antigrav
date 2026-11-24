@@ -12,21 +12,25 @@ namespace game {
 class Music;
 struct SongPackage;
 
-// Morceaux du joueur. Un fichier ouvert est copié dans le dossier du jeu, ce
-// qui le garde lisible aux lancements suivants, y compris sur Android où le
-// droit de lecture accordé par le sélecteur ne dure que la session.
+// Morceaux du joueur : les cinq derniers joués. Un fichier ouvert est copié
+// dans le dossier du jeu, ce qui le garde lisible aux lancements suivants, y
+// compris sur Android où le droit de lecture accordé par le sélecteur ne dure
+// que la session.
 struct SongLibrary {
     struct Entry {
         std::string name; // nom affiché
         std::string path; // copie dans le dossier du jeu
     };
-    static constexpr int kMaxEntries = 12;
+    static constexpr int kMaxEntries = 5;
 
-    std::vector<Entry> entries; // du plus récent au plus ancien
+    std::vector<Entry> entries; // du dernier joué au plus ancien
     std::string error;          // dernier message d'erreur, vide si tout va bien
 
     // Relit le dossier.
     void scan();
+    // Note qu'un morceau vient d'être joué : il passe en tête de liste. Renvoie
+    // son nouvel indice.
+    int markPlayed(const std::string& path);
     // Copie un fichier dans la bibliothèque. Renvoie son indice, ou -1 avec
     // `error` renseigné.
     int import(const std::string& source);

@@ -171,6 +171,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         glm::vec3 up = glm::normalize(f.up * std::cos(roll) + f.right * std::sin(roll));
         glm::vec3 right = glm::cross(f.tangent, up);
         glm::vec3 pos = f.pos + f.right * lateral + f.up * (kHover + bob);
+        if (i == localIndex) state.shipPos = pos + f.up * 0.6f;
 
         gfx::ShipDraw& ship = out.ships[out.shipCount++];
         // Le maillage regarde vers -Z, donc son axe +Z pointe vers l'arrière.

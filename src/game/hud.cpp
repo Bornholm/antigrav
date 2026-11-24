@@ -1,5 +1,7 @@
 #include "game/hud.h"
 
+#include "game/i18n.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -39,7 +41,7 @@ void drawStandings(gfx::HudBatch& hud, const HudState& s) {
     hud.vAnchor = gfx::VAnchor::Top;
     char buf[32];
 
-    hud.text(FontId::Medium, "POS", {34.0f, 104.0f}, 27.0f, alpha(kWhite, 0.92f));
+    hud.text(FontId::Medium, tr("POS"), {34.0f, 104.0f}, 27.0f, alpha(kWhite, 0.92f));
     std::snprintf(buf, sizeof(buf), "%d", s.position);
     float w = hud.text(FontId::Bold, buf, {146.0f, 106.0f}, 37.0f, kMagenta, Align::Left, 0.2f,
                        alpha(kMagenta, 0.5f));
@@ -47,7 +49,7 @@ void drawStandings(gfx::HudBatch& hud, const HudState& s) {
     hud.text(FontId::Bold, buf, {146.0f + w, 106.0f}, 37.0f, kWhite);
     hud.line({30.0f, 121.0f}, {248.0f, 121.0f}, 2.0f, alpha(kCyan, 0.85f), 0.5f);
 
-    hud.text(FontId::Medium, "FIN", {34.0f, 158.0f}, 27.0f, alpha(kWhite, 0.92f));
+    hud.text(FontId::Medium, tr("FIN"), {34.0f, 158.0f}, 27.0f, alpha(kWhite, 0.92f));
     const int left = static_cast<int>(std::ceil(s.remaining));
     std::snprintf(buf, sizeof(buf), "%d:%02d", left / 60, left % 60);
     hud.text(FontId::Bold, buf, {146.0f, 160.0f}, 37.0f, kWhite);
@@ -68,7 +70,7 @@ void drawEnergy(gfx::HudBatch& hud, const HudState& s) {
     hud.tri({529.0f, 45.0f}, {511.0f, 66.0f}, {523.0f, 66.0f}, kCyan);
     hud.tri({516.0f, 82.0f}, {534.0f, 60.0f}, {521.0f, 60.0f}, kCyan);
 
-    hud.text(FontId::Medium, "ÉNERGIE", {550.0f, 71.0f}, 22.0f, kWhite);
+    hud.text(FontId::Medium, tr("ÉNERGIE"), {550.0f, 71.0f}, 22.0f, kWhite);
 
     // Jauge en segments inclinés.
     const int segments = 15;
@@ -193,31 +195,54 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
         vec4 fill = down ? vec4(0.55f, 0.38f, 0.05f, 0.6f) : vec4(0.10f, 0.07f, 0.03f, 0.5f);
         hud.circle(c, r, fill, rim, down ? 7.0f : 5.0f);
         if (!ready) hud.circle(c, r * (1.0f - s.cooldown), alpha(kYellow, 0.10f), alpha(kYellow, 0.5f), 2.0f);
-        // Anneau de rythme : il se referme sur le bouton à chaque temps.
-        // Appuyer quand il le touche donne un accord.
-        if (s.beatPhase >= 0.0f) {
-            const float ring = r * (1.0f + 0.75f * s.beatPhase);
-            const float near = 1.0f - s.beatPhase;
-            hud.circle(c, ring, vec4(0.0f), alpha(ready ? kWhite : kYellow, (ready ? 0.35f : 0.15f) + 0.55f * near * near * (ready ? 1.0f : 0.3f)),
-                       ready ? 4.0f : 2.0f);
-        }
         polyline(hud, {c + vec2(-32.0f, -22.0f), c + vec2(0.0f, -50.0f), c + vec2(32.0f, -22.0f)},
                  10.0f, kYellow, 0.4f);
         polyline(hud, {c + vec2(-32.0f, 2.0f), c + vec2(0.0f, -26.0f), c + vec2(32.0f, 2.0f)},
                  10.0f, kYellow, 0.4f);
-        hud.text(FontId::Bold, "BOOST", c + vec2(0.0f, 46.0f), 28.0f, kWhite, Align::Center);
+        hud.text(FontId::Bold, tr("BOOST"), c + vec2(0.0f, 46.0f), 28.0f, kWhite, Align::Center);
     }
-    {
-        // Série d'accords : une pastille par accord, la décharge part quand
-        // elles sont toutes allumées.
-        shapeOf(Button::Boost, c, r);
-        const float step = 34.0f, x0 = c.x - step * 0.5f * static_cast<float>(s.comboSize - 1);
-        for (int i = 0; i < s.comboSize; i++) {
-            const vec2 p{x0 + step * static_cast<float>(i), c.y - r - 26.0f};
-            const bool lit = i < s.combo;
-            hud.circle(p, 10.0f, lit ? kMagenta : vec4(0.10f, 0.03f, 0.09f, 0.5f), alpha(kMagenta, lit ? 1.0f : 0.5f), 2.5f);
-        }
+}
+
+// Retour de rythme, accroché au vaisseau du joueur : c'est là qu'il regarde.
+// Un anneau se referme sur le vaisseau à chaque temps, les pastilles de la
+// série sont dessous, et le verdict de l'appui s'affiche dessus.
+void drawRhythm(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
+    if (s.beatPhase < 0.0f) return;
+    const glm::vec4 clip = viewProj * glm::vec4(s.shipPos, 1.0f);
+    if (clip.w <= 0.5f) return;
+    hud.anchor = Anchor::Left;
+    hud.vAnchor = gfx::VAnchor::Top;
+    const vec2 c = (vec2(clip.x, clip.y) / clip.w * 0.5f + 0.5f) * hud.screen / hud.scale;
+    const bool ready = s.cooldown <= 0.0f;
+    const float core = 74.0f;
+
+    // Cible fixe, puis anneau qui s'y referme. Atténués pendant le délai
+    // entre deux accords : un appui n'y compterait pas.
+    const float near = 1.0f - s.beatPhase;
+    hud.circle(c, core, vec4(0.0f), alpha(kYellow, ready ? 0.55f : 0.18f), 2.5f);
+    hud.circle(c, core * (1.0f + 1.1f * s.beatPhase), vec4(0.0f),
+               alpha(kWhite, ready ? 0.25f + 0.65f * near * near : 0.10f + 0.12f * near), ready ? 4.0f : 2.0f);
+    if (!ready) hud.circle(c, core * (1.0f - s.cooldown), vec4(0.0f), alpha(kYellow, 0.35f), 2.0f);
+
+    // Série d'accords : la décharge part quand les pastilles sont toutes allumées.
+    const float step = 26.0f, x0 = c.x - step * 0.5f * static_cast<float>(s.comboSize - 1);
+    for (int i = 0; i < s.comboSize; i++) {
+        const vec2 p{x0 + step * static_cast<float>(i), c.y + core + 26.0f};
+        const bool lit = i < s.combo;
+        hud.circle(p, 7.5f, lit ? kMagenta : vec4(0.10f, 0.03f, 0.09f, 0.45f), alpha(kMagenta, lit ? 1.0f : 0.45f), 2.0f);
     }
+
+    const vec2 label = c + vec2(0.0f, -core - 44.0f);
+    if (s.accord > 0.0f) {
+        hud.text(FontId::Bold, tr("EN RYTHME"), label, 30.0f + 8.0f * s.accord, alpha(kYellow, 0.4f + 0.6f * s.accord),
+                 Align::Center, 0.2f, alpha(kYellow, 0.4f * s.accord));
+    } else if (s.miss != 0) {
+        hud.text(FontId::Bold, tr(s.miss == 1 ? "TROP TÔT" : "TROP TARD"), label, 28.0f,
+                 alpha(vec4(1.0f, 0.45f, 0.35f, 1.0f), s.missFade), Align::Center);
+    }
+    if (s.incoming)
+        hud.text(FontId::Bold, tr("DÉCHARGE ! PAREZ EN RYTHME"), label + vec2(0.0f, -40.0f), 28.0f, kMagenta, Align::Center,
+                 0.2f, alpha(kMagenta, 0.5f));
 }
 
 void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
@@ -293,39 +318,17 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
     int centis = static_cast<int>(s.raceTime * 100.0f);
     std::snprintf(buf, sizeof(buf), "%d:%02d.%02d", centis / 6000, (centis / 100) % 60,
                   centis % 100);
-    hud.text(FontId::Medium, "TEMPS", {34.0f, 208.0f}, 20.0f, alpha(kWhite, 0.75f));
+    hud.text(FontId::Medium, tr("TEMPS"), {34.0f, 208.0f}, 20.0f, alpha(kWhite, 0.75f));
     hud.text(FontId::Bold, buf, {146.0f, 209.0f}, 24.0f, kWhite);
     if (s.showGap) {
         // Avance sur la musique : vert devant, rose derrière.
         std::snprintf(buf, sizeof(buf), "%+.1f s", s.gap);
-        hud.text(FontId::Medium, "ÉCART", {34.0f, 244.0f}, 20.0f, alpha(kWhite, 0.75f));
+        hud.text(FontId::Medium, tr("ÉCART"), {34.0f, 244.0f}, 20.0f, alpha(kWhite, 0.75f));
         hud.text(FontId::Bold, buf, {146.0f, 245.0f}, 24.0f, s.gap >= 0.0f ? vec4(0.45f, 1.0f, 0.5f, 1.0f) : kMagenta);
     }
     // Armure : la jauge peut encaisser une barrière.
-    hud.text(FontId::Medium, "ARMURE", {34.0f, 280.0f}, 20.0f, alpha(kWhite, 0.75f));
-    hud.text(FontId::Bold, s.armored ? "PRÊTE" : "VIDE", {146.0f, 281.0f}, 24.0f, s.armored ? kCyan : alpha(kWhite, 0.4f));
-    if (s.incoming) {
-        hud.anchor = Anchor::Center;
-        hud.vAnchor = gfx::VAnchor::Bottom;
-        hud.text(FontId::Bold, "DÉCHARGE ! PAREZ EN RYTHME", {800.0f, 720.0f}, 30.0f, kMagenta, Align::Center, 0.2f,
-                 alpha(kMagenta, 0.5f));
-        hud.anchor = Anchor::Left;
-        hud.vAnchor = gfx::VAnchor::Top;
-    }
-    if (s.miss != 0 && s.accord <= 0.0f) {
-        hud.anchor = Anchor::Center;
-        hud.vAnchor = gfx::VAnchor::Bottom;
-        hud.text(FontId::Bold, s.miss == 1 ? "TROP TÔT" : "TROP TARD", {800.0f, 770.0f}, 28.0f,
-                 alpha(vec4(1.0f, 0.45f, 0.35f, 1.0f), s.missFade), Align::Center);
-        hud.anchor = Anchor::Left;
-        hud.vAnchor = gfx::VAnchor::Top;
-    }
-    if (s.accord > 0.0f) {
-        hud.anchor = Anchor::Center;
-        hud.vAnchor = gfx::VAnchor::Bottom;
-        hud.text(FontId::Bold, "EN RYTHME", {800.0f, 770.0f}, 30.0f + 8.0f * s.accord, alpha(kYellow, 0.4f + 0.6f * s.accord),
-                 Align::Center, 0.2f, alpha(kYellow, 0.4f * s.accord));
-    }
+    hud.text(FontId::Medium, tr("ARMURE"), {34.0f, 280.0f}, 20.0f, alpha(kWhite, 0.75f));
+    hud.text(FontId::Bold, tr(s.armored ? "PRÊTE" : "VIDE"), {146.0f, 281.0f}, 24.0f, s.armored ? kCyan : alpha(kWhite, 0.4f));
 
     hud.anchor = Anchor::Center;
     hud.vAnchor = gfx::VAnchor::Middle;
@@ -335,7 +338,7 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         hud.text(FontId::Bold, buf, {800.0f, 400.0f}, 190.0f * pulse, kWhite, Align::Center,
                  0.2f, alpha(kCyan, 0.8f));
     } else if (s.gridStart && s.raceTime < 1.2f && !s.finished) {
-        hud.text(FontId::Bold, "GO !", {800.0f, 400.0f}, 170.0f,
+        hud.text(FontId::Bold, tr("GO !"), {800.0f, 400.0f}, 170.0f,
                  alpha(kYellow, 1.0f - s.raceTime / 1.2f), Align::Center, 0.2f);
     }
 
@@ -353,9 +356,9 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
                  vec4(0.02f, 0.02f, 0.08f, 0.72f));
         hud.line({200.0f, 318.0f}, {1400.0f, 318.0f}, 2.0f, kCyan, 0.5f);
         hud.line({200.0f, 482.0f}, {1400.0f, 482.0f}, 2.0f, kMagenta, 0.5f);
-        hud.text(FontId::Bold, "COURSE TERMINÉE", {800.0f, 392.0f}, 58.0f, kWhite, Align::Center,
+        hud.text(FontId::Bold, tr("COURSE TERMINÉE"), {800.0f, 392.0f}, 58.0f, kWhite, Align::Center,
                  0.2f, alpha(kCyan, 0.6f));
-        std::snprintf(buf, sizeof(buf), "POSITION %d / %d", s.position, s.racers);
+        std::snprintf(buf, sizeof(buf), tr("POSITION %d / %d"), s.position, s.racers);
         hud.text(FontId::Medium, buf, {800.0f, 448.0f}, 34.0f, kYellow, Align::Center);
     }
 }
@@ -368,6 +371,7 @@ void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewPr
     drawMinimap(hud, state);
     drawSongBar(hud, state);
     drawButtons(hud, state);
+    drawRhythm(hud, state, viewProj);
     drawRaceFlow(hud, state);
 }
 

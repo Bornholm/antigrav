@@ -6,9 +6,9 @@
 ctest --test-dir build
 ```
 
-Cinq suites : `music` pour l'analyse audio sur des signaux synthétiques, `sim` pour la simulation, la génération des pistes et les règles de rythme, `net` pour le réseau en boucle locale, y compris avec 25 % de paquets perdus, puis `balance` et `balance_own_clock`.
+Quatre suites : `music` pour l'analyse audio sur des signaux synthétiques, `sim` pour la simulation, la génération des pistes et les règles de rythme, `net` pour le réseau en boucle locale, y compris avec 25 % de paquets perdus, et `balance`.
 
-Ces deux dernières jouent 864 courses entre IA sur les pistes des morceaux livrés, une fois par horloge musicale, et échouent si un vaisseau ou une personnalité gagne plus de 40 % ou moins de 10 % des courses.
+Cette dernière joue 864 courses entre IA sur les pistes des morceaux livrés et échoue si un vaisseau ou une personnalité gagne plus de 40 % ou moins de 10 % des courses.
 
 Essai réseau entre deux instances sur la même machine, chacune filmée :
 

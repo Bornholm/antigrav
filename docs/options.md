@@ -5,7 +5,6 @@
 | `--race` | démarre directement une course, sans menu |
 | `--track N`, `--ship N` | morceau de 0 à 2, vaisseau de 0 à 3 |
 | `--autopilot` | l'ordinateur pilote aussi le vaisseau du joueur |
-| `--clock shared`, `--clock own` | horloge musicale commune, ou par joueur |
 | `--sync` | mode sans fenêtre : tient le vaisseau filmé à la vitesse de la musique, pour vérifier que la piste tombe sur les temps |
 | `--grid-start`, `--rolling-start` | départ arrêté ou lancé |
 | `--size LxH` | taille de la fenêtre ou de l'image |

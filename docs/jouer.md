@@ -9,10 +9,7 @@ Chaque piste est générée à partir d'un morceau de musique. La course va de s
 - **Plaques.** Chaque plaque de boost prise rend aussi un peu d'énergie.
 - **Jauge.** Elle ne se recharge presque plus seule. Boost, missile et bouclier se paient surtout en jouant en rythme.
 
-Deux horloges sont à l'essai, au choix dans le menu Solo :
-
-- **Commune.** Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'avance du vaisseau sur la musique. Un élastique freine qui prend de l'avance et aspire qui traîne, donc le peloton reste groupé.
-- **Par joueur.** Chacun entend le morceau là où se trouve son vaisseau : la musique accélère avec lui et ralentit quand il percute. Pas d'élastique, la course est libre.
+Tous les joueurs entendent le morceau au même instant. La ligne ÉCART donne l'avance du vaisseau sur la musique. Un élastique freine qui prend de l'avance et aspire qui traîne, donc le peloton reste groupé autour de la musique.
 
 ## Menus et commandes
 

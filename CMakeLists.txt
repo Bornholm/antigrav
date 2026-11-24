@@ -172,9 +172,7 @@ if(NOT ANDROID)
   add_executable(balance tools/balance.cpp)
   target_link_libraries(balance PRIVATE sim music_decode)
   target_compile_definitions(balance PRIVATE ANTIGRAV_MUSIC_DIR="${CMAKE_SOURCE_DIR}/assets/music")
-  # L'équilibre est mesuré dans les deux modes d'horloge musicale.
   add_test(NAME balance COMMAND balance)
-  add_test(NAME balance_own_clock COMMAND balance --own)
 endif()
 
 set(GAME_SOURCES

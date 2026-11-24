@@ -92,10 +92,11 @@ struct World {
     int count = 0;
     uint32_t tick = 0;
     double time = 0.0;
-    // Horloge musicale. Commune : tous entendent le morceau au même instant,
-    // et l'écart de chacun au point de synchronisation est retenu par un
-    // élastique. Par joueur : chacun entend le morceau là où est son vaisseau,
-    // et la course est libre.
+    // Horloge musicale par joueur : chacun entend le morceau là où est son
+    // vaisseau, sans élastique. Variante essayée puis écartée le 24 novembre
+    // 2026, la musique qui change de vitesse étant désagréable. Le jeu ne
+    // l'active plus ; les tests de physique s'en servent pour couper
+    // l'élastique.
     bool ownClock = false;
     float countdown = 0.0f; // secondes avant le départ, les vaisseaux restent sur la grille
     float raceTime = 0.0f;  // secondes depuis le départ

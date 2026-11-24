@@ -26,7 +26,6 @@ struct App {
     int ship = 0;
     int opponents = 3;
     int personality = 0; // 0 : variées, sinon personnalité + 1
-    bool ownClock = false; // horloge musicale par joueur
     char playerName[20] = "Pilote";
     char address[20] = "";
     const char* notice = ""; // message d'état affiché dans les menus

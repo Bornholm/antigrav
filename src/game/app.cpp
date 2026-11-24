@@ -113,7 +113,6 @@ void App::startQuickRace(const RaceConfig& config, bool autopilot) {
 void App::startSolo() {
     RaceConfig config;
     config.track = track;
-    config.ownClock = ownClock;
     config.gridStart = true;
     config.racerCount = 1;
     std::snprintf(config.racers[0].name, sizeof(config.racers[0].name), "%s", playerName);
@@ -125,7 +124,6 @@ void App::startSolo() {
 void App::startHosted() {
     RaceConfig config = net.lobby;
     config.track = track;
-    config.ownClock = ownClock;
     config.gridStart = true;
     int room = sim::kMaxVehicles - config.racerCount;
     config = withOpponents(config, std::min(opponents, room));
@@ -361,9 +359,6 @@ void App::drawMenus(glm::vec2) {
         y += 72.0f;
         if ((d = ui.selector({x, y}, 330.0f, "CARACTÈRES", kPersonalityLabels[personality])) != 0)
             personality = (personality + d + 5) % 5;
-        y += 72.0f;
-        // Réglage provisoire, le temps de choisir entre les deux modèles.
-        if (ui.selector({x, y}, 330.0f, "HORLOGE", ownClock ? "Par joueur" : "Commune") != 0) ownClock = !ownClock;
         return y + 72.0f;
     };
 

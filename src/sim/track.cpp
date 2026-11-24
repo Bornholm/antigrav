@@ -253,9 +253,9 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         const float s = std::sin(kPi * std::clamp((u - 0.2f) / 0.6f, 0.0f, 1.0f));
         const float moved = pace * dt;
         heading += ph.amplitude * s * s * moved;
-        // La piste monte dans les passages intenses et redescend dans les
+        // La piste plonge dans les passages intenses et remonte dans les
         // passages calmes.
-        const float target = 560.0f * (slowEnergy - meanEnergy);
+        const float target = -560.0f * (slowEnergy - meanEnergy);
         const float wanted = std::clamp((target - height) / 320.0f, -0.22f, 0.22f);
         slope += (wanted - slope) * std::min(1.0f, moved / 150.0f);
         const glm::vec3 dir = glm::normalize(glm::vec3(std::sin(heading), slope, -std::cos(heading)));

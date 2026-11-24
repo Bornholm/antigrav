@@ -92,7 +92,7 @@ void testTrackEnds() {
     CHECK(track.ahead(100.0f, 250.0f) == 150.0f);
     CHECK(track.ahead(250.0f, 100.0f) > 1e6f);
 
-    // La piste est plus haute dans les passages intenses que dans les calmes.
+    // La piste est plus basse dans les passages intenses que dans les calmes.
     {
         const music::Partition& song = sim::song(0);
         double high = 0.0, low = 0.0;
@@ -105,7 +105,7 @@ void testTrackEnds() {
             if (e < 0.35f) low += y, lowCount++;
         }
         CHECK(highCount > 10 && lowCount > 10);
-        CHECK(high / highCount > low / lowCount + 150.0);
+        CHECK(high / highCount < low / lowCount - 150.0);
     }
 
     // Le même morceau donne toujours la même piste.

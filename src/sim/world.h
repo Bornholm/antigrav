@@ -23,6 +23,15 @@ constexpr float kStunDuration = 1.2f;   // secondes sans contrôle après un imp
 constexpr float kAbsorbGain = 0.25f;    // énergie rendue par un missile absorbé
 constexpr float kHitGain = 0.20f;       // énergie gagnée par le tireur quand son missile touche
 
+// Éléments de piste, voir sim::Feature.
+constexpr float kPadSpeed = 450.0f;      // vitesse que donne une plaque de boost
+constexpr float kPadAccel = 500.0f;      // m/s² tant qu'on est dessus
+constexpr float kSlowDrag = 1.8f;        // part de vitesse perdue par seconde dans un champ
+constexpr float kSlowDrain = 0.25f;      // énergie perdue par seconde dans un champ
+constexpr float kBarrierLoss = 0.55f;    // part de vitesse perdue contre une barrière
+constexpr float kBarrierStun = 0.6f;     // secondes sans contrôle
+constexpr float kBarrierEnergy = 0.15f;
+
 struct Input {
     float steer = 0.0f; // -1 à gauche, +1 à droite
     bool boost = false;

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace sim {
 
@@ -97,6 +98,81 @@ Track build(const std::vector<glm::vec3>& control, float halfWidth, float target
     return track;
 }
 
+// Tirage reproductible pour le placement des éléments de piste.
+float featureRoll(int track, int slot, uint32_t salt) {
+    uint32_t h = static_cast<uint32_t>(track + 1) * 0x9E3779B1u ^
+                 static_cast<uint32_t>(slot) * 0x85EBCA77u ^ salt * 0xC2B2AE3Du;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    return static_cast<float>(h & 0xFFFFFFu) / 16777216.0f;
+}
+
+// Sème plaques de boost, champs de freinage et barrières le long du circuit.
+// Chaque circuit a son dosage : la ville est rapide, le canyon encombré, la
+// station piégée. Un passage reste toujours libre.
+void placeFeatures(Track& track, int id) {
+    struct Recipe {
+        float spacing;
+        float pad, slow; // parts en ligne droite, le reste en barrières
+    };
+    static const Recipe recipes[kTrackCount] = {
+        {340.0f, 0.50f, 0.22f},
+        {300.0f, 0.22f, 0.28f},
+        {290.0f, 0.36f, 0.42f},
+    };
+    const Recipe& recipe = recipes[id < 0 || id >= kTrackCount ? 0 : id];
+    const float hw = track.halfWidth;
+    const float kPadLength = 36.0f, kPadHalf = 3.6f;
+    const float kSlowLength = 50.0f;
+    const float kBarrierLength = 3.0f;
+    const float kGapHalf = 6.5f; // demi-largeur du passage entre deux barrières
+
+    auto add = [&](FeatureType type, float dist, float length, float lateral, float half) {
+        track.features.push_back({type, dist, length, lateral, half});
+    };
+
+    const int slots = static_cast<int>((track.length - 450.0f) / recipe.spacing);
+    for (int s = 0; s < slots; s++) {
+        float dist = 300.0f + recipe.spacing * static_cast<float>(s);
+        float curvature = track.at(dist + 20.0f).curvature;
+        float type = featureRoll(id, s, 1u);
+        float where = featureRoll(id, s, 2u);
+        float lanes[3] = {-0.55f * hw, 0.0f, 0.55f * hw};
+        float lane = lanes[std::min(2, static_cast<int>(where * 3.0f))];
+
+        if (std::abs(curvature) > 0.0012f) {
+            // En virage : un champ de freinage punit la corde, ou une plaque
+            // récompense l'extérieur.
+            float inside = curvature > 0.0f ? 1.0f : -1.0f;
+            if (type < 0.5f) {
+                float half = hw * 0.30f;
+                add(FeatureType::SlowField, dist, kSlowLength, inside * (hw - half), half);
+            } else {
+                add(FeatureType::BoostPad, dist, kPadLength, -inside * 0.5f * hw, kPadHalf);
+            }
+        } else if (type < recipe.pad) {
+            add(FeatureType::BoostPad, dist, kPadLength, lane, kPadHalf);
+        } else if (type < recipe.pad + recipe.slow) {
+            add(FeatureType::SlowField, dist, kSlowLength, lane, hw * 0.34f);
+        } else if (where < 0.34f) {
+            // Chicane : deux barrières, un passage au milieu.
+            float half = (hw - kGapHalf) * 0.5f;
+            add(FeatureType::Barrier, dist, kBarrierLength, -(hw - half), half);
+            add(FeatureType::Barrier, dist, kBarrierLength, hw - half, half);
+        } else if (where < 0.67f) {
+            // Plot central, on passe d'un côté ou de l'autre.
+            add(FeatureType::Barrier, dist, kBarrierLength, 0.0f, hw * 0.28f);
+        } else {
+            // Demi-piste fermée, avec une plaque dans le couloir libre.
+            float side = featureRoll(id, s, 3u) < 0.5f ? -1.0f : 1.0f;
+            float half = hw * 0.42f;
+            add(FeatureType::Barrier, dist, kBarrierLength, side * (hw - half), half);
+            add(FeatureType::BoostPad, dist + 10.0f, kPadLength, -side * 0.5f * hw, kPadHalf);
+        }
+    }
+}
+
 } // namespace
 
 Track Track::make(int id) {
@@ -133,7 +209,9 @@ Track Track::make(int id) {
         };
         break;
     }
-    return build(control, halfWidth, 4.0f);
+    Track track = build(control, halfWidth, 4.0f);
+    placeFeatures(track, id);
+    return track;
 }
 
 TrackFrame Track::at(float distance) const {
@@ -160,6 +238,15 @@ TrackFrame Track::at(float distance) const {
 glm::vec3 Track::point(float distance, float lateral, float height) const {
     TrackFrame f = at(distance);
     return f.pos + f.right * lateral + f.up * height;
+}
+
+} // namespace sim
+
+namespace sim {
+
+float Track::ahead(float from, float to) const {
+    float d = std::fmod(to - from, length);
+    return d < 0.0f ? d + length : d;
 }
 
 } // namespace sim

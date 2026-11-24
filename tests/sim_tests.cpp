@@ -142,6 +142,7 @@ void testAutopilotLaps() {
 
 void testWallAndBoost() {
     sim::Track track = sim::Track::make(0);
+    track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
     sim::World world;
     world.count = 1;
     world.vehicles[0].dist = 200.0f;
@@ -223,6 +224,7 @@ void testSynth() {
 
 void testMissileAndShield() {
     sim::Track track = sim::Track::make(0);
+    track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
     auto setup = [&](bool shielded) {
         sim::World world;
         world.count = 2;
@@ -266,6 +268,116 @@ void testMissileAndShield() {
     for (const sim::Missile& m : world.missiles) CHECK(!m.active);
 }
 
+// Avance un vaisseau seul, en ligne droite, jusqu'à la distance donnée.
+sim::Vehicle driveTo(const sim::Track& track, sim::Vehicle v, float until) {
+    sim::World world;
+    world.count = 1;
+    world.vehicles[0] = v;
+    sim::Input none;
+    while (world.vehicles[0].dist < until) sim::step(world, track, &none);
+    return world.vehicles[0];
+}
+
+void testFeatures() {
+    sim::Track track = sim::Track::make(0);
+    sim::Vehicle start;
+    start.dist = 100.0f;
+    start.speed = sim::kCruiseSpeed;
+
+    // Plaque de boost : plus vite que le boost, sans toucher à la jauge.
+    track.features = {{sim::FeatureType::BoostPad, 200.0f, 36.0f, 0.0f, 3.6f}};
+    sim::Vehicle v = driveTo(track, start, 240.0f);
+    CHECK(v.speed > sim::kCruiseSpeed + 30.0f);
+    CHECK(v.energy >= 1.0f);
+    // À côté de la plaque, rien.
+    sim::Vehicle aside = start;
+    aside.lateral = 8.0f;
+    CHECK(driveTo(track, aside, 240.0f).speed < sim::kCruiseSpeed + 1.0f);
+
+    // Champ de freinage : ralentit et vide la jauge, sauf sous bouclier.
+    track.features = {{sim::FeatureType::SlowField, 200.0f, 50.0f, 0.0f, 5.0f}};
+    v = driveTo(track, start, 255.0f);
+    CHECK(v.speed < sim::kCruiseSpeed * 0.85f);
+    CHECK(v.energy < 1.0f);
+    sim::Vehicle shielded = start;
+    shielded.shieldTime = 2.0f;
+    CHECK(driveTo(track, shielded, 255.0f).speed > sim::kCruiseSpeed * 0.98f);
+
+    // Barrière : choc et perte de contrôle. Le pas de simulation est plus long
+    // que la barrière, elle ne doit pas être traversée pour autant.
+    track.features = {{sim::FeatureType::Barrier, 200.0f, 3.0f, 0.0f, 4.0f}};
+    v = driveTo(track, start, 210.0f);
+    CHECK(v.speed < sim::kCruiseSpeed * 0.6f);
+    CHECK(v.stunTime > 0.0f);
+    CHECK(driveTo(track, aside, 210.0f).stunTime == 0.0f);
+    // Le bouclier encaisse le choc et se brise.
+    v = driveTo(track, shielded, 210.0f);
+    CHECK(v.stunTime == 0.0f);
+    CHECK(v.shieldTime == 0.0f);
+    CHECK(v.speed > sim::kCruiseSpeed * 0.95f);
+
+    // Une barrière arrête un missile.
+    {
+        sim::World world;
+        world.count = 2;
+        world.vehicles[0].dist = 100.0f;
+        world.vehicles[1].dist = 320.0f;
+        world.vehicles[0].speed = world.vehicles[1].speed = sim::kCruiseSpeed;
+        world.vehicles[0].lateral = world.vehicles[1].lateral = 8.0f;
+        track.features = {{sim::FeatureType::Barrier, 200.0f, 3.0f, 0.0f, 4.0f}};
+        // Le tireur passe à côté de la barrière, le missile vise à travers.
+        world.missiles[0] = {true, 0, 150.0f, 0.0f, 500.0f, 3.0f};
+        world.vehicles[1].lateral = 0.0f;
+        world.vehicles[1].dist = 215.0f;
+        sim::Input inputs[2];
+        bool stunned = false;
+        for (int s = 0; s < 30; s++) {
+            sim::step(world, track, inputs);
+            stunned = stunned || world.vehicles[1].stunTime > 0.0f;
+        }
+        CHECK(!stunned);
+        CHECK(!world.missiles[0].active);
+    }
+
+    // Chaque circuit a des éléments des trois sortes, laisse la grille de
+    // départ libre et garde toujours un passage entre ses barrières.
+    for (int id = 0; id < sim::kTrackCount; id++) {
+        sim::Track t = sim::Track::make(id);
+        int counts[3] = {};
+        for (const sim::Feature& f : t.features) {
+            counts[static_cast<int>(f.type)]++;
+            CHECK(f.dist > 250.0f && f.dist + f.length < t.length - 100.0f);
+            CHECK(std::abs(f.lateral) + f.halfWidth <= t.halfWidth + 0.01f);
+            if (f.type != sim::FeatureType::Barrier) continue;
+            // Largeur fermée à cette distance.
+            float closed = 0.0f;
+            for (const sim::Feature& g : t.features)
+                if (g.type == sim::FeatureType::Barrier && std::abs(g.dist - f.dist) < 20.0f)
+                    closed += 2.0f * g.halfWidth;
+            CHECK(2.0f * t.halfWidth - closed >= 4.0f * sim::kShipHalfWidth);
+        }
+        for (int c : counts) CHECK(c >= 4);
+    }
+
+    // Les pilotes automatiques esquivent : un tour sans toucher une barrière.
+    for (int id = 0; id < sim::kTrackCount; id++) {
+        sim::Track t = sim::Track::make(id);
+        sim::World world;
+        world.count = 1;
+        world.laps = 1;
+        world.vehicles[0].speed = sim::kCruiseSpeed;
+        int stuns = 0;
+        for (int s = 0; s < 60 * 120 && !world.vehicles[0].finished; s++) {
+            sim::Input in = sim::autopilot(world, 0, t, sim::aiProfile(2), 0.0f);
+            bool before = world.vehicles[0].stunTime > 0.0f;
+            sim::step(world, t, &in);
+            if (!before && world.vehicles[0].stunTime > 0.0f) stuns++;
+        }
+        CHECK(world.vehicles[0].finished);
+        CHECK(stuns == 0);
+    }
+}
+
 void testRanking() {
     sim::World world;
     world.count = 3;
@@ -285,6 +397,7 @@ int main() {
     testDeterminism();
     testAutopilotLaps();
     testWallAndBoost();
+    testFeatures();
     testRanking();
     testCountdownAndFinish();
     testSynth();

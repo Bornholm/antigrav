@@ -17,6 +17,40 @@ constexpr float kScrub = 1.6f;        // vitesse perdue par mètre de glissade
 constexpr float kBoostDrain = 1.0f / 5.0f;   // énergie par seconde
 constexpr float kEnergyRegen = 1.0f / 24.0f;
 
+// Effet des éléments de piste sur un vaisseau qui vient d'avancer de `before`
+// à v.dist. Un bouclier levé traverse les champs et encaisse une barrière.
+void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float before,
+                   float dt) {
+    float moved = v.dist - before;
+    bool shielded = v.shieldTime > 0.0f;
+    for (const Feature& f : track.features) {
+        if (f.type == FeatureType::Barrier) {
+            // À cette vitesse un pas dépasse l'épaisseur de la barrière : on
+            // teste le franchissement, pas la présence.
+            if (track.ahead(before, f.dist) >= moved) continue;
+            if (std::abs(v.lateral - f.lateral) > f.halfWidth + kShipHalfWidth * 0.8f) continue;
+            if (shielded) {
+                v.shieldTime = 0.0f; // le bouclier se brise à sa place
+                shielded = false;
+                continue;
+            }
+            v.speed *= 1.0f - kBarrierLoss / stats.sturdy;
+            v.stunTime = std::max(v.stunTime, kBarrierStun / stats.sturdy);
+            v.energy = std::max(0.0f, v.energy - kBarrierEnergy);
+            continue;
+        }
+        if (track.ahead(f.dist, v.dist) > f.length) continue;
+        if (std::abs(v.lateral - f.lateral) > f.halfWidth) continue;
+        if (f.type == FeatureType::BoostPad) {
+            float top = kPadSpeed * stats.topSpeed;
+            if (v.speed < top) v.speed = std::min(top, v.speed + kPadAccel * dt);
+        } else if (!shielded) {
+            v.speed -= v.speed * kSlowDrag * dt;
+            v.energy = std::max(0.0f, v.energy - kSlowDrain * dt);
+        }
+    }
+}
+
 void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, float dt) {
     const ShipStats& stats = shipStats(v.ship);
     TrackFrame f = track.at(v.dist);
@@ -62,7 +96,9 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, float dt) {
 
     // À l'intérieur d'un virage, la même vitesse couvre plus de piste.
     float pathScale = 1.0f / std::max(0.5f, 1.0f - f.curvature * v.lateral);
+    float before = v.dist;
     v.dist += v.speed * pathScale * dt;
+    applyFeatures(v, stats, track, before, dt);
 
     float rollTarget = -steer * 0.38f - f.curvature * v.speed * 0.25f;
     v.roll += (rollTarget - v.roll) * std::min(1.0f, 7.0f * dt);
@@ -118,8 +154,16 @@ void stepMissiles(World& world, const Track& track, float dt) {
             m.lateral += std::clamp(delta, -34.0f * dt, 34.0f * dt);
         }
         m.lateral = std::clamp(m.lateral, -limit, limit);
+        float before = m.dist;
         m.dist += m.speed * dt;
         m.life -= dt;
+        // Une barrière arrête un missile : on peut s'abriter derrière.
+        for (const Feature& f : track.features) {
+            if (f.type != FeatureType::Barrier) continue;
+            if (track.ahead(before, f.dist) < m.dist - before &&
+                std::abs(m.lateral - f.lateral) < f.halfWidth)
+                m.life = 0.0f;
+        }
         if (m.life <= 0.0f) {
             m.active = false;
             continue;
@@ -257,8 +301,57 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     line = std::clamp(line, -limit, limit);
 
     float steerSpeed = kSteerSpeed * stats.handling;
+    // Éléments de piste : viser la plaque de boost atteignable la plus proche,
+    // puis s'écarter des barrières et des champs, qui ont le dernier mot.
+    const float look = v.speed * profile.foresight;
+    float padAhead = look;
+    for (const Feature& f : track.features) {
+        if (f.type != FeatureType::BoostPad) continue;
+        float ahead = track.ahead(v.dist, f.dist);
+        if (ahead >= padAhead) continue;
+        float reach = steerSpeed * 0.8f * ahead / std::max(v.speed, 1.0f) + f.halfWidth * 0.5f;
+        if (std::abs(f.lateral - v.lateral) > reach) continue;
+        // Pas de plaque si la vitesse qu'elle donne envoie dans le muret : la
+        // dérive croît avec le carré de la vitesse.
+        float padDrift = std::abs(track.at(f.dist + 150.0f).curvature) * kPadSpeed * kPadSpeed *
+                         kDrift / stats.grip;
+        if (padDrift > steerSpeed * profile.nerve) continue;
+        padAhead = ahead;
+        line = f.lateral;
+    }
+    // Un obstacle à la fois : seul le plus proche compte, avec ses voisins
+    // immédiats. Sinon le suivant le ferait revenir dans le premier.
+    auto hazardAhead = [&](const Feature& f) {
+        if (track.ahead(f.dist, v.dist) <= f.length) return 0.0f; // déjà dedans
+        return track.ahead(v.dist, f.dist);
+    };
+    float nearest = look;
+    for (const Feature& f : track.features)
+        if (f.type != FeatureType::BoostPad) nearest = std::min(nearest, hazardAhead(f));
+    bool dodging = false;
+    for (int pass = 0; pass < 2; pass++) {
+        for (const Feature& f : track.features) {
+            if (f.type == FeatureType::BoostPad) continue;
+            float ahead = hazardAhead(f);
+            if (ahead >= look || ahead > nearest + 40.0f) continue;
+            float margin = f.halfWidth +
+                           (f.type == FeatureType::Barrier ? kShipHalfWidth + 1.6f : 0.8f);
+            // Gênant s'il est sur la ligne visée ou entre elle et le vaisseau.
+            float lo = std::min(line, v.lateral), hi = std::max(line, v.lateral);
+            if (hi <= f.lateral - margin || lo >= f.lateral + margin) continue;
+            dodging = true;
+            float left = f.lateral - margin, right = f.lateral + margin;
+            bool leftOk = left >= -limit - 1.5f, rightOk = right <= limit + 1.5f;
+            if (leftOk && rightOk)
+                line = std::abs(left - v.lateral) < std::abs(right - v.lateral) ? left : right;
+            else
+                line = leftOk ? left : right;
+        }
+    }
+    line = std::clamp(line, -limit - 1.5f, limit + 1.5f);
     float drift = -here.curvature * v.speed * v.speed * kDrift / stats.grip;
-    float wanted = (line - v.lateral) * 1.6f - drift;
+    // Devant un obstacle il braque franchement, sans arrondir sa trajectoire.
+    float wanted = (line - v.lateral) * (dodging ? 5.0f : 1.6f) - drift;
     in.steer = std::clamp(wanted / steerSpeed, -1.0f, 1.0f);
 
     // Décisions prises par tranches d'une demi-seconde pour les tirages.

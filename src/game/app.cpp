@@ -1,7 +1,12 @@
 #include "game/app.h"
 
+#include "core/log.h"
+
 #include <SDL3/SDL.h>
 
+#include <arpa/inet.h>
+#include <memory>
+#include <vector>
 #include <algorithm>
 #include <mutex>
 #include <string>
@@ -92,6 +97,7 @@ void App::selectSong(int index) {
         return; // l'entrée « ouvrir » ne change pas la piste de démonstration
     }
     startAttract();
+    publishSong();
 }
 
 void App::openSongDialog() {
@@ -129,6 +135,52 @@ bool App::importSong(const std::string& path) {
     }
     selectSong(sim::kTrackCount + entry);
     return track == sim::kCustomTrack;
+}
+
+void App::publishSong() {
+    if (net.role != net::Role::Host) return;
+    net.lobby.track = track;
+    auto bytes = std::make_shared<std::vector<unsigned char>>(songs.makePackage(track));
+    if (bytes->empty()) {
+        notice = songs.error.c_str();
+        publishedSong = 0;
+        net.offerSong(0, nullptr);
+        return;
+    }
+    publishedSong = packageId(*bytes);
+    net.offerSong(publishedSong, bytes);
+}
+
+void App::receiveSong() {
+    songStatus[0] = '\0';
+    if (net.role != net::Role::Client || !net.joined || net.hostSongId == 0) return;
+    if (net.hostSongId == appliedSong) return;
+    // Pendant une course, on ne touche pas au morceau en cours.
+    if (inRace) return;
+    if (net.share.take(net.hostSongId)) {
+        if (packageId(net.share.received) == net.hostSongId &&
+            songs.applyPackage(net.share.received, music, hostSong)) {
+            appliedSong = net.hostSongId;
+            logInfo("Morceau de l'hôte reçu : %s, %zu octets, %zu éléments de piste", hostSong.name,
+                    net.share.received.size(), hostSong.features.size());
+            net.songReady = appliedSong;
+            net.lastJoinSend = -1.0; // prévient l'hôte tout de suite
+            track = hostSong.track;
+            songIndex = track < sim::kTrackCount ? track : sim::kTrackCount;
+            race.useFeatures = true;
+            race.givenFeatures = hostSong.features;
+            race.keepSong = true;
+            startAttract();
+        } else {
+            notice = songs.error.empty() ? "Morceau reçu abîmé" : songs.error.c_str();
+        }
+        net.share.received.clear();
+        return;
+    }
+    if (!net.share.fetching() || net.share.wantedId != net.hostSongId)
+        net.share.fetch(net.hostIp, ntohs(net.hostPort), net.hostSongId);
+    std::snprintf(songStatus, sizeof(songStatus), "Réception du morceau : %d %%",
+                  static_cast<int>(net.share.progress() * 100.0f));
 }
 
 bool App::useSongFile(const std::string& path) {
@@ -227,6 +279,11 @@ void App::startHosted() {
 
 void App::leaveNetwork() {
     net.close();
+    publishedSong = 0;
+    appliedSong = 0;
+    race.useFeatures = false;
+    race.keepSong = false;
+    songStatus[0] = '\0';
     startAttract();
 }
 
@@ -265,7 +322,9 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     // Réseau : lit les paquets, puis réagit aux changements d'état.
     net.poll(now, inRace ? &race : nullptr);
     if (net.role == net::Role::Client) {
-        if (net.startPending) {
+        receiveSong();
+        // Le départ attend que le morceau de l'hôte soit installé.
+        if (net.startPending && (net.hostSongId == 0 || net.hostSongId == appliedSong)) {
             net.startPending = false;
             track = net.startConfig.track;
             race.init(net.startConfig, net.mySlot);
@@ -303,7 +362,7 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     }
 
     if (autoHostPlayers > 0 && net.role == net::Role::Host && screen == Screen::Lobby &&
-        net.lobby.racerCount >= autoHostPlayers)
+        net.lobby.racerCount >= autoHostPlayers && publishedSong != 0 && net.peersReady() == net.peerCount())
         startHosted();
     if (autoJoin && screen == Screen::Multi && net.foundCount > 0) {
         net.join(net.found[0].ip, net.found[0].port);
@@ -433,10 +492,7 @@ void App::drawMenus(glm::vec2) {
     auto raceSettings = [&](float x, float y, bool hostControls) {
         int d = 0;
         if (hostControls) {
-            // En réseau, seuls les morceaux livrés : tous les joueurs les ont.
-            const bool online = net.role != net::Role::Off;
-            const int choices = online ? sim::kTrackCount : songChoices();
-            if (songIndex >= choices) selectSong(0);
+            const int choices = songChoices();
             // Un nom de fichier long est coupé pour tenir entre les flèches.
             char label[24];
             const char* full = songLabel(songIndex);
@@ -444,7 +500,6 @@ void App::drawMenus(glm::vec2) {
             else std::snprintf(label, sizeof(label), "%s", full);
             if ((d = ui.selector({x, y}, 330.0f, "MORCEAU", label)) != 0) {
                 selectSong((songIndex + d + choices) % choices);
-                if (net.role == net::Role::Host) net.lobby.track = track;
             }
             y += 72.0f;
         }
@@ -489,7 +544,7 @@ void App::drawMenus(glm::vec2) {
         if (ui.button({480.0f, 270.0f}, {330.0f, 40.0f}, "HÉBERGER UNE PARTIE", true, kYellow)) {
             if (net.host(playerName, ship)) {
                 acquireMulticastLock();
-                net.lobby.track = track;
+                publishSong();
                 notice = "";
                 go(Screen::Lobby);
                 return;
@@ -582,11 +637,31 @@ void App::drawMenus(glm::vec2) {
 
         float y = raceSettings(480.0f, 250.0f, hosting);
         if (hosting) {
-            if (ui.button({480.0f, y + 26.0f}, {330.0f, 40.0f}, "LANCER LA COURSE", true, kYellow)) {
-                startHosted();
-                return;
+            // On ne part que lorsque tout le monde a reçu le morceau.
+            const bool openEntry = songIndex == songChoices() - 1;
+            const int peers = net.peerCount(), ready = net.peersReady();
+            const bool everyone = publishedSong != 0 && ready == peers;
+            if (ui.button({480.0f, y + 26.0f}, {330.0f, 40.0f}, openEntry ? "CHOISIR UN FICHIER" : "LANCER LA COURSE", true, kYellow)) {
+                if (openEntry) openSongDialog();
+                else if (everyone) {
+                    startHosted();
+                    return;
+                }
+            }
+            if (notice[0]) {
+                ui.text({480.0f, y + 74.0f}, notice, 18.0f, kYellow);
+            } else if (!everyone && peers > 0) {
+                std::snprintf(buf, sizeof(buf), "Envoi du morceau : %d joueur%s sur %d prêt%s", ready, ready > 1 ? "s" : "", peers,
+                              ready > 1 ? "s" : "");
+                ui.text({480.0f, y + 74.0f}, buf, 18.0f, kYellow);
             }
             y += 92.0f;
+        } else if (songStatus[0]) {
+            ui.text({480.0f, y + 4.0f}, songStatus, 18.0f, kYellow);
+            y += 30.0f;
+        } else if (notice[0]) {
+            ui.text({480.0f, y + 4.0f}, notice, 18.0f, kYellow);
+            y += 30.0f;
         }
         if (ui.button({480.0f, y + 20.0f}, {330.0f, 32.0f}, "QUITTER LE SALON", true,
                       vec4(0.7f, 0.75f, 0.9f, 1.0f)) ||

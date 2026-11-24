@@ -54,7 +54,7 @@ void Race::init(const RaceConfig& cfg, int local) {
     // La piste se génère à partir de la partition du morceau.
     // Celle du morceau du joueur est déjà en place, posée par la bibliothèque.
     const bool custom = cfg.track == sim::kCustomTrack;
-    if (!custom) sim::setSong(cfg.track, Music::partition(cfg.track));
+    if (!custom && !keepSong) sim::setSong(cfg.track, Music::partition(cfg.track));
     theme = custom ? customTheme() : cfg.track;
     songSerial = custom ? 100 + customSerial() : cfg.track;
     start(cfg, local);

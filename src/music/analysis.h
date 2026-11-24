@@ -69,4 +69,10 @@ struct AnalysisTrace {
 
 Partition analyze(const float* mono, size_t count, int sampleRate, AnalysisTrace* trace = nullptr);
 
+// Partition en octets, pour l'envoyer aux autres joueurs : deux machines
+// différentes n'obtiennent pas exactement la même analyse.
+std::vector<unsigned char> pack(const Partition& partition);
+// Renvoie false si les octets ne forment pas une partition valide.
+bool unpack(const unsigned char* data, size_t size, Partition& out);
+
 } // namespace music

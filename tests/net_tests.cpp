@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <memory>
+#include <vector>
 #include <string_view>
 #include <unistd.h>
 
@@ -138,6 +140,77 @@ void playRace(float dropRate, int latencyTicks) {
     client.close();
 }
 
+// Transfert du morceau de l'hôte aux clients, et attente de leur accord.
+void testSongShare() {
+    const uint16_t port = 47961;
+    net::Net host, client;
+    CHECK(host.host("Hote", 0, port));
+    CHECK(client.client("Invite", 1));
+    client.join(net::parseIp("127.0.0.1"), port);
+    double now = 0.0;
+    auto spin = [&](int rounds) {
+        for (int i = 0; i < rounds; i++) {
+            now += 0.02;
+            host.poll(now, nullptr);
+            client.poll(now, nullptr);
+            usleep(500);
+        }
+    };
+    spin(40);
+    CHECK(client.joined);
+    CHECK(host.peerCount() == 1 && host.peersReady() == 0);
+
+    // Trois mégaoctets, au contenu reconnaissable.
+    auto blob = std::make_shared<std::vector<uint8_t>>(3u * 1024u * 1024u + 17u);
+    uint32_t state = 99u;
+    for (uint8_t& b : *blob) {
+        state = state * 1664525u + 1013904223u;
+        b = static_cast<uint8_t>(state >> 24);
+    }
+    const uint64_t id = 0x1234ABCDull;
+    host.offerSong(id, blob);
+    spin(40);
+    CHECK(client.hostSongId == id);
+
+    client.share.fetch(client.hostIp, port, id);
+    bool got = false;
+    for (int i = 0; i < 4000 && !got; i++) {
+        spin(1);
+        got = client.share.take(id);
+    }
+    CHECK(got);
+    CHECK(client.share.received == *blob);
+    CHECK(host.peersReady() == 0);
+
+    // Le client se dit prêt : l'hôte le voit à son prochain signe de vie.
+    client.songReady = id;
+    client.lastJoinSend = -1.0;
+    spin(40);
+    CHECK(host.peersReady() == 1);
+
+    // Nouveau morceau : plus personne n'est prêt, et l'ancien n'est plus servi.
+    auto other = std::make_shared<std::vector<uint8_t>>(1000, uint8_t(7));
+    host.offerSong(id + 1, other);
+    spin(40);
+    CHECK(client.hostSongId == id + 1);
+    CHECK(host.peersReady() == 0);
+    client.share.fetch(client.hostIp, port, id);
+    got = false;
+    for (int i = 0; i < 200 && !got; i++) {
+        spin(1);
+        got = client.share.take(id);
+    }
+    CHECK(!got);
+    client.share.fetch(client.hostIp, port, id + 1);
+    for (int i = 0; i < 400 && !got; i++) {
+        spin(1);
+        got = client.share.take(id + 1);
+    }
+    CHECK(got && client.share.received == *other);
+    host.close();
+    client.close();
+}
+
 void testAddresses() {
     char text[32];
     uint32_t ip = net::parseIp("192.168.1.42");
@@ -151,6 +224,7 @@ void testAddresses() {
 } // namespace
 
 int main() {
+    testSongShare();
     testAddresses();
     playRace(0.0f, 0);
     playRace(0.0f, 3);

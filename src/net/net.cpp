@@ -14,7 +14,7 @@ namespace net {
 
 namespace {
 
-const uint32_t kMagic = 0x31474141u; // "AAG1"
+const uint32_t kMagic = 0x32474141u; // "AAG2"
 constexpr double kTimeout = 5.0;      // secondes sans nouvelles avant de couper
 
 enum Type : uint8_t {
@@ -58,12 +58,14 @@ struct JoinPacket {
     Header h;
     char name[20];
     int8_t ship;
+    uint64_t songReady;
 };
 struct LobbyPacket {
     Header h;
     WireConfig config;
     int8_t yourSlot;
     uint8_t racing;
+    uint64_t songId;
 };
 struct StartPacket {
     Header h;
@@ -136,7 +138,7 @@ WireConfig packConfig(const sim::RaceConfig& c) {
 // Les valeurs reçues du réseau sont bornées avant usage.
 sim::RaceConfig unpackConfig(const WireConfig& w) {
     sim::RaceConfig c;
-    c.track = std::clamp<int>(w.track, 0, sim::kTrackCount - 1);
+    c.track = std::clamp<int>(w.track, 0, sim::kSongSlots - 1);
     c.ownClock = w.ownClock != 0;
     c.racerCount = std::clamp<int>(w.racerCount, 0, sim::kMaxVehicles);
     c.gridStart = w.gridStart != 0;
@@ -197,6 +199,13 @@ bool Net::host(const char* name, int ship, uint16_t port) {
     lobby.racers[0].ship = ship;
     lobby.racers[0].profile = sim::kHuman;
     for (Peer& p : peers) p = Peer{};
+    songId = 0;
+    // Sans ce port TCP, les clients ne pourront pas recevoir le morceau.
+    if (!share.serve(port)) {
+        close();
+        return false;
+    }
+    role = Role::Host;
     return true;
 }
 
@@ -212,6 +221,8 @@ bool Net::client(const char* name, int ship) {
     foundCount = 0;
     startPending = false;
     hostInLobby = true;
+    hostSongId = 0;
+    songReady = 0;
     return true;
 }
 
@@ -226,9 +237,28 @@ void Net::close() {
         ::close(sock);
     }
     sock = -1;
+    share.close();
     role = Role::Off;
     joined = false;
     racing = false;
+}
+
+int Net::peerCount() const {
+    int count = 0;
+    for (const Peer& p : peers) count += p.active;
+    return count;
+}
+
+int Net::peersReady() const {
+    int count = 0;
+    for (const Peer& p : peers) count += p.active && songId != 0 && p.songReady == songId;
+    return count;
+}
+
+void Net::offerSong(uint64_t id, std::shared_ptr<const std::vector<uint8_t>> data) {
+    songId = id;
+    share.offer(id, std::move(data));
+    if (role == Role::Host) hostSendLobby();
 }
 
 bool Net::connected() const {
@@ -307,6 +337,7 @@ void Net::hostSendLobby() {
     packet.h.type = kLobby;
     packet.config = packConfig(lobby);
     packet.racing = racing;
+    packet.songId = songId;
     for (const Peer& p : peers) {
         if (!p.active) continue;
         packet.yourSlot = static_cast<int8_t>(p.slot);
@@ -447,6 +478,7 @@ void Net::clientTick(sim::Session& session, const sim::Input& local) {
 void Net::poll(double time, sim::Session* session) {
     now = time;
     if (sock < 0) return;
+    share.pump();
 
     uint8_t buffer[1500];
     for (;;) {
@@ -481,7 +513,11 @@ void Net::poll(double time, sim::Session* session) {
                 JoinPacket j;
                 std::memcpy(&j, buffer, sizeof(j));
                 j.name[sizeof(j.name) - 1] = '\0';
-                if (addPeer(ip, port, j.name, j.ship) >= 0) hostSendLobby();
+                if (addPeer(ip, port, j.name, j.ship) >= 0) {
+                    for (Peer& p : peers)
+                        if (p.active && p.ip == ip && p.port == port) p.songReady = j.songReady;
+                    hostSendLobby();
+                }
             } else if (h.type == kInput && peer && session && sized(sizeof(InputPacket))) {
                 InputPacket in;
                 std::memcpy(&in, buffer, sizeof(in));
@@ -528,6 +564,7 @@ void Net::poll(double time, sim::Session* session) {
                 mySlot = l.yourSlot;
                 joined = true;
                 hostInLobby = l.racing == 0;
+                hostSongId = l.songId;
             } else if (h.type == kStart && sized(sizeof(StartPacket))) {
                 StartPacket st;
                 std::memcpy(&st, buffer, sizeof(st));
@@ -587,6 +624,7 @@ void Net::poll(double time, sim::Session* session) {
             j.h.type = kJoin;
             copyName(j.name, myName);
             j.ship = static_cast<int8_t>(myShip);
+            j.songReady = songReady;
             send(hostIp, hostPort, &j, sizeof(j));
         }
     }

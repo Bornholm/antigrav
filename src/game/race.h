@@ -29,6 +29,7 @@ struct Race : sim::Session {
     const char* statsLine = "";
     float beatKick = 0.0f; // secousse de la caméra sur le temps, selon la hargne du morceau
     float bands[8] = {}; // niveaux de la musique, lissés pour l'affichage
+    bool keepSong = false; // le morceau vient de l'hôte : ne pas le réanalyser
     int theme = 0;      // décor de la piste
     int songSerial = 0; // change quand la piste change : le rendu la reconstruit alors
     bool pinToSync = false; // tient le vaisseau local sur le point de synchronisation

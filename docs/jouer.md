@@ -17,7 +17,6 @@ Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis le
 - **Décor.** Il dépend du morceau : la station pour un tempo rapide, la ville pour un son brillant, le canyon sinon.
 - **Sans tempo net.** Si le jeu ne trouve pas de pulsation régulière, il cale la piste sur une grille fixe et sur l'intensité du morceau, et l'indique sous le titre.
 
-En multijoueur, seuls les morceaux livrés sont proposés pour l'instant.
 
 ## Jouer en rythme
 
@@ -33,7 +32,9 @@ Le jeu s'ouvre sur le menu. **Solo** règle le morceau, le vaisseau, le nombre d
 
 La piste porte deux sortes d'éléments. Les plaques à chevrons jaunes rechargent la jauge d'énergie, les barrières rouges arrêtent net. Seul le cœur du vaisseau les touche : une aile peut passer au travers. Le bouclier encaisse une barrière.
 
-Pour jouer à plusieurs, tous les appareils doivent être sur le même réseau Wi-Fi, ou sur le partage de connexion de l'un d'eux. L'hôte choisit le morceau, les IA et lance la course. Si la découverte automatique ne trouve rien, saisir l'adresse IP de l'hôte. Le jeu utilise le port UDP 47800.
+Pour jouer à plusieurs, tous les appareils doivent être sur le même réseau Wi-Fi, ou sur le partage de connexion de l'un d'eux. L'hôte choisit le morceau, les IA et lance la course. Si la découverte automatique ne trouve rien, saisir l'adresse IP de l'hôte. Le jeu utilise le port 47800, en UDP pour la course et en TCP pour l'envoi du morceau.
+
+L'hôte peut choisir n'importe quel morceau, y compris un de ses fichiers. Le jeu l'envoie alors aux autres joueurs, avec son analyse, et la course ne peut partir que lorsque tout le monde l'a reçu. Le salon affiche l'avancement. Un fichier de plus de 40 Mo n'est pas envoyé. Le morceau reçu ne sert qu'à cette partie, il n'est pas gardé dans la bibliothèque.
 
 | Action | Clavier | Manette | Écran |
 |---|---|---|---|

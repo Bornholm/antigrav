@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <cstring>
+#include <cstdint>
 
 namespace music {
 
@@ -684,6 +686,112 @@ Partition analyze(const float* mono, size_t count, int sampleRate, AnalysisTrace
         p.sections.push_back(s);
     }
     return p;
+}
+
+namespace {
+
+const uint32_t kPartitionMagic = 0x31545250u; // "PRT1"
+
+template <typename T>
+void put(std::vector<unsigned char>& out, const T& value) {
+    const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&value);
+    out.insert(out.end(), bytes, bytes + sizeof(T));
+}
+
+template <typename T>
+void putAll(std::vector<unsigned char>& out, const std::vector<T>& values) {
+    put(out, uint32_t(values.size()));
+    const unsigned char* bytes = reinterpret_cast<const unsigned char*>(values.data());
+    out.insert(out.end(), bytes, bytes + values.size() * sizeof(T));
+}
+
+struct Reader {
+    const unsigned char* data;
+    size_t size, at = 0;
+    bool ok = true;
+
+    template <typename T>
+    void get(T& value) {
+        if (!ok || size - at < sizeof(T)) {
+            ok = false;
+            return;
+        }
+        std::memcpy(&value, data + at, sizeof(T));
+        at += sizeof(T);
+    }
+    template <typename T>
+    void getAll(std::vector<T>& values, size_t limit) {
+        uint32_t count = 0;
+        get(count);
+        if (!ok || count > limit || (size - at) / sizeof(T) < count) {
+            ok = false;
+            return;
+        }
+        values.resize(count);
+        if (count) std::memcpy(values.data(), data + at, count * sizeof(T));
+        at += count * sizeof(T);
+    }
+};
+
+bool finite01(float v) { return std::isfinite(v) && v >= 0.0f && v <= 1.0f; }
+
+} // namespace
+
+std::vector<unsigned char> pack(const Partition& p) {
+    std::vector<unsigned char> out;
+    put(out, kPartitionMagic);
+    put(out, p.duration);
+    put(out, p.tempo);
+    put(out, p.confidence);
+    putAll(out, p.beats);
+    putAll(out, p.onsets);
+    putAll(out, p.sections);
+    putAll(out, p.energy);
+    putAll(out, p.drive);
+    putAll(out, p.spectrum);
+    return out;
+}
+
+bool unpack(const unsigned char* data, size_t size, Partition& out) {
+    Reader r{data, size};
+    uint32_t magic = 0;
+    Partition p;
+    r.get(magic);
+    r.get(p.duration);
+    r.get(p.tempo);
+    r.get(p.confidence);
+    // Bornes larges : une heure de morceau, bien au-delà de ce que le jeu accepte.
+    r.getAll(p.beats, 40000);
+    r.getAll(p.onsets, 400000);
+    r.getAll(p.sections, 4000);
+    r.getAll(p.energy, 40000);
+    r.getAll(p.drive, 40000);
+    r.getAll(p.spectrum, 800000);
+    if (!r.ok || magic != kPartitionMagic) return false;
+    // Tout ce qui vient du réseau est vérifié avant usage.
+    if (!std::isfinite(p.duration) || p.duration <= 0.0f || p.duration > 3600.0f) return false;
+    if (!std::isfinite(p.tempo) || p.tempo < 0.0f || p.tempo > 400.0f || !finite01(p.confidence)) return false;
+    float last = -1.0f;
+    for (const Beat& b : p.beats) {
+        if (!std::isfinite(b.time) || b.time < last || b.time > p.duration + 1.0f) return false;
+        if (!finite01(b.strength) || b.bar < 0 || b.bar >= Partition::kBeatsPerBar) return false;
+        last = b.time;
+    }
+    for (const Onset& o : p.onsets)
+        if (!std::isfinite(o.time) || !finite01(o.strength) || o.band < 0 || o.band >= kBandCount) return false;
+    for (const Section& s : p.sections)
+        if (!std::isfinite(s.start) || !std::isfinite(s.end) || !std::isfinite(s.energy) || !std::isfinite(s.density) ||
+            !std::isfinite(s.brightness))
+            return false;
+    for (float v : p.energy)
+        if (!finite01(v)) return false;
+    for (float v : p.drive)
+        if (!finite01(v)) return false;
+    for (float v : p.spectrum)
+        if (!finite01(v)) return false;
+    if (p.spectrum.size() % size_t(Partition::kSpectrumBands) != 0) return false;
+    out = std::move(p);
+    return true;
 }
 
 } // namespace music

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/share.h"
 #include "sim/session.h"
 
 #include <cstdint>
@@ -45,12 +46,21 @@ struct Net {
         int slot = 0;
         double lastHeard = 0.0;
         uint32_t lastSeq = 0;
+        uint64_t songReady = 0; // morceau que ce joueur a reçu et préparé
     };
     Peer peers[sim::kMaxVehicles];
     // Joueurs humains présents dans le salon. L'emplacement 0 est l'hôte.
     sim::RaceConfig lobby;
     bool racing = false;
     double lastLobbySend = 0.0;
+    // Morceau de la course, envoyé aux clients par TCP sur le même numéro de
+    // port. songId l'identifie ; 0 tant que rien n'est proposé.
+    Share share;
+    uint64_t songId = 0;
+    // Hôte : nombre de joueurs distants, et combien ont le morceau.
+    int peerCount() const;
+    int peersReady() const;
+    void offerSong(uint64_t id, std::shared_ptr<const std::vector<uint8_t>> data);
 
     // --- Client
     uint32_t hostIp = 0;
@@ -61,6 +71,9 @@ struct Net {
     double lastJoinSend = 0.0;
     char myName[20] = "";
     int myShip = 0;
+    // Morceau annoncé par l'hôte, et celui que ce client a fini de préparer.
+    uint64_t hostSongId = 0;
+    uint64_t songReady = 0;
     // L'hôte a lancé la course : la configuration à démarrer est dans startConfig.
     bool startPending = false;
     sim::RaceConfig startConfig;

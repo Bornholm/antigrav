@@ -33,6 +33,12 @@ struct App {
     // Position du sélecteur de morceau : les morceaux livrés, puis ceux du
     // joueur, puis l'entrée qui ouvre un fichier.
     int songIndex = 0;
+    // Multijoueur. Hôte : morceau proposé. Client : morceau de l'hôte déjà
+    // installé, et son contenu pour la course à venir.
+    uint64_t publishedSong = 0;
+    uint64_t appliedSong = 0;
+    SongPackage hostSong;
+    char songStatus[80] = "";
     int ship = 0;
     int opponents = 3;
     int personality = 0; // 0 : variées, sinon personnalité + 1
@@ -56,6 +62,8 @@ struct App {
     bool useSongFile(const std::string& path);
     // Copie un fichier dans la bibliothèque du joueur et le sélectionne.
     bool importSong(const std::string& path);
+    // Hôte : propose le morceau courant aux autres joueurs.
+    void publishSong();
     // Lance directement une course, sans passer par les menus.
     void startQuickRace(const RaceConfig& config, bool autopilot);
     void update(double time, float dt, const Controls& controls, const UiInput& input,
@@ -66,6 +74,8 @@ struct App {
     void go(Screen next);
     void startAttract();
     void selectSong(int index);
+    // Client : reçoit et installe le morceau de l'hôte.
+    void receiveSong();
     void openSongDialog();
     void pollSongDialog();
     const char* songLabel(int index) const;

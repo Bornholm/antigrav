@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 static int failures = 0;
@@ -144,6 +145,37 @@ void testSections() {
     CHECK(loud[0] == 0.0f, "spectre non nul après la fin");
 }
 
+// La partition voyage entre joueurs : elle doit ressortir identique, et des
+// octets abîmés doivent être refusés.
+void testPacking() {
+    const std::vector<float> signal = drums(128.0f, 30.0f, 0.2f);
+    const music::Partition p = music::analyze(signal.data(), signal.size(), kRate);
+    const std::vector<unsigned char> bytes = music::pack(p);
+    music::Partition q;
+    CHECK(music::unpack(bytes.data(), bytes.size(), q), "partition refusée à la relecture");
+    CHECK(q.duration == p.duration && q.tempo == p.tempo && q.confidence == p.confidence, "valeurs changées");
+    CHECK(q.beats.size() == p.beats.size() && q.onsets.size() == p.onsets.size() && q.sections.size() == p.sections.size(),
+          "tailles changées");
+    CHECK(q.energy == p.energy && q.drive == p.drive && q.spectrum == p.spectrum, "courbes changées");
+    CHECK(!q.beats.empty() && q.beats.back().time == p.beats.back().time && q.beats.back().bar == p.beats.back().bar,
+          "temps changés");
+    CHECK(music::pack(q) == bytes, "seconde écriture différente");
+
+    // Tronquée à n'importe quelle longueur : toujours refusée, jamais de plantage.
+    for (size_t cut = 0; cut < bytes.size(); cut += bytes.size() / 97 + 1)
+        CHECK(!music::unpack(bytes.data(), cut, q), "partition tronquée à %zu acceptée", cut);
+    // Un compte gonflé ne doit pas faire lire hors du tampon.
+    std::vector<unsigned char> bad = bytes;
+    const uint32_t huge = 0x7FFFFFFFu;
+    std::memcpy(bad.data() + 16, &huge, 4);
+    CHECK(!music::unpack(bad.data(), bad.size(), q), "compte de temps démesuré accepté");
+    // Une valeur hors bornes non plus.
+    bad = bytes;
+    const float nan = std::nanf("");
+    std::memcpy(bad.data() + 4, &nan, 4);
+    CHECK(!music::unpack(bad.data(), bad.size(), q), "durée invalide acceptée");
+}
+
 void testDegenerate() {
     const std::vector<float> silence(size_t(kRate) * 10, 0.0f);
     music::Partition p = music::analyze(silence.data(), silence.size(), kRate);
@@ -169,6 +201,7 @@ int main() {
     for (float bpm : {90.0f, 118.0f, 128.0f, 140.0f, 174.0f}) testTempo(bpm);
     testOnsets();
     testSections();
+    testPacking();
     testDegenerate();
     if (failures) {
         std::printf("%d échec(s)\n", failures);

@@ -253,7 +253,7 @@ int runHeadless(const Options& opt) {
         else if (opt.screen == "salon") {
             // Port à part pour une simple capture, port normal pour un essai réseau.
             app.net.host(app.playerName, app.ship, opt.hostAuto > 0 ? net::kPort : 47950);
-            app.net.lobby.track = opt.track;
+            app.publishSong();
             app.screen = game::Screen::Lobby;
         }
         if (opt.screen == "multi") app.net.client(app.playerName, app.ship);

@@ -3,6 +3,8 @@
 #include "sim/track.h"
 #include "sim/world.h"
 
+#include <vector>
+
 namespace sim {
 
 constexpr int kHuman = -1;
@@ -37,6 +39,11 @@ struct Session {
     Input remoteInputs[kMaxVehicles];
     // Commandes appliquées au dernier pas.
     Input lastInputs[kMaxVehicles];
+
+    // Éléments de piste imposés, quand ils viennent de l'hôte : le client les
+    // reprend tels quels au lieu de se fier à sa propre génération.
+    bool useFeatures = false;
+    std::vector<Feature> givenFeatures;
 
     void start(const RaceConfig& config, int localIndex);
     // Commandes de chaque vaisseau pour le prochain pas.

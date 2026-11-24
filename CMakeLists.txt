@@ -143,7 +143,7 @@ target_compile_options(sim PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
 set_target_properties(sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Réseau local : ne dépend que de la simulation et des sockets POSIX.
-add_library(net STATIC src/net/net.cpp)
+add_library(net STATIC src/net/net.cpp src/net/share.cpp)
 target_link_libraries(net PUBLIC sim)
 target_compile_options(net PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
 set_target_properties(net PROPERTIES POSITION_INDEPENDENT_CODE ON)

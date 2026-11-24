@@ -19,7 +19,7 @@ Essai réseau entre deux instances sur la même machine, chacune filmée :
 
 ## Analyse d'un morceau
 
-`build/analyze` lit un fichier Ogg Vorbis ou WAV et affiche ce que le jeu en tire : tempo, temps, attaques, sections.
+`build/analyze` lit un fichier MP3, Ogg Vorbis, FLAC ou WAV et affiche ce que le jeu en tire : tempo, temps, attaques, sections.
 
 ```sh
 ./build/analyze assets/music/neon.ogg

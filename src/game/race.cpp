@@ -1,6 +1,7 @@
 #include "game/race.h"
 
 #include "game/music.h"
+#include "game/songs.h"
 #include "sim/generate.h"
 
 #include <algorithm>
@@ -51,7 +52,11 @@ RaceConfig defaultConfig(int track, bool gridStart) {
 
 void Race::init(const RaceConfig& cfg, int local) {
     // La piste se génère à partir de la partition du morceau.
-    sim::setSong(cfg.track, Music::partition(cfg.track));
+    // Celle du morceau du joueur est déjà en place, posée par la bibliothèque.
+    const bool custom = cfg.track == sim::kCustomTrack;
+    if (!custom) sim::setSong(cfg.track, Music::partition(cfg.track));
+    theme = custom ? customTheme() : cfg.track;
+    songSerial = custom ? 100 + customSerial() : cfg.track;
     start(cfg, local);
     accumulator = 0.0f;
     camLateral = world.vehicles[localIndex].lateral;

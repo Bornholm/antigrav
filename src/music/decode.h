@@ -3,7 +3,8 @@
 #include <string>
 #include <vector>
 
-// Décodage complet d'un fichier audio en mémoire. Formats : Ogg Vorbis et WAV.
+// Décodage complet d'un fichier audio en mémoire. Formats : Ogg Vorbis, MP3,
+// FLAC et WAV.
 namespace music {
 
 struct Audio {

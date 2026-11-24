@@ -31,7 +31,11 @@ FetchContent_Declare(glm
 FetchContent_Declare(stb
   URL ${GH}/nothings/stb/archive/6b5799bae8a1fe3792691ef4b72ae26434c3e799.tar.gz
   SOURCE_SUBDIR _none)
-FetchContent_MakeAvailable(vulkan_headers volk vma glm stb)
+# Décodeurs MP3 et FLAC, du domaine public.
+FetchContent_Declare(dr_libs
+  URL ${GH}/mackron/dr_libs/archive/e381981afa52800b9a3864df548353ff67252fbc.tar.gz
+  SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(vulkan_headers volk vma glm stb dr_libs)
 
 # SDL est compilé avec le jeu sur Android, et sur Linux quand le système ne
 # fournit pas SDL3 : l'exécutable l'embarque alors en statique.
@@ -59,13 +63,15 @@ add_library(third_party STATIC
   ${volk_SOURCE_DIR}/volk.c
   src/third_party/vma.cpp
   src/third_party/stb.cpp
-  src/third_party/stb_vorbis.cpp)
+  src/third_party/stb_vorbis.cpp
+  src/third_party/dr_libs.cpp)
 target_include_directories(third_party SYSTEM PUBLIC
   ${vulkan_headers_SOURCE_DIR}/include
   ${volk_SOURCE_DIR}
   ${vma_SOURCE_DIR}/include
   ${glm_SOURCE_DIR}
-  ${stb_SOURCE_DIR})
+  ${stb_SOURCE_DIR}
+  ${dr_libs_SOURCE_DIR})
 target_compile_definitions(third_party PUBLIC
   VK_NO_PROTOTYPES
   VMA_STATIC_VULKAN_FUNCTIONS=0
@@ -151,7 +157,7 @@ set_target_properties(music PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Décodage des fichiers audio, à part : il dépend de stb_vorbis.
 add_library(music_decode STATIC src/music/decode.cpp)
-target_include_directories(music_decode SYSTEM PRIVATE ${stb_SOURCE_DIR})
+target_include_directories(music_decode SYSTEM PRIVATE ${stb_SOURCE_DIR} ${dr_libs_SOURCE_DIR})
 target_link_libraries(music_decode PUBLIC music PRIVATE third_party)
 target_compile_options(music_decode PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
 set_target_properties(music_decode PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -191,6 +197,7 @@ set(GAME_SOURCES
   src/game/synth.cpp
   src/game/audio.cpp
   src/game/music.cpp
+  src/game/songs.cpp
   ${MUSIC_ASM}
   src/game/race.cpp
   src/game/ui.cpp

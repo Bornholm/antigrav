@@ -3,6 +3,10 @@
 #include "music/analysis.h"
 
 #include <atomic>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 struct stb_vorbis;
 
@@ -18,6 +22,8 @@ class Music {
     static constexpr int kTheme = 0;
     static constexpr int kFirstTrack = 1; // puis un morceau par circuit
     static constexpr int kCount = 4;
+    // Morceau du joueur, décodé en mémoire. Vient après les morceaux livrés.
+    static constexpr int kCustom = kCount;
 
     bool init();
     void shutdown();
@@ -38,6 +44,8 @@ class Music {
         synced_.store(true);
         wanted_.store(piece);
     }
+    // Échantillons du morceau du joueur : stéréo entrelacé à 48 kHz.
+    void setCustom(std::shared_ptr<const std::vector<int16_t>> pcm);
     // Partition du morceau d'un circuit, analysée à la première demande.
     static const music::Partition& partition(int track);
     void setVolume(float volume) { volume_.store(volume); }
@@ -47,6 +55,11 @@ class Music {
 
   private:
     stb_vorbis* decoders_[kCount] = {};
+    std::mutex customMutex_;
+    std::shared_ptr<const std::vector<int16_t>> customPending_; // déposé par le jeu
+    std::shared_ptr<const std::vector<int16_t>> custom_;        // lu par le fil audio
+    bool customChanged_ = false;
+    size_t customCursor_ = 0;
     std::atomic<int> wanted_{-1};
     std::atomic<float> volume_{0.8f};
     std::atomic<bool> synced_{false};

@@ -2,7 +2,10 @@
 
 namespace sim {
 
-constexpr int kTrackCount = 3;
+constexpr int kTrackCount = 3; // morceaux livrés avec le jeu
+// Emplacement du morceau choisi par le joueur parmi ses fichiers.
+constexpr int kCustomTrack = kTrackCount;
+constexpr int kSongSlots = kTrackCount + 1;
 constexpr int kShipCount = 4;
 constexpr int kProfileCount = 4;
 
@@ -25,6 +28,8 @@ struct TrackInfo {
     float halfWidth;
 };
 const TrackInfo& trackInfo(int track);
+// Nom et sous-titre du morceau du joueur. Les chaînes sont copiées.
+void setCustomTrackInfo(const char* name, const char* tagline);
 
 // Personnalité d'un pilote automatique.
 struct AiProfile {

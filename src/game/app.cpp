@@ -3,6 +3,8 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <mutex>
+#include <string>
 #include <cstdio>
 #include <cstring>
 
@@ -50,8 +52,99 @@ void acquireMulticastLock() {
 
 } // namespace
 
+namespace {
+
+// Résultat du sélecteur de fichiers. Son rappel peut venir d'un autre fil.
+std::mutex dialogMutex;
+std::string dialogPath;
+bool dialogDone = false;
+bool dialogOpen = false;
+
+void SDLCALL onSongChosen(void*, const char* const* files, int) {
+    std::lock_guard<std::mutex> lock(dialogMutex);
+    dialogPath = files && files[0] ? files[0] : "";
+    dialogDone = true;
+}
+
+} // namespace
+
+const char* App::songLabel(int index) const {
+    if (index < sim::kTrackCount) return sim::trackInfo(index).name;
+    const int entry = index - sim::kTrackCount;
+    if (entry < static_cast<int>(songs.entries.size())) return songs.entries[static_cast<size_t>(entry)].name.c_str();
+    return "Ouvrir un fichier...";
+}
+
+// Passe au morceau d'indice donné dans le sélecteur. Un morceau du joueur est
+// décodé et analysé ici.
+void App::selectSong(int index) {
+    songIndex = index;
+    notice = "";
+    if (index < sim::kTrackCount) {
+        track = index;
+    } else if (index - sim::kTrackCount < static_cast<int>(songs.entries.size())) {
+        if (!songs.load(index - sim::kTrackCount, music)) {
+            notice = songs.error.c_str();
+            return;
+        }
+        track = sim::kCustomTrack;
+    } else {
+        return; // l'entrée « ouvrir » ne change pas la piste de démonstration
+    }
+    startAttract();
+}
+
+void App::openSongDialog() {
+    static const SDL_DialogFileFilter filters[] = {
+        {"Musique", "mp3;ogg;flac;wav"},
+        {"Tous les fichiers", "*"},
+    };
+    {
+        std::lock_guard<std::mutex> lock(dialogMutex);
+        if (dialogOpen) return;
+        dialogOpen = true;
+        dialogDone = false;
+    }
+    notice = "";
+    SDL_ShowOpenFileDialog(onSongChosen, nullptr, window, filters, 2, nullptr, false);
+}
+
+void App::pollSongDialog() {
+    std::string path;
+    {
+        std::lock_guard<std::mutex> lock(dialogMutex);
+        if (!dialogDone) return;
+        dialogDone = false;
+        dialogOpen = false;
+        path = dialogPath;
+    }
+    if (!path.empty()) importSong(path); // vide : annulé
+}
+
+bool App::importSong(const std::string& path) {
+    const int entry = songs.import(path);
+    if (entry < 0) {
+        notice = songs.error.c_str();
+        return false;
+    }
+    selectSong(sim::kTrackCount + entry);
+    return track == sim::kCustomTrack;
+}
+
+bool App::useSongFile(const std::string& path) {
+    const size_t cut = path.find_last_of('/');
+    std::string name = cut == std::string::npos ? path : path.substr(cut + 1);
+    const size_t dot = name.find_last_of('.');
+    if (dot != std::string::npos && dot > 0) name.resize(dot);
+    if (!songs.loadFile(path, name, music)) return false;
+    track = sim::kCustomTrack;
+    return true;
+}
+
 void App::init(int startTrack) {
-    track = std::clamp(startTrack, 0, sim::kTrackCount - 1);
+    songs.scan();
+    track = std::clamp(startTrack, 0, sim::kSongSlots - 1);
+    songIndex = track < sim::kTrackCount ? track : sim::kTrackCount;
     std::snprintf(playerName, sizeof(playerName), "Pilote %02d",
                   static_cast<int>(SDL_GetTicksNS() / 1000 % 90) + 10);
     startAttract();
@@ -140,6 +233,7 @@ void App::leaveNetwork() {
 void App::update(double time, float dt, const Controls& controls, const UiInput& input,
                  glm::vec2 screenSize, const gfx::FontAtlas& fonts) {
     now = time;
+    pollSongDialog();
     race.statsLine = statsLine;
     // Thème dans les menus. En course, le morceau du circuit, calé sur le
     // temps de course : il démarre au signal du départ.
@@ -339,10 +433,18 @@ void App::drawMenus(glm::vec2) {
     auto raceSettings = [&](float x, float y, bool hostControls) {
         int d = 0;
         if (hostControls) {
-            if ((d = ui.selector({x, y}, 330.0f, "MORCEAU", sim::trackInfo(track).name)) != 0) {
-                track = (track + d + sim::kTrackCount) % sim::kTrackCount;
-                            if (net.role == net::Role::Host) net.lobby.track = track;
-                startAttract();
+            // En réseau, seuls les morceaux livrés : tous les joueurs les ont.
+            const bool online = net.role != net::Role::Off;
+            const int choices = online ? sim::kTrackCount : songChoices();
+            if (songIndex >= choices) selectSong(0);
+            // Un nom de fichier long est coupé pour tenir entre les flèches.
+            char label[24];
+            const char* full = songLabel(songIndex);
+            if (std::strlen(full) > 15) std::snprintf(label, sizeof(label), "%.13s...", full);
+            else std::snprintf(label, sizeof(label), "%s", full);
+            if ((d = ui.selector({x, y}, 330.0f, "MORCEAU", label)) != 0) {
+                selectSong((songIndex + d + choices) % choices);
+                if (net.role == net::Role::Host) net.lobby.track = track;
             }
             y += 72.0f;
         }
@@ -367,8 +469,12 @@ void App::drawMenus(glm::vec2) {
         ui.text({800.0f, 172.0f}, sim::trackInfo(track).tagline, 20.0f, kDim);
         float y = raceSettings(480.0f, 260.0f, true);
         drawShipCard({1180.0f, 372.0f});
-        if (ui.button({480.0f, y + 30.0f}, {330.0f, 40.0f}, "LANCER LA COURSE", true, kYellow))
-            startSolo();
+        const bool openEntry = songIndex == songChoices() - 1;
+        if (ui.button({480.0f, y + 30.0f}, {330.0f, 40.0f}, openEntry ? "CHOISIR UN FICHIER" : "LANCER LA COURSE", true, kYellow)) {
+            if (openEntry) openSongDialog();
+            else startSolo();
+        }
+        if (notice[0]) ui.text({480.0f, y + 78.0f}, notice, 18.0f, kYellow);
         if (ui.button({480.0f, y + 124.0f}, {330.0f, 32.0f}, "RETOUR", true,
                       vec4(0.7f, 0.75f, 0.9f, 1.0f)) ||
             ui.in.back)

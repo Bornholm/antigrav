@@ -9,6 +9,11 @@
 #define STB_VORBIS_NO_PUSHDATA_API
 #include <stb_vorbis.c>
 
+#define DR_MP3_NO_STDIO
+#include <dr_mp3.h>
+#define DR_FLAC_NO_STDIO
+#include <dr_flac.h>
+
 namespace music {
 
 namespace {
@@ -80,6 +85,43 @@ bool decodeVorbis(const unsigned char* data, size_t size, Audio& out, std::strin
     return true;
 }
 
+// Recopie des échantillons décodés, en ne gardant que deux canaux au plus.
+void adopt(Audio& out, const float* pcm, size_t frames, int channels, int sampleRate) {
+    out.sampleRate = sampleRate;
+    out.channels = channels > 2 ? 2 : channels;
+    out.samples.resize(frames * size_t(out.channels));
+    for (size_t i = 0; i < frames; ++i)
+        for (int c = 0; c < out.channels; ++c) out.samples[i * size_t(out.channels) + size_t(c)] = pcm[i * size_t(channels) + size_t(c)];
+}
+
+bool decodeMp3(const unsigned char* data, size_t size, Audio& out, std::string& error) {
+    drmp3_config config{};
+    drmp3_uint64 frames = 0;
+    float* pcm = drmp3_open_memory_and_read_pcm_frames_f32(data, size, &config, &frames, nullptr);
+    if (!pcm || frames == 0 || config.channels == 0) {
+        if (pcm) drmp3_free(pcm, nullptr);
+        error = "fichier MP3 invalide";
+        return false;
+    }
+    adopt(out, pcm, size_t(frames), int(config.channels), int(config.sampleRate));
+    drmp3_free(pcm, nullptr);
+    return true;
+}
+
+bool decodeFlac(const unsigned char* data, size_t size, Audio& out, std::string& error) {
+    unsigned int channels = 0, sampleRate = 0;
+    drflac_uint64 frames = 0;
+    float* pcm = drflac_open_memory_and_read_pcm_frames_f32(data, size, &channels, &sampleRate, &frames, nullptr);
+    if (!pcm || frames == 0 || channels == 0) {
+        if (pcm) drflac_free(pcm, nullptr);
+        error = "fichier FLAC invalide";
+        return false;
+    }
+    adopt(out, pcm, size_t(frames), int(channels), int(sampleRate));
+    drflac_free(pcm, nullptr);
+    return true;
+}
+
 } // namespace
 
 std::vector<float> Audio::mono() const {
@@ -97,6 +139,10 @@ bool decodeMemory(const unsigned char* data, size_t size, Audio& out, std::strin
     bool ok = false;
     if (size >= 12 && !std::memcmp(data, "RIFF", 4) && !std::memcmp(data + 8, "WAVE", 4)) ok = decodeWav(data, size, out, error);
     else if (size >= 4 && !std::memcmp(data, "OggS", 4)) ok = decodeVorbis(data, size, out, error);
+    else if (size >= 4 && !std::memcmp(data, "fLaC", 4)) ok = decodeFlac(data, size, out, error);
+    else if (size >= 3 && (!std::memcmp(data, "ID3", 3) || (data[0] == 0xFF && (data[1] & 0xE0) == 0xE0)))
+        ok = decodeMp3(data, size, out, error);
+    else if (size >= 12 && !std::memcmp(data + 4, "ftyp", 4)) error = "format AAC ou M4A non pris en charge";
     else error = "format audio non reconnu";
     if (ok && out.samples.empty()) {
         error = "fichier audio vide";

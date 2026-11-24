@@ -95,14 +95,38 @@ void Music::shutdown() {
     }
 }
 
+void Music::setCustom(std::shared_ptr<const std::vector<int16_t>> pcm) {
+    std::lock_guard<std::mutex> lock(customMutex_);
+    customPending_ = std::move(pcm);
+    customChanged_ = true;
+}
+
 void Music::mix(float* out, int frames) {
     const float step = 1.0f / (kFadeSeconds * static_cast<float>(Synth::kSampleRate));
     const float volume = volume_.load();
     float buffer[1024];
 
+    // Nouveau morceau du joueur : le fil audio le prend ici, hors de la boucle.
+    {
+        std::unique_lock<std::mutex> lock(customMutex_, std::try_to_lock);
+        if (lock.owns_lock() && customChanged_) {
+            custom_ = std::move(customPending_);
+            customChanged_ = false;
+            customCursor_ = 0;
+            if (current_ == kCustom) {
+                current_ = -1;
+                gain_ = 0.0f;
+            }
+        }
+    }
+
     while (frames > 0) {
         int wanted = wanted_.load();
-        if (wanted < -1 || wanted >= kCount || (wanted >= 0 && !decoders_[wanted])) wanted = -1;
+        const bool known = wanted == kCustom ? custom_ && !custom_->empty()
+                                             : wanted >= 0 && wanted < kCount && decoders_[wanted];
+        if (!known) wanted = -1;
+        // Le morceau du joueur ne se joue que calé sur une course.
+        if (wanted == kCustom && !synced_.load()) wanted = -1;
 
         // Morceau précédent éteint : on passe au suivant, depuis son début.
         if (current_ != wanted && gain_ <= 0.0f) {
@@ -111,7 +135,8 @@ void Music::mix(float* out, int frames) {
             fraction_ = 0.0;
             have_ = false;
             ended_ = false;
-            if (current_ >= 0) stb_vorbis_seek_start(decoders_[current_]);
+            customCursor_ = 0;
+            if (current_ >= 0 && current_ < kCount) stb_vorbis_seek_start(decoders_[current_]);
         }
         int chunk = std::min(frames, 512);
         if (current_ < 0) {
@@ -135,7 +160,8 @@ void Music::mix(float* out, int frames) {
             // un écart plus petit en jouant un rien plus vite ou plus lentement.
             const double error = target - readPosition_ / rate;
             if (std::abs(error) > 0.25) {
-                stb_vorbis_seek(decoders_[current_], static_cast<unsigned>(std::max(0.0, target * rate)));
+                if (current_ == kCustom) customCursor_ = static_cast<size_t>(std::max(0.0, target * rate));
+                else stb_vorbis_seek(decoders_[current_], static_cast<unsigned>(std::max(0.0, target * rate)));
                 readPosition_ = std::max(0.0, target * rate);
                 fraction_ = 0.0;
                 have_ = false;
@@ -152,8 +178,15 @@ void Music::mix(float* out, int frames) {
                     previous_[0] = next_[0];
                     previous_[1] = next_[1];
                     float sample[2] = {0.0f, 0.0f};
-                    if (!ended_ && stb_vorbis_get_samples_float_interleaved(decoders_[current_], 2, sample, 2) == 0)
+                    if (current_ == kCustom) {
+                        if (customCursor_ * 2 + 1 < custom_->size()) {
+                            sample[0] = static_cast<float>((*custom_)[customCursor_ * 2]) / 32768.0f;
+                            sample[1] = static_cast<float>((*custom_)[customCursor_ * 2 + 1]) / 32768.0f;
+                            customCursor_++;
+                        }
+                    } else if (!ended_ && stb_vorbis_get_samples_float_interleaved(decoders_[current_], 2, sample, 2) == 0) {
                         ended_ = true;
+                    }
                     next_[0] = sample[0];
                     next_[1] = sample[1];
                     if (!have_) {
@@ -174,6 +207,13 @@ void Music::mix(float* out, int frames) {
             continue;
         }
 
+        if (current_ == kCustom) {
+            // Plus calé : on se tait jusqu'au changement de morceau.
+            gain_ = 0.0f;
+            out += chunk * 2;
+            frames -= chunk;
+            continue;
+        }
         // Fin du fichier : retour au début, la boucle continue dans le même bloc.
         int got = 0;
         for (int tries = 0; got < chunk && tries < 3; tries++) {

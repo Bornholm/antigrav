@@ -2,6 +2,18 @@
 
 Chaque piste est générée à partir d'un morceau de musique. La course va de sa première note à sa dernière : pas de tours, et le classement se joue à l'arrivée. Les plaques de boost tombent sur le premier temps de chaque mesure, les obstacles sur les temps accentués, et les néons battent avec la musique.
 
+## Courir sur ses propres morceaux
+
+Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis les morceaux déjà ouverts, puis « Ouvrir un fichier ». Cette dernière entrée ouvre le sélecteur de fichiers du système.
+
+- **Formats.** MP3, Ogg Vorbis, FLAC et WAV. L'AAC, le M4A et l'Opus ne sont pas lus.
+- **Durée.** 30 secondes au moins. Au-delà de 8 minutes, seules les 8 premières servent.
+- **Bibliothèque.** Le fichier ouvert est copié dans le dossier du jeu, qui garde les 12 derniers. Sur Linux, c'est `~/.local/share/antigrav/antigrav/songs`.
+- **Décor.** Il dépend du morceau : la station pour un tempo rapide, la ville pour un son brillant, le canyon sinon.
+- **Sans tempo net.** Si le jeu ne trouve pas de pulsation régulière, il cale la piste sur une grille fixe et sur l'intensité du morceau, et l'indique sous le titre.
+
+En multijoueur, seuls les morceaux livrés sont proposés pour l'instant.
+
 ## Jouer en rythme
 
 - **Accord.** Lancer le boost pile sur un temps donne un accord : le boost ne coûte rien pendant une demi-seconde, pousse plus fort et rend un peu d'énergie. « EN RYTHME » s'affiche. Un accord est possible toutes les deux secondes environ.

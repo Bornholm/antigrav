@@ -66,6 +66,8 @@ struct Options {
     float startTime = 0.0f;
     bool hud = true;
     bool autopilot = false;
+    std::string song; // fichier audio sur lequel courir
+    std::string importSong; // fichier audio à copier dans la bibliothèque du joueur
     bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
     int track = 0;
@@ -105,6 +107,8 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--no-hud")) o.hud = false;
         else if (!std::strcmp(a, "--autopilot")) o.autopilot = true;
         else if (!std::strcmp(a, "--sync")) o.sync = true;
+        else if (!std::strcmp(a, "--song")) o.song = value();
+        else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
         else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
         else if (!std::strcmp(a, "--ship")) o.ship = std::atoi(value());
@@ -220,14 +224,23 @@ int runHeadless(const Options& opt) {
     std::vector<float> wavSamples;
     game::App app;
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
+    if (!opt.wav.empty() && opt.music && wavMusic.init()) app.music = &wavMusic;
     app.init(opt.track);
+    int track = opt.track;
+    if (!opt.song.empty()) {
+        if (!app.useSongFile(opt.song)) fatal("%s : %s", opt.song.c_str(), app.songs.error.c_str());
+        track = sim::kCustomTrack;
+    }
+    if (!opt.importSong.empty()) {
+        if (!app.importSong(opt.importSong)) fatal("%s : %s", opt.importSong.c_str(), app.songs.error.c_str());
+        track = sim::kCustomTrack;
+    }
     game::Race& race = app.race;
     if (opt.screen.empty()) {
         // Course jouée par l'ordinateur, pour les captures.
-        game::RaceConfig config = game::defaultConfig(opt.track, opt.gridStart == 1);
+        game::RaceConfig config = game::defaultConfig(track, opt.gridStart == 1);
         config.racers[0].ship = app.ship;
         if (!opt.wav.empty()) app.synth = &synth;
-        if (!opt.wav.empty() && opt.music && wavMusic.init()) app.music = &wavMusic;
         app.startQuickRace(config, true);
         race.pinToSync = opt.sync;
         // Avance jusqu'à l'instant demandé avant la première image.
@@ -253,7 +266,7 @@ int runHeadless(const Options& opt) {
 
     gfx::Renderer renderer;
     renderer.init(gpu, format);
-    renderer.loadTrack(race.track, race.config.track);
+    renderer.loadTrack(race.track, race.theme, race.songSerial);
     renderer.settings = opt.render;
 
     FrameData frames[kFramesInFlight];
@@ -277,8 +290,8 @@ int runHeadless(const Options& opt) {
             Uint64 nowNs = SDL_GetTicksNS();
             if (due > nowNs) SDL_DelayNS(due - nowNs);
         }
-        if (race.config.track != renderer.loadedTrack)
-            renderer.loadTrack(race.track, race.config.track);
+        if (race.songSerial != renderer.loadedTrack)
+            renderer.loadTrack(race.track, race.theme, race.songSerial);
         glm::vec2 screenSize{static_cast<float>(extent.width), static_cast<float>(extent.height)};
         app.update(static_cast<double>(i) / opt.fps, 1.0f / opt.fps, game::Controls{},
                    game::UiInput{}, screenSize, renderer.fonts);
@@ -390,9 +403,19 @@ int runWindowed(const Options& opt) {
         if (opt.music) app.music = &audio.music;
     }
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
+    app.window = window;
     app.init(opt.track);
-    if (opt.race || opt.autopilot) {
-        game::RaceConfig config = game::defaultConfig(opt.track, opt.gridStart != 0);
+    int track = opt.track;
+    if (!opt.song.empty()) {
+        if (!app.useSongFile(opt.song)) fatal("%s : %s", opt.song.c_str(), app.songs.error.c_str());
+        track = sim::kCustomTrack;
+    }
+    if (!opt.importSong.empty()) {
+        if (!app.importSong(opt.importSong)) fatal("%s : %s", opt.importSong.c_str(), app.songs.error.c_str());
+        track = sim::kCustomTrack;
+    }
+    if (opt.race || opt.autopilot || !opt.song.empty()) {
+        game::RaceConfig config = game::defaultConfig(track, opt.gridStart != 0);
         config.racers[0].ship = app.ship;
         app.startQuickRace(config, opt.autopilot);
     }
@@ -400,7 +423,7 @@ int runWindowed(const Options& opt) {
 
     gfx::Renderer renderer;
     renderer.init(gpu, swapchain.format);
-    renderer.loadTrack(race.track, race.config.track);
+    renderer.loadTrack(race.track, race.theme, race.songSerial);
     renderer.settings = opt.render;
 
     FrameData frames[kFramesInFlight];
@@ -512,8 +535,8 @@ int runWindowed(const Options& opt) {
                    input.consumeUi(), screen, renderer.fonts);
         if (app.quit) running = false;
         // Le menu a changé de circuit : la géométrie suit.
-        if (race.config.track != renderer.loadedTrack)
-            renderer.loadTrack(race.track, race.config.track);
+        if (race.songSerial != renderer.loadedTrack)
+            renderer.loadTrack(race.track, race.theme, race.songSerial);
 
         // Mesures lissées, rafraîchies deux fois par seconde.
         cpuMsSmoothed += (static_cast<double>(dt) * 1000.0 - cpuMsSmoothed) * 0.05;

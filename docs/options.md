@@ -5,6 +5,8 @@
 | `--race` | démarre directement une course, sans menu |
 | `--track N`, `--ship N` | morceau de 0 à 2, vaisseau de 0 à 3 |
 | `--autopilot` | l'ordinateur pilote aussi le vaisseau du joueur |
+| `--song fichier` | court directement sur ce fichier audio |
+| `--import fichier` | copie ce fichier dans la bibliothèque du joueur et le sélectionne |
 | `--sync` | mode sans fenêtre : tient le vaisseau filmé à la vitesse de la musique, pour vérifier que la piste tombe sur les temps |
 | `--grid-start`, `--rolling-start` | départ arrêté ou lancé |
 | `--size LxH` | taille de la fenêtre ou de l'image |

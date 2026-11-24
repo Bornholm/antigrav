@@ -323,7 +323,14 @@ music::Partition metronome(float bpm, float seconds) {
 }
 
 Track Track::make(int id) {
-    return generateTrack(song(id), trackInfo(id).halfWidth, static_cast<uint32_t>(id));
+    const music::Partition& p = song(id);
+    uint32_t seed = static_cast<uint32_t>(id);
+    // Le morceau du joueur tire sa graine de sa partition : deux morceaux
+    // différents ne donnent pas les mêmes tirages.
+    if (id == kCustomTrack)
+        seed = 1000u + static_cast<uint32_t>(p.duration * 100.0f) * 31u + static_cast<uint32_t>(p.beats.size()) * 7919u +
+               static_cast<uint32_t>(p.tempo * 10.0f);
+    return generateTrack(p, trackInfo(id).halfWidth, seed);
 }
 
 TrackFrame Track::at(float distance) const {

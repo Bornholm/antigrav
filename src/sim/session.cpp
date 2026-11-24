@@ -19,6 +19,7 @@ void Session::start(const RaceConfig& cfg, int local) {
     config = cfg;
     localIndex = std::clamp(local, 0, std::max(0, cfg.racerCount - 1));
     track = Track::make(cfg.track);
+    config.track = std::clamp(cfg.track, 0, kSongSlots - 1);
 
     world = World{};
     world.count = cfg.racerCount;

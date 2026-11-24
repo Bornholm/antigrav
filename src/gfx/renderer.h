@@ -185,7 +185,8 @@ struct Renderer {
     void init(Gpu& gpu, VkFormat outputFormat);
     // Construit la géométrie d'un circuit et adopte son thème. Bloque le temps
     // de générer les maillages, donc à appeler entre deux courses.
-    void loadTrack(const sim::Track& track, int trackId);
+    // themeId choisit le décor ; serial identifie la piste chargée.
+    void loadTrack(const sim::Track& track, int themeId, int serial);
     void shutdown();
     // À appeler avant de détruire les images de sortie, la swapchain par
     // exemple : leurs framebuffers ne doivent pas leur survivre.

@@ -2,6 +2,8 @@
 
 #include "sim/generate.h"
 
+#include <cstdio>
+
 namespace sim {
 
 // Réglé avec tools/balance : aucun modèle ni aucune personnalité ne doit
@@ -17,13 +19,24 @@ const ShipStats& shipStats(int ship) {
     return stats[ship < 0 || ship >= kShipCount ? 0 : ship];
 }
 
+namespace {
+char customName[64] = "Morceau du joueur";
+char customTagline[64] = "";
+} // namespace
+
 const TrackInfo& trackInfo(int track) {
-    static const TrackInfo infos[kTrackCount] = {
+    static const TrackInfo infos[kSongSlots] = {
         {"Néon City", "Outrun synthwave", 15.0f},
         {"Canyon Solaire", "Big beat, basse acide", 13.0f},
         {"Station Orbitale", "Drum and bass froide", 17.0f},
+        {customName, customTagline, 15.0f},
     };
-    return infos[track < 0 || track >= kTrackCount ? 0 : track];
+    return infos[track < 0 || track >= kSongSlots ? 0 : track];
+}
+
+void setCustomTrackInfo(const char* name, const char* tagline) {
+    std::snprintf(customName, sizeof(customName), "%s", name);
+    std::snprintf(customTagline, sizeof(customTagline), "%s", tagline);
 }
 
 const AiProfile& aiProfile(int profile) {
@@ -40,12 +53,13 @@ const AiProfile& aiProfile(int profile) {
 namespace {
 
 music::Partition& songSlot(int id) {
-    static music::Partition songs[kTrackCount] = {
+    static music::Partition songs[kSongSlots] = {
         metronome(128.0f, 100.0f),
         metronome(136.0f, 100.0f),
         metronome(172.0f, 100.0f),
+        metronome(120.0f, 100.0f),
     };
-    return songs[id < 0 || id >= kTrackCount ? 0 : id];
+    return songs[id < 0 || id >= kSongSlots ? 0 : id];
 }
 
 } // namespace

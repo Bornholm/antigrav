@@ -442,15 +442,15 @@ void Renderer::init(Gpu& gpuRef, VkFormat output) {
     missile = uploadMesh(*gpu, buildMissile(), "missile");
 }
 
-void Renderer::loadTrack(const sim::Track& track, int trackId) {
+void Renderer::loadTrack(const sim::Track& track, int themeId, int serial) {
     VK_CHECK(vkDeviceWaitIdle(gpu->device));
     destroyMesh(*gpu, road);
     destroyMesh(*gpu, rails);
     destroyMesh(*gpu, gates);
     destroyMesh(*gpu, features);
     destroyMesh(*gpu, city);
-    theme = themeFor(trackId);
-    loadedTrack = trackId;
+    theme = themeFor(themeId);
+    loadedTrack = serial;
     trackLead = track.lead;
     auto upload = [&](MeshData data, const char* name) {
         std::vector<uint32_t> chunks = sortByChunk(data, track);

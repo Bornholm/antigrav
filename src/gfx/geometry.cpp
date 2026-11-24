@@ -23,9 +23,9 @@ void addStrip(MeshData& mesh, const sim::Track& track, float lat0, float h0, flo
               float h1, float kind, const glm::vec4& color) {
     const int count = static_cast<int>(track.frames.size());
     uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
-    for (int i = 0; i <= count; i++) {
-        const sim::TrackFrame& f = track.frames[i % count];
-        float dist = track.step * static_cast<float>(i);
+    for (int i = 0; i < count; i++) {
+        const sim::TrackFrame& f = track.frames[i];
+        float dist = track.distOf(i);
         Vertex a, b;
         a.pos = f.pos + f.right * lat0;
         a.height = h0;
@@ -40,7 +40,7 @@ void addStrip(MeshData& mesh, const sim::Track& track, float lat0, float h0, flo
         mesh.add(a);
         mesh.add(b);
     }
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i + 1 < count; i++) {
         uint32_t v = base + static_cast<uint32_t>(i) * 2;
         mesh.quad(v, v + 1, v + 3, v + 2);
     }
@@ -78,9 +78,9 @@ MeshData buildRoad(const sim::Track& track) {
     const int count = static_cast<int>(track.frames.size());
     const float hw = track.halfWidth;
     const float lats[3] = {-hw, 0.0f, hw};
-    for (int i = 0; i <= count; i++) {
-        const sim::TrackFrame& f = track.frames[i % count];
-        float dist = track.step * static_cast<float>(i);
+    for (int i = 0; i < count; i++) {
+        const sim::TrackFrame& f = track.frames[i];
+        float dist = track.distOf(i);
         for (float lat : lats) {
             Vertex v;
             v.pos = f.pos + f.right * lat;
@@ -90,7 +90,7 @@ MeshData buildRoad(const sim::Track& track) {
             mesh.add(v);
         }
     }
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i + 1 < count; i++) {
         uint32_t v = static_cast<uint32_t>(i) * 3;
         mesh.quad(v, v + 1, v + 4, v + 3);
         mesh.quad(v + 1, v + 2, v + 5, v + 4);

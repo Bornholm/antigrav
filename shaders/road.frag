@@ -91,7 +91,7 @@ void main() {
     c += streakColor * streak * 0.55;
 
     // Ligne de départ : damier sur quatre mètres.
-    float toLine = min(uv.y, color.y - uv.y);
+    float toLine = min(abs(uv.y), abs(color.y - uv.y));
     if (toLine < 2.0 && ax < halfWidth - 1.0) {
         vec2 cell = floor(vec2(x, uv.y) / 1.0);
         c += vec3(1.0, 0.95, 0.85) * mod(cell.x + cell.y, 2.0) * 1.6;

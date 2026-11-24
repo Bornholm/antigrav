@@ -94,7 +94,8 @@ void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track);
 Input autopilot(const World& world, int index, const Track& track, const AiProfile& profile,
                 float laneOffset);
 
-float cruiseSpeed(const Vehicle& vehicle);
+// Vitesse de croisière d'un vaisseau là où il se trouve.
+float cruiseSpeed(const Vehicle& vehicle, const Track& track);
 
 // Rang d'un vaisseau, 1 pour le premier.
 int rankOf(const World& world, int index);

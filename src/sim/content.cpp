@@ -1,5 +1,7 @@
 #include "sim/content.h"
 
+#include "sim/generate.h"
+
 namespace sim {
 
 // Réglé avec tools/balance : aucun modèle ni aucune personnalité ne doit
@@ -17,9 +19,9 @@ const ShipStats& shipStats(int ship) {
 
 const TrackInfo& trackInfo(int track) {
     static const TrackInfo infos[kTrackCount] = {
-        {"Néon City", "Grandes courbes dans la ville", 15.0f, 3},
-        {"Canyon Solaire", "Technique, étroit, vallonné", 13.0f, 3},
-        {"Station Orbitale", "Huit à pleine vitesse, avec pont", 17.0f, 3},
+        {"Néon City", "Outrun synthwave", 15.0f, 1},
+        {"Canyon Solaire", "Big beat, basse acide", 13.0f, 1},
+        {"Station Orbitale", "Drum and bass froide", 17.0f, 1},
     };
     return infos[track < 0 || track >= kTrackCount ? 0 : track];
 }
@@ -34,5 +36,21 @@ const AiProfile& aiProfile(int profile) {
     };
     return profiles[profile < 0 || profile >= kProfileCount ? 0 : profile];
 }
+
+namespace {
+
+music::Partition& songSlot(int id) {
+    static music::Partition songs[kTrackCount] = {
+        metronome(128.0f, 100.0f),
+        metronome(136.0f, 100.0f),
+        metronome(172.0f, 100.0f),
+    };
+    return songs[id < 0 || id >= kTrackCount ? 0 : id];
+}
+
+} // namespace
+
+const music::Partition& song(int id) { return songSlot(id); }
+void setSong(int id, const music::Partition& partition) { songSlot(id) = partition; }
 
 } // namespace sim

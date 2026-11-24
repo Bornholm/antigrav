@@ -2,6 +2,7 @@
 // fait sortir le programme avec un code non nul.
 #include "game/synth.h"
 #include "sim/track.h"
+#include "sim/generate.h"
 #include "sim/world.h"
 
 #include <algorithm>
@@ -22,11 +23,21 @@ int failures = 0;
         }                                                                       \
     } while (0)
 
+// Piste à vitesse de synchronisation constante, pour les tests de physique
+// qui raisonnent sur la vitesse de croisière de référence.
+sim::Track flatTrack() {
+    sim::Track track = sim::Track::make(0);
+    for (sim::TrackFrame& f : track.frames) f.pace = sim::kCruiseSpeed;
+    return track;
+}
+
 void testTrackGeometry() {
     for (int id = 0; id < sim::kTrackCount; id++) {
         sim::Track track = sim::Track::make(id);
-        CHECK(track.length > 7000.0f && track.length < 13000.0f);
+        // 100 secondes de morceau entre 900 et 1 300 km/h.
+        CHECK(track.length > 24000.0f && track.length < 37000.0f);
         CHECK(track.halfWidth == sim::trackInfo(id).halfWidth);
+        CHECK(std::abs(track.duration - 100.0f) < 0.01f);
 
         const int count = static_cast<int>(track.frames.size());
         for (int i = 0; i < count; i++) {
@@ -36,21 +47,24 @@ void testTrackGeometry() {
             CHECK(std::abs(glm::length(f.up) - 1.0f) < 1e-3f);
             CHECK(std::abs(glm::dot(f.tangent, f.up)) < 1e-3f);
             CHECK(std::abs(glm::dot(f.right, f.up)) < 1e-3f);
-            // Pas constant, bouclage compris.
-            const sim::TrackFrame& next = track.frames[(i + 1) % count];
-            float gap = glm::length(next.pos - f.pos);
-            CHECK(std::abs(gap - track.step) < track.step * 0.05f);
-            // Aucun virage plus serré que 120 m de rayon.
+            if (i + 1 < count) {
+                // Pas constant, et le temps du morceau avance avec la piste.
+                const sim::TrackFrame& next = track.frames[i + 1];
+                float gap = glm::length(next.pos - f.pos);
+                CHECK(std::abs(gap - track.step) < track.step * 0.05f);
+                CHECK(next.time > f.time);
+            }
+            CHECK(f.pace >= 240.0f && f.pace <= 365.0f);
+            // Aucun virage plus serré que 120 m de rayon, aucune pente raide.
             CHECK(std::abs(f.curvature) < 1.0f / 120.0f);
+            CHECK(std::abs(f.tangent.y) < 0.12f);
         }
 
-        // Deux portions de piste ne se touchent jamais : soit elles sont
-        // éloignées, soit l'une passe nettement au-dessus de l'autre.
+        // Deux portions de piste ne se touchent jamais.
         const int stride = 5;
         const int apart = static_cast<int>(200.0f / track.step);
         for (int i = 0; i < count; i += stride) {
             for (int j = i + apart; j < count; j += stride) {
-                if (count - j + i < apart) continue; // voisins par le bouclage
                 glm::vec3 d = track.frames[j].pos - track.frames[i].pos;
                 float flat = std::sqrt(d.x * d.x + d.z * d.z);
                 CHECK(flat > 2.0f * track.halfWidth + 6.0f || std::abs(d.y) > 25.0f);
@@ -59,17 +73,40 @@ void testTrackGeometry() {
     }
 }
 
-void testTrackWrap() {
+void testTrackEnds() {
     sim::Track track = sim::Track::make(0);
-    sim::TrackFrame a = track.at(123.0f);
-    sim::TrackFrame b = track.at(123.0f + track.length);
-    sim::TrackFrame c = track.at(123.0f - 2.0f * track.length);
-    CHECK(glm::length(a.pos - b.pos) < 0.05f);
-    CHECK(glm::length(a.pos - c.pos) < 0.05f);
-    // Continuité au passage de la ligne.
-    sim::TrackFrame before = track.at(track.length - 0.01f);
-    sim::TrackFrame after = track.at(0.01f);
-    CHECK(glm::length(before.pos - after.pos) < 0.1f);
+    // Le morceau commence sur la ligne de départ et finit sur l'arrivée.
+    CHECK(std::abs(track.at(0.0f).time) < 0.02f);
+    CHECK(std::abs(track.at(track.length).time - track.duration) < 0.05f);
+    CHECK(std::abs(track.distAt(0.0f)) < 4.0f);
+    CHECK(std::abs(track.distAt(track.duration) - track.length) < 12.0f);
+    for (float t = 1.0f; t < track.duration; t += 7.3f)
+        CHECK(std::abs(track.at(track.distAt(t)).time - t) < 0.02f);
+    // Au-delà des extrémités, la piste continue tout droit.
+    sim::TrackFrame far = track.at(track.length + 5000.0f);
+    sim::TrackFrame farther = track.at(track.length + 5100.0f);
+    CHECK(std::abs(glm::length(farther.pos - far.pos) - 100.0f) < 0.5f);
+    sim::TrackFrame behind = track.at(-2000.0f);
+    CHECK(std::isfinite(behind.pos.x) && behind.time < 0.0f);
+    // On ne repasse jamais par un point déjà franchi.
+    CHECK(track.ahead(100.0f, 250.0f) == 150.0f);
+    CHECK(track.ahead(250.0f, 100.0f) > 1e6f);
+
+    // Le même morceau donne toujours la même piste.
+    sim::Track again = sim::Track::make(0);
+    CHECK(again.features.size() == track.features.size());
+    CHECK(again.frames.back().pos == track.frames.back().pos);
+
+    // Chaque plaque de boost tombe sur un premier temps de mesure.
+    const music::Partition& song = sim::song(0);
+    for (const sim::Feature& f : track.features) {
+        if (f.type != sim::FeatureType::BoostPad) continue;
+        float time = track.at(f.dist + 0.5f * f.length).time;
+        float best = 1e9f;
+        for (const music::Beat& b : song.beats)
+            if (b.bar == 0) best = std::min(best, std::abs(b.time - time));
+        CHECK(best < 0.02f);
+    }
 }
 
 sim::World makeGrid() {
@@ -94,7 +131,7 @@ void run(sim::World& world, const sim::Track& track, int steps) {
 }
 
 void testDeterminism() {
-    sim::Track track = sim::Track::make(0);
+    sim::Track track = flatTrack();
     sim::World a = makeGrid();
     sim::World b = makeGrid();
     run(a, track, 3600);
@@ -111,7 +148,7 @@ void testDeterminism() {
     }
 }
 
-void testAutopilotLaps() {
+void testAutopilotRuns() {
     for (int id = 0; id < sim::kTrackCount; id++) {
         sim::Track track = sim::Track::make(id);
         sim::World world = makeGrid();
@@ -133,15 +170,15 @@ void testAutopilotLaps() {
                 if (v.scraping) scrapeSteps++;
             }
         }
-        // Chaque modèle et chaque personnalité boucle au moins deux tours.
-        for (int i = 0; i < world.count; i++) CHECK(world.vehicles[i].dist > 2.0f * track.length);
+        // Chaque modèle et chaque personnalité tient le rythme du morceau.
+        for (int i = 0; i < world.count; i++) CHECK(world.vehicles[i].dist > 0.8f * track.distAt(90.0f));
         // Les murets restent l'exception.
         CHECK(scrapeSteps < steps * world.count / 12);
     }
 }
 
 void testWallAndBoost() {
-    sim::Track track = sim::Track::make(0);
+    sim::Track track = flatTrack();
     track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
     sim::World world;
     world.count = 1;
@@ -180,12 +217,12 @@ void testCountdownAndFinish() {
     CHECK(world.vehicles[0].dist == startDist);
     CHECK(world.raceTime == 0.0f);
 
-    run(world, track, 60 * 45);
+    run(world, track, 60 * 130);
     for (int i = 0; i < world.count; i++) {
         const sim::Vehicle& v = world.vehicles[i];
         CHECK(v.finished);
-        // Un tour à la vitesse de croisière prend une trentaine de secondes.
-        CHECK(v.finishTime > 20.0f && v.finishTime < 45.0f);
+        // La course dure le morceau, à quelques secondes près.
+        CHECK(v.finishTime > track.duration - 15.0f && v.finishTime < track.duration + 15.0f);
         CHECK(sim::lapOf(world, track, v) == 1);
     }
     // Le classement final suit les temps d'arrivée.
@@ -223,7 +260,7 @@ void testSynth() {
 }
 
 void testMissileAndShield() {
-    sim::Track track = sim::Track::make(0);
+    sim::Track track = flatTrack();
     track.features.clear(); // piste nue : ce test ne porte pas sur les éléments
     auto setup = [&](bool shielded) {
         sim::World world;
@@ -279,7 +316,7 @@ sim::Vehicle driveTo(const sim::Track& track, sim::Vehicle v, float until) {
 }
 
 void testFeatures() {
-    sim::Track track = sim::Track::make(0);
+    sim::Track track = flatTrack();
     sim::Vehicle start;
     start.dist = 100.0f;
     start.speed = sim::kCruiseSpeed;
@@ -359,7 +396,7 @@ void testFeatures() {
         for (int c : counts) CHECK(c >= 4);
     }
 
-    // Les pilotes automatiques esquivent : un tour sans toucher une barrière.
+    // Les pilotes automatiques esquivent : un morceau sans toucher une barrière.
     for (int id = 0; id < sim::kTrackCount; id++) {
         sim::Track t = sim::Track::make(id);
         sim::World world;
@@ -367,7 +404,8 @@ void testFeatures() {
         world.laps = 1;
         world.vehicles[0].speed = sim::kCruiseSpeed;
         int stuns = 0;
-        for (int s = 0; s < 60 * 120 && !world.vehicles[0].finished; s++) {
+        world.vehicles[0].speed = sim::cruiseSpeed(world.vehicles[0], t);
+        for (int s = 0; s < 60 * 140 && !world.vehicles[0].finished; s++) {
             sim::Input in = sim::autopilot(world, 0, t, sim::aiProfile(2), 0.0f);
             bool before = world.vehicles[0].stunTime > 0.0f;
             sim::step(world, t, &in);
@@ -393,9 +431,9 @@ void testRanking() {
 
 int main() {
     testTrackGeometry();
-    testTrackWrap();
+    testTrackEnds();
     testDeterminism();
-    testAutopilotLaps();
+    testAutopilotRuns();
     testWallAndBoost();
     testFeatures();
     testRanking();

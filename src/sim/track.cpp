@@ -1,6 +1,7 @@
 #include "sim/track.h"
 
 #include "sim/content.h"
+#include "sim/generate.h"
 
 #include <algorithm>
 #include <cmath>
@@ -10,80 +11,104 @@ namespace sim {
 
 namespace {
 
-glm::vec3 catmullRom(const glm::vec3& p0, const glm::vec3& p1, const glm::vec3& p2,
-                     const glm::vec3& p3, float t) {
-    float t2 = t * t, t3 = t2 * t;
-    return 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
-                   (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
+// Tirage reproductible, entre 0 et 1.
+float featureRoll(uint32_t seed, int slot, uint32_t salt) {
+    uint32_t h = (seed + 1u) * 0x9E3779B1u ^
+                 static_cast<uint32_t>(slot) * 0x85EBCA77u ^ salt * 0xC2B2AE3Du;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    return static_cast<float>(h & 0xFFFFFFu) / 16777216.0f;
 }
 
-Track build(const std::vector<glm::vec3>& control, float halfWidth, float targetStep) {
-    const int n = static_cast<int>(control.size());
 
-    // Polyligne dense, puis rééchantillonnage à pas constant.
-    std::vector<glm::vec3> dense;
-    const int perSpan = 96;
-    for (int i = 0; i < n; i++) {
-        const glm::vec3& p0 = control[(i + n - 1) % n];
-        const glm::vec3& p1 = control[i];
-        const glm::vec3& p2 = control[(i + 1) % n];
-        const glm::vec3& p3 = control[(i + 2) % n];
-        for (int k = 0; k < perSpan; k++)
-            dense.push_back(catmullRom(p0, p1, p2, p3, static_cast<float>(k) / perSpan));
+constexpr float kLead = 400.0f;  // piste avant la ligne de départ
+constexpr float kTail = 1600.0f; // piste après l'arrivée, pour finir sur sa lancée
+constexpr float kStep = 4.0f;
+constexpr float kPi = 3.14159265f;
+
+// Énergie moyenne du morceau autour d'un instant.
+float smoothEnergy(const music::Partition& p, float time, float half) {
+    float sum = 0.0f;
+    int count = 0;
+    for (float t = time - half; t <= time + half; t += 0.25f, count++) sum += p.energyAt(t);
+    return count ? sum / static_cast<float>(count) : 0.0f;
+}
+
+struct Phrase {
+    float start, end;
+    float amplitude; // courbure maximale, signée
+};
+
+// Un virage par phrase de huit temps. La piste serpente autour d'un axe : le
+// cap ne dépasse jamais un quart de tour, donc elle ne se recoupe pas.
+std::vector<Phrase> makePhrases(const music::Partition& p, const std::vector<music::Beat>& beats,
+                                float duration, uint32_t seed) {
+    std::vector<float> cuts{0.0f};
+    for (size_t i = 0; i < beats.size(); i++) {
+        if (beats[i].bar != 0) continue;
+        for (size_t k = i; k < beats.size(); k += 8)
+            if (beats[k].time > cuts.back() + 1.0f && beats[k].time < duration - 1.0f)
+                cuts.push_back(beats[k].time);
+        break;
     }
-    const int dn = static_cast<int>(dense.size());
-    std::vector<float> cumulative(dn + 1, 0.0f);
-    for (int i = 0; i < dn; i++)
-        cumulative[i + 1] = cumulative[i] + glm::length(dense[(i + 1) % dn] - dense[i]);
-    const float total = cumulative[dn];
+    cuts.push_back(duration);
 
-    Track track;
-    track.halfWidth = halfWidth;
-    const int count = std::max(8, static_cast<int>(std::round(total / targetStep)));
-    track.step = total / static_cast<float>(count);
-    track.length = total;
-    track.frames.resize(count);
-
-    int seg = 0;
-    for (int i = 0; i < count; i++) {
-        float d = track.step * static_cast<float>(i);
-        while (seg < dn - 1 && cumulative[seg + 1] < d) seg++;
-        float span = cumulative[seg + 1] - cumulative[seg];
-        float t = span > 0.0f ? (d - cumulative[seg]) / span : 0.0f;
-        track.frames[i].pos = glm::mix(dense[seg], dense[(seg + 1) % dn], t);
+    std::vector<Phrase> phrases;
+    float heading = 0.0f, lastSign = 1.0f;
+    for (size_t i = 0; i + 1 < cuts.size(); i++) {
+        const float start = cuts[i], end = cuts[i + 1];
+        const float energy = smoothEnergy(p, 0.5f * (start + end), 0.5f * (end - start));
+        const float length = (250.0f + 110.0f * energy) * (end - start);
+        const int slot = static_cast<int>(i);
+        // Un passage intense tourne serré, un passage calme file presque droit.
+        float amplitude = (0.0005f + 0.0016f * energy) * (0.6f + 0.4f * featureRoll(seed, slot, 11u));
+        if (energy < 0.25f && featureRoll(seed, slot, 12u) < 0.5f) amplitude *= 0.3f;
+        // Le virage tourne de amplitude * longueur / 2 : au plus 0,9 radian.
+        amplitude = std::min(amplitude, 1.8f / std::max(1.0f, length));
+        const float turn = 0.5f * amplitude * length;
+        float sign = -lastSign;
+        if (std::abs(heading) > 0.5f) sign = heading > 0.0f ? -1.0f : 1.0f;
+        else if (featureRoll(seed, slot, 13u) < 0.25f && std::abs(heading + lastSign * turn) < 1.2f) sign = lastSign;
+        heading += sign * turn;
+        lastSign = sign;
+        phrases.push_back({start, end, sign * amplitude});
     }
+    return phrases;
+}
 
+// Repères, courbure et dévers à partir des positions.
+void finishFrames(Track& track) {
+    const int count = static_cast<int>(track.frames.size());
+    auto clampIndex = [&](int i) { return std::clamp(i, 0, count - 1); };
     for (int i = 0; i < count; i++) {
-        const glm::vec3& prev = track.frames[(i + count - 1) % count].pos;
-        const glm::vec3& next = track.frames[(i + 1) % count].pos;
+        const glm::vec3& prev = track.frames[clampIndex(i - 1)].pos;
+        const glm::vec3& next = track.frames[clampIndex(i + 1)].pos;
         track.frames[i].tangent = glm::normalize(next - prev);
     }
 
     // Dévers proportionnel à la courbure, lissé pour éviter les à-coups.
     std::vector<float> bank(count);
     for (int i = 0; i < count; i++) {
-        const glm::vec3& t0 = track.frames[(i + count - 1) % count].tangent;
-        const glm::vec3& t1 = track.frames[(i + 1) % count].tangent;
+        const glm::vec3& t0 = track.frames[clampIndex(i - 1)].tangent;
+        const glm::vec3& t1 = track.frames[clampIndex(i + 1)].tangent;
         glm::vec3 flatRight =
             glm::normalize(glm::cross(track.frames[i].tangent, glm::vec3(0.0f, 1.0f, 0.0f)));
         float curvature = glm::dot(t1 - t0, flatRight) / (2.0f * track.step);
         track.frames[i].curvature = curvature;
         bank[i] = std::clamp(curvature * 170.0f, -0.42f, 0.42f);
     }
+    std::vector<float> smoothed(count);
     for (int pass = 0; pass < 12; pass++) {
-        std::vector<float> smoothed(count);
         for (int i = 0; i < count; i++)
-            smoothed[i] = (bank[(i + count - 1) % count] + 2.0f * bank[i] +
-                           bank[(i + 1) % count]) * 0.25f;
+            smoothed[i] = (bank[clampIndex(i - 1)] + 2.0f * bank[i] + bank[clampIndex(i + 1)]) * 0.25f;
         bank.swap(smoothed);
     }
     // La courbure brute est bruitée par l'échantillonnage : même lissage.
     for (int pass = 0; pass < 6; pass++) {
-        std::vector<float> smoothed(count);
         for (int i = 0; i < count; i++)
-            smoothed[i] = (track.frames[(i + count - 1) % count].curvature +
-                           2.0f * track.frames[i].curvature +
-                           track.frames[(i + 1) % count].curvature) * 0.25f;
+            smoothed[i] = (track.frames[clampIndex(i - 1)].curvature + 2.0f * track.frames[i].curvature +
+                           track.frames[clampIndex(i + 1)].curvature) * 0.25f;
         for (int i = 0; i < count; i++) track.frames[i].curvature = smoothed[i];
     }
 
@@ -95,33 +120,15 @@ Track build(const std::vector<glm::vec3>& control, float halfWidth, float target
         f.up = glm::normalize(flatUp * std::cos(bank[i]) + flatRight * std::sin(bank[i]));
         f.right = glm::normalize(glm::cross(f.tangent, f.up));
     }
-    return track;
 }
 
-// Tirage reproductible pour le placement des éléments de piste.
-float featureRoll(int track, int slot, uint32_t salt) {
-    uint32_t h = static_cast<uint32_t>(track + 1) * 0x9E3779B1u ^
-                 static_cast<uint32_t>(slot) * 0x85EBCA77u ^ salt * 0xC2B2AE3Du;
-    h ^= h >> 15;
-    h *= 0x2C1B3C6Du;
-    h ^= h >> 12;
-    return static_cast<float>(h & 0xFFFFFFu) / 16777216.0f;
-}
-
-// Sème plaques de boost, champs de freinage et barrières le long du circuit.
-// Chaque circuit a son dosage : la ville est rapide, le canyon encombré, la
-// station piégée. Un passage reste toujours libre.
-void placeFeatures(Track& track, int id) {
-    struct Recipe {
-        float spacing;
-        float pad, slow; // parts en ligne droite, le reste en barrières
-    };
-    static const Recipe recipes[kTrackCount] = {
-        {340.0f, 0.50f, 0.22f},
-        {300.0f, 0.22f, 0.28f},
-        {290.0f, 0.36f, 0.42f},
-    };
-    const Recipe& recipe = recipes[id < 0 || id >= kTrackCount ? 0 : id];
+// Pose les éléments sur la musique. Une plaque de boost tombe sur le premier
+// temps de la mesure. Un obstacle tombe sur le deuxième ou le quatrième
+// temps, celui que le morceau accentue le plus : barrières dans les passages
+// intenses, champs de freinage dans les passages calmes. Un passage reste
+// toujours libre, et la plaque de la mesure est dans ce passage.
+void placeFeatures(Track& track, const music::Partition& p, const std::vector<music::Beat>& beats,
+                   uint32_t seed) {
     const float hw = track.halfWidth;
     const float kPadLength = 36.0f, kPadHalf = 3.6f;
     const float kSlowLength = 50.0f;
@@ -129,107 +136,217 @@ void placeFeatures(Track& track, int id) {
     const float kGapHalf = 6.5f; // demi-largeur du passage entre deux barrières
 
     auto add = [&](FeatureType type, float dist, float length, float lateral, float half) {
+        if (dist < 260.0f || dist + length > track.length - 120.0f) return;
         track.features.push_back({type, dist, length, lateral, half});
     };
+    // Force de l'accent le plus marqué autour d'un instant, hors graves.
+    auto accent = [&](float time) {
+        float best = 0.0f;
+        for (const music::Onset& o : p.onsets)
+            if (o.band != music::kLow && std::abs(o.time - time) < 0.07f) best = std::max(best, o.strength);
+        return best;
+    };
 
-    const int slots = static_cast<int>((track.length - 450.0f) / recipe.spacing);
-    for (int s = 0; s < slots; s++) {
-        float dist = 300.0f + recipe.spacing * static_cast<float>(s);
-        float curvature = track.at(dist + 20.0f).curvature;
-        float type = featureRoll(id, s, 1u);
-        float where = featureRoll(id, s, 2u);
-        float lanes[3] = {-0.55f * hw, 0.0f, 0.55f * hw};
-        float lane = lanes[std::min(2, static_cast<int>(where * 3.0f))];
+    int bar = 0;
+    for (size_t i = 0; i + 3 < beats.size(); i++) {
+        if (beats[i].bar != 0) continue;
+        const int slot = bar++;
+        const float energy = smoothEnergy(p, beats[i].time, 1.0f);
+        const float lanes[3] = {-0.55f * hw, 0.0f, 0.55f * hw};
+        float padLane = lanes[std::min(2, static_cast<int>(featureRoll(seed, slot, 2u) * 3.0f))];
 
-        if (std::abs(curvature) > 0.0012f) {
-            // En virage : un champ de freinage punit la corde, ou une plaque
-            // récompense l'extérieur.
-            float inside = curvature > 0.0f ? 1.0f : -1.0f;
-            if (type < 0.5f) {
-                float half = hw * 0.30f;
-                add(FeatureType::SlowField, dist, kSlowLength, inside * (hw - half), half);
+        const float accent2 = accent(beats[i + 1].time), accent4 = accent(beats[i + 3].time);
+        // Sur le deuxième temps l'obstacle suit la plaque d'un seul temps :
+        // réservé aux passages intenses.
+        const bool early = accent2 > accent4 && energy >= 0.6f;
+        const float hazardDist = track.distAt(beats[i + (early ? 1 : 3)].time);
+        const float chance = 0.20f + 0.40f * energy + 0.25f * std::max(accent2, accent4);
+        const float curvature = track.at(hazardDist + 20.0f).curvature;
+        const float inside = curvature > 0.0f ? 1.0f : -1.0f;
+        const bool turning = std::abs(curvature) > 0.0012f;
+
+        if (turning) padLane = -inside * 0.5f * hw; // la plaque récompense l'extérieur
+        if (featureRoll(seed, slot, 1u) < chance) {
+            const float kind = featureRoll(seed, slot, 3u);
+            if (turning) {
+                // En virage, un champ de freinage punit la corde.
+                const float half = hw * 0.30f;
+                add(FeatureType::SlowField, hazardDist, kSlowLength, inside * (hw - half), half);
+            } else if (energy < 0.3f) {
+                const float lane = lanes[std::min(2, static_cast<int>(kind * 3.0f))];
+                add(FeatureType::SlowField, hazardDist, kSlowLength, lane, hw * 0.34f);
+                if (lane == padLane) padLane = lane == 0.0f ? lanes[2] : 0.0f;
+            } else if (kind < 0.34f) {
+                // Chicane : deux barrières, un passage au milieu.
+                const float half = (hw - kGapHalf) * 0.5f;
+                add(FeatureType::Barrier, hazardDist, kBarrierLength, -(hw - half), half);
+                add(FeatureType::Barrier, hazardDist, kBarrierLength, hw - half, half);
+                padLane = 0.0f;
+            } else if (kind < 0.67f) {
+                // Plot central, on passe d'un côté ou de l'autre.
+                add(FeatureType::Barrier, hazardDist, kBarrierLength, 0.0f, hw * 0.28f);
+                if (padLane == 0.0f) padLane = featureRoll(seed, slot, 4u) < 0.5f ? lanes[0] : lanes[2];
             } else {
-                add(FeatureType::BoostPad, dist, kPadLength, -inside * 0.5f * hw, kPadHalf);
+                // Demi-piste fermée.
+                const float side = featureRoll(seed, slot, 4u) < 0.5f ? -1.0f : 1.0f;
+                const float half = hw * 0.42f;
+                add(FeatureType::Barrier, hazardDist, kBarrierLength, side * (hw - half), half);
+                padLane = -side * 0.5f * hw;
             }
-        } else if (type < recipe.pad) {
-            add(FeatureType::BoostPad, dist, kPadLength, lane, kPadHalf);
-        } else if (type < recipe.pad + recipe.slow) {
-            add(FeatureType::SlowField, dist, kSlowLength, lane, hw * 0.34f);
-        } else if (where < 0.34f) {
-            // Chicane : deux barrières, un passage au milieu.
-            float half = (hw - kGapHalf) * 0.5f;
-            add(FeatureType::Barrier, dist, kBarrierLength, -(hw - half), half);
-            add(FeatureType::Barrier, dist, kBarrierLength, hw - half, half);
-        } else if (where < 0.67f) {
-            // Plot central, on passe d'un côté ou de l'autre.
-            add(FeatureType::Barrier, dist, kBarrierLength, 0.0f, hw * 0.28f);
-        } else {
-            // Demi-piste fermée, avec une plaque dans le couloir libre.
-            float side = featureRoll(id, s, 3u) < 0.5f ? -1.0f : 1.0f;
-            float half = hw * 0.42f;
-            add(FeatureType::Barrier, dist, kBarrierLength, side * (hw - half), half);
-            add(FeatureType::BoostPad, dist + 10.0f, kPadLength, -side * 0.5f * hw, kPadHalf);
         }
+        // Passages calmes : une plaque une mesure sur deux.
+        if (energy >= 0.35f || slot % 2 == 0)
+            add(FeatureType::BoostPad, track.distAt(beats[i].time) - 0.5f * kPadLength, kPadLength, padLane, kPadHalf);
     }
 }
 
 } // namespace
 
-Track Track::make(int id) {
-    const float halfWidth = trackInfo(id).halfWidth;
-    std::vector<glm::vec3> control;
-    switch (id) {
-    case 1:
-        // Canyon Solaire : tracé sinueux et vallonné, virages serrés.
-        control = {
-            {0.0f, 0.0f, 0.0f},       {0.0f, 15.0f, -900.0f},   {350.0f, 70.0f, -1500.0f},
-            {1000.0f, 130.0f, -1500.0f}, {1300.0f, 95.0f, -900.0f}, {900.0f, 40.0f, -450.0f},
-            {1200.0f, 0.0f, 150.0f},  {1900.0f, -35.0f, 300.0f}, {2300.0f, 25.0f, -300.0f},
-            {2900.0f, 95.0f, -200.0f}, {3000.0f, 60.0f, 700.0f}, {2200.0f, 10.0f, 1100.0f},
-            {1200.0f, -25.0f, 850.0f}, {500.0f, 30.0f, 1300.0f}, {-150.0f, 20.0f, 800.0f},
-        };
-        break;
-    case 2: {
-        // Station Orbitale : un huit, dont une branche enjambe l'autre.
-        const int points = 14;
-        for (int i = 0; i < points; i++) {
-            float t = 0.45f + 6.2831853f * static_cast<float>(i) / points;
-            control.push_back({1700.0f * std::sin(t), 45.0f * std::cos(t),
-                               -1150.0f * std::sin(2.0f * t)});
+Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
+    const float duration = std::max(5.0f, p.duration);
+    // Sans tempo fiable, une grille régulière à 120 battements par minute
+    // tient lieu de temps.
+    std::vector<music::Beat> beats = p.beats;
+    if (beats.size() < 16 || p.confidence < 0.1f) {
+        beats.clear();
+        int index = 0;
+        for (float t = 0.5f; t < duration; t += 0.5f, index++) beats.push_back({t, 0.5f, index % 4});
+    }
+    const std::vector<Phrase> phrases = makePhrases(p, beats, duration, seed);
+
+    float meanEnergy = 0.0f;
+    for (float e : p.energy) meanEnergy += e;
+    if (!p.energy.empty()) meanEnergy /= static_cast<float>(p.energy.size());
+
+    // Tracé dense, un point tous les centièmes de seconde du morceau, précédé
+    // d'une ligne droite et suivi d'une autre.
+    struct Sample {
+        glm::vec3 pos;
+        float time, pace, dist;
+    };
+    std::vector<Sample> dense;
+    auto paceAt = [&](float time) { return 250.0f + 110.0f * smoothEnergy(p, time, 1.0f); };
+    const float startPace = paceAt(0.0f);
+    // La piste part vers -z : la ligne droite de départ est donc en z positif.
+    for (float d = -kLead; d < 0.0f; d += kStep)
+        dense.push_back({{0.0f, 0.0f, -d}, d / startPace, startPace, d});
+
+    const float dt = 0.01f;
+    glm::vec3 pos{0.0f};
+    float heading = 0.0f, height = 0.0f, slope = 0.0f, dist = 0.0f, pace = startPace;
+    size_t phrase = 0;
+    float slowEnergy = 0.0f, fastPace = startPace;
+    for (int i = 0; static_cast<float>(i) * dt < duration; i++) {
+        const float time = static_cast<float>(i) * dt;
+        // L'énergie ne bouge qu'au dixième de seconde : inutile de la relire plus.
+        if (i % 10 == 0) {
+            fastPace = paceAt(time);
+            slowEnergy = smoothEnergy(p, time, 3.5f);
         }
-        break;
+        pace += (fastPace - pace) * 0.02f;
+        dense.push_back({pos, time, pace, dist});
+
+        while (phrase + 1 < phrases.size() && time >= phrases[phrase].end) phrase++;
+        const Phrase& ph = phrases[phrase];
+        const float u = std::clamp((time - ph.start) / std::max(0.01f, ph.end - ph.start), 0.0f, 1.0f);
+        const float s = std::sin(kPi * u);
+        const float moved = pace * dt;
+        heading += ph.amplitude * s * s * moved;
+        // La piste plonge quand le morceau monte en intensité.
+        const float target = -140.0f * (slowEnergy - meanEnergy);
+        const float wanted = std::clamp((target - height) / 600.0f, -0.09f, 0.09f);
+        slope += (wanted - slope) * std::min(1.0f, moved / 150.0f);
+        const glm::vec3 dir = glm::normalize(glm::vec3(std::sin(heading), slope, -std::cos(heading)));
+        pos += dir * moved;
+        height = pos.y;
+        dist += moved;
     }
-    default:
-        // Néon City : grandes courbes rapides, environ 10,7 km.
-        control = {
-            {0.0f, 0.0f, 0.0f},        {0.0f, 0.0f, -1500.0f},    {450.0f, 25.0f, -2700.0f},
-            {1500.0f, 60.0f, -3000.0f}, {2400.0f, 25.0f, -2400.0f}, {2250.0f, 0.0f, -1350.0f},
-            {1350.0f, -12.0f, -900.0f}, {1500.0f, 0.0f, 150.0f},   {900.0f, 35.0f, 900.0f},
-            {0.0f, 25.0f, 750.0f},
-        };
-        break;
+    const float length = dist;
+    const float endTime = duration;
+    for (float d = 0.0f; d <= kTail; d += kStep) {
+        dense.push_back({pos, endTime + d / pace, pace, length + d});
+        slope *= 0.9f;
+        pos += glm::normalize(glm::vec3(std::sin(heading), slope, -std::cos(heading))) * kStep;
     }
-    Track track = build(control, halfWidth, 4.0f);
-    placeFeatures(track, id);
+
+    Track track;
+    track.halfWidth = halfWidth;
+    track.lead = kLead;
+    track.length = length;
+    track.duration = duration;
+    const float total = kLead + length + kTail;
+    const int count = static_cast<int>(total / kStep);
+    track.step = kStep;
+    track.frames.resize(count);
+    size_t seg = 0;
+    for (int i = 0; i < count; i++) {
+        const float d = track.distOf(i);
+        while (seg + 2 < dense.size() && dense[seg + 1].dist < d) seg++;
+        const Sample& a = dense[seg];
+        const Sample& b = dense[seg + 1];
+        const float span = b.dist - a.dist;
+        const float t = span > 0.0f ? std::clamp((d - a.dist) / span, 0.0f, 1.0f) : 0.0f;
+        track.frames[i].pos = glm::mix(a.pos, b.pos, t);
+        track.frames[i].time = glm::mix(a.time, b.time, t);
+        track.frames[i].pace = glm::mix(a.pace, b.pace, t);
+    }
+    finishFrames(track);
+    placeFeatures(track, p, beats, seed);
     return track;
+}
+
+music::Partition metronome(float bpm, float seconds) {
+    music::Partition p;
+    p.duration = seconds;
+    p.tempo = bpm;
+    p.confidence = 1.0f;
+    const float beat = 60.0f / bpm;
+    // Quatre parties de huit mesures, qui reviennent : calme, forte, pont, forte.
+    static const float levels[4] = {0.3f, 0.8f, 0.15f, 0.95f};
+    const float part = beat * 32.0f;
+    int index = 0;
+    for (float t = 0.25f; t < seconds; t += beat, index++) {
+        const int bar = index % 4;
+        p.beats.push_back({t, bar == 0 ? 1.0f : 0.6f, bar});
+        p.onsets.push_back({t, bar == 0 ? 1.0f : 0.7f, music::kLow});
+        if (bar == 1 || bar == 3) p.onsets.push_back({t, bar == 3 ? 0.9f : 0.7f, music::kHigh});
+    }
+    for (float t = 0.0f; t <= seconds; t += 1.0f / music::Partition::kEnergyRate)
+        p.energy.push_back(levels[static_cast<int>(t / part) % 4]);
+    for (float t = 0.0f; t < seconds; t += part) {
+        const float level = levels[static_cast<int>(t / part) % 4];
+        p.sections.push_back({t, std::min(seconds, t + part), level, 1.5f, 0.5f});
+    }
+    return p;
+}
+
+Track Track::make(int id) {
+    return generateTrack(song(id), trackInfo(id).halfWidth, static_cast<uint32_t>(id));
 }
 
 TrackFrame Track::at(float distance) const {
     const int count = static_cast<int>(frames.size());
-    float wrapped = std::fmod(distance, length);
-    if (wrapped < 0.0f) wrapped += length;
-    float fi = wrapped / step;
-    int i0 = static_cast<int>(fi) % count;
-    int i1 = (i0 + 1) % count;
-    float t = fi - std::floor(fi);
-
+    const float fi = (distance + lead) / step;
+    if (fi <= 0.0f || fi >= static_cast<float>(count - 1)) {
+        // Hors de la piste construite : prolongement en ligne droite.
+        TrackFrame out = fi <= 0.0f ? frames.front() : frames.back();
+        const float beyond = fi <= 0.0f ? distance + lead : distance - distOf(count - 1);
+        out.pos += out.tangent * beyond;
+        out.time += beyond / out.pace;
+        out.curvature = 0.0f;
+        return out;
+    }
+    const int i0 = static_cast<int>(fi);
+    const float t = fi - static_cast<float>(i0);
     const TrackFrame& a = frames[i0];
-    const TrackFrame& b = frames[i1];
+    const TrackFrame& b = frames[i0 + 1];
     TrackFrame out;
     out.pos = glm::mix(a.pos, b.pos, t);
     out.tangent = glm::normalize(glm::mix(a.tangent, b.tangent, t));
     out.up = glm::normalize(glm::mix(a.up, b.up, t));
     out.curvature = glm::mix(a.curvature, b.curvature, t);
+    out.pace = glm::mix(a.pace, b.pace, t);
+    out.time = glm::mix(a.time, b.time, t);
     out.right = glm::normalize(glm::cross(out.tangent, out.up));
     out.up = glm::cross(out.right, out.tangent);
     return out;
@@ -240,13 +357,21 @@ glm::vec3 Track::point(float distance, float lateral, float height) const {
     return f.pos + f.right * lateral + f.up * height;
 }
 
-} // namespace sim
+float Track::ahead(float from, float to) const { return to >= from ? to - from : 1e9f; }
 
-namespace sim {
-
-float Track::ahead(float from, float to) const {
-    float d = std::fmod(to - from, length);
-    return d < 0.0f ? d + length : d;
+float Track::distAt(float time) const {
+    const int count = static_cast<int>(frames.size());
+    if (time <= frames.front().time) return distOf(0) + (time - frames.front().time) * frames.front().pace;
+    if (time >= frames.back().time)
+        return distOf(count - 1) + (time - frames.back().time) * frames.back().pace;
+    int lo = 0, hi = count - 1;
+    while (hi - lo > 1) {
+        const int mid = (lo + hi) / 2;
+        (frames[mid].time <= time ? lo : hi) = mid;
+    }
+    const float span = frames[hi].time - frames[lo].time;
+    const float t = span > 0.0f ? (time - frames[lo].time) / span : 0.0f;
+    return distOf(lo) + t * step;
 }
 
 } // namespace sim

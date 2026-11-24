@@ -88,7 +88,7 @@ void playRace(float dropRate, int latencyTicks) {
     double correction = 0.0;
     int corrections = 0;
     float worstJump = 0.0f;
-    const int steps = 60 * 60;
+    const int steps = 60 * 125; // le morceau dure 100 secondes
     for (int t = 0; t < steps; t++) {
         now += sim::kFixedDt;
         sim::Input hostInput, clientInput;

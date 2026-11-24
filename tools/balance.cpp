@@ -6,10 +6,13 @@
 // fait aussi un test : `ctest` échoue quand un réglage casse l'équilibre.
 #include "sim/content.h"
 #include "sim/track.h"
+#include "music/decode.h"
+#include "sim/generate.h"
 #include "sim/world.h"
 
 #include <algorithm>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 namespace {
@@ -101,6 +104,19 @@ int judge(const char* what, const char* const* names, int count,
 } // namespace
 
 int main() {
+    // Les pistes mesurées sont celles des morceaux livrés avec le jeu.
+    static const char* const files[sim::kTrackCount] = {"neon.ogg", "canyon.ogg", "station.ogg"};
+    for (int t = 0; t < sim::kTrackCount; t++) {
+        music::Audio audio;
+        std::string error;
+        const std::string path = std::string(ANTIGRAV_MUSIC_DIR) + "/" + files[t];
+        if (!music::decodeFile(path, audio, error)) {
+            std::printf("%s : %s\n", path.c_str(), error.c_str());
+            return 1;
+        }
+        const std::vector<float> mono = audio.mono();
+        sim::setSong(t, music::analyze(mono.data(), mono.size(), audio.sampleRate));
+    }
     std::vector<sim::Track> tracks;
     for (int t = 0; t < sim::kTrackCount; t++) tracks.push_back(sim::Track::make(t));
 
@@ -115,7 +131,7 @@ int main() {
     int races = 0;
 
     for (int t = 0; t < sim::kTrackCount; t++) {
-        int laps = 2;
+        int laps = 1;
         int order[kRacers] = {0, 1, 2, 3};
         do {
             int ranks[kRacers];

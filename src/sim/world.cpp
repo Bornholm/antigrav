@@ -20,7 +20,7 @@ constexpr float kEnergyRegen = 1.0f / 24.0f;
 // Effet des éléments de piste sur un vaisseau qui vient d'avancer de `before`
 // à v.dist. Un bouclier levé traverse les champs et encaisse une barrière.
 void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float before,
-                   float dt) {
+                   float pace, float dt) {
     float moved = v.dist - before;
     bool shielded = v.shieldTime > 0.0f;
     for (const Feature& f : track.features) {
@@ -42,7 +42,7 @@ void applyFeatures(Vehicle& v, const ShipStats& stats, const Track& track, float
         if (track.ahead(f.dist, v.dist) > f.length) continue;
         if (std::abs(v.lateral - f.lateral) > f.halfWidth) continue;
         if (f.type == FeatureType::BoostPad) {
-            float top = kPadSpeed * stats.topSpeed;
+            float top = kPadSpeed * pace * stats.topSpeed;
             if (v.speed < top) v.speed = std::min(top, v.speed + kPadAccel * dt);
         } else if (!shielded) {
             v.speed -= v.speed * kSlowDrag * dt;
@@ -62,8 +62,11 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, float dt) {
     if (stunned) steer *= 0.3f;
 
     v.boosting = in.boost && v.energy > 0.0f && !stunned;
-    float cruise = kCruiseSpeed * stats.topSpeed;
-    float target = v.boosting ? kBoostSpeed * stats.topSpeed : cruise;
+    // Les vitesses suivent celle du point de synchronisation : un vaisseau
+    // en croisière avance avec la musique.
+    const float pace = f.pace / kCruiseSpeed;
+    float cruise = f.pace * stats.topSpeed;
+    float target = v.boosting ? kBoostSpeed * pace * stats.topSpeed : cruise;
     if (stunned) target = cruise * 0.55f;
     float delta = target - v.speed;
     float gain = (v.boosting ? kBoostAccel : kAccel) * stats.accel;
@@ -98,7 +101,7 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, float dt) {
     float pathScale = 1.0f / std::max(0.5f, 1.0f - f.curvature * v.lateral);
     float before = v.dist;
     v.dist += v.speed * pathScale * dt;
-    applyFeatures(v, stats, track, before, dt);
+    applyFeatures(v, stats, track, before, pace, dt);
 
     float rollTarget = -steer * 0.38f - f.curvature * v.speed * 0.25f;
     v.roll += (rollTarget - v.roll) * std::min(1.0f, 7.0f * dt);
@@ -197,7 +200,9 @@ void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track) {
     stepVehicleDt(vehicle, input, track, kFixedDt);
 }
 
-float cruiseSpeed(const Vehicle& vehicle) { return kCruiseSpeed * shipStats(vehicle.ship).topSpeed; }
+float cruiseSpeed(const Vehicle& vehicle, const Track& track) {
+    return track.at(vehicle.dist).pace * shipStats(vehicle.ship).topSpeed;
+}
 
 void step(World& world, const Track& track, const Input* inputs) {
     world.tick++;

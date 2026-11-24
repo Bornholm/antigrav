@@ -14,6 +14,10 @@ struct TrackFrame {
     glm::vec3 right{1.0f, 0.0f, 0.0f};
     // Courbure signée en 1/m, positive dans un virage à droite.
     float curvature = 0.0f;
+    // Vitesse du point de synchronisation ici, en m/s, et instant du morceau
+    // auquel il y passe.
+    float pace = 340.0f;
+    float time = 0.0f;
 };
 
 // Élément posé sur la piste. Tous agissent selon la seule position du
@@ -27,23 +31,32 @@ struct Feature {
     float halfWidth = 0.0f;
 };
 
-// Circuit fermé, échantillonné à pas constant le long de son axe. Tout le jeu
-// se repère en coordonnées de piste : distance, décalage latéral, hauteur.
+// Piste ouverte générée à partir d'un morceau, échantillonnée à pas constant
+// le long de son axe. Tout le jeu se repère en coordonnées de piste :
+// distance, décalage latéral, hauteur. La distance 0 est la ligne de départ,
+// où le morceau commence ; `length` est la ligne d'arrivée, où il finit.
 struct Track {
     float length = 0.0f;
     float step = 0.0f;
     float halfWidth = 15.0f;
+    float lead = 0.0f;     // piste construite avant la ligne de départ
+    float duration = 0.0f; // durée du morceau, en secondes
     std::vector<TrackFrame> frames;
     std::vector<Feature> features;
 
-    // id : indice du circuit, de 0 à kTrackCount - 1. Voir sim/content.h.
+    // id : indice du morceau, de 0 à kTrackCount - 1. Voir sim/content.h.
     static Track make(int id);
 
-    // Distance quelconque, ramenée dans [0, length).
+    // Distance de la trame d'indice donné.
+    float distOf(int frame) const { return step * static_cast<float>(frame) - lead; }
+    // Au-delà des extrémités, la piste se prolonge en ligne droite.
     TrackFrame at(float distance) const;
     glm::vec3 point(float distance, float lateral, float height) const;
-    // Distance à parcourir depuis `from` pour atteindre `to`, dans [0, length).
+    // Distance à parcourir depuis `from` pour atteindre `to`. Très grande si
+    // `to` est derrière : sur une piste ouverte on n'y repasse pas.
     float ahead(float from, float to) const;
+    // Position du point de synchronisation à un instant du morceau.
+    float distAt(float time) const;
 };
 
 } // namespace sim

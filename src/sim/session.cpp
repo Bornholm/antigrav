@@ -22,7 +22,7 @@ void Session::start(const RaceConfig& cfg, int local) {
 
     world = World{};
     world.count = cfg.racerCount;
-    world.laps = cfg.laps;
+    world.laps = 1; // piste ouverte : la course va de la première note à la dernière
     world.countdown = cfg.gridStart ? 3.0f : 0.0f;
     const float side = track.halfWidth * 0.42f;
     for (int i = 0; i < cfg.racerCount; i++) {
@@ -36,7 +36,7 @@ void Session::start(const RaceConfig& cfg, int local) {
             v.energy = 1.0f;
         } else {
             v.dist = 150.0f + 26.0f * static_cast<float>(cfg.racerCount - 1 - i);
-            v.speed = cruiseSpeed(v);
+            v.speed = cruiseSpeed(v, track);
             v.energy = 0.87f;
         }
     }

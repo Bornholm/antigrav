@@ -331,6 +331,10 @@ int runHeadless(const Options& opt) {
 }
 
 int runWindowed(const Options& opt) {
+    // Sans ces réglages, SDL laisse Android tourner l'écran en portrait et rend
+    // la main au système sur le geste retour, sans prévenir le jeu.
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) fatal("SDL_Init: %s", SDL_GetError());
 
     SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE |

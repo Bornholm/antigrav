@@ -78,6 +78,7 @@ struct Options {
     bool realtime = false; // mode sans fenêtre : cadence réelle, nécessaire au réseau
     bool audio = true;
     bool music = true;
+    bool click = true; // clic sur les temps du morceau
     std::string wav;     // mode sans fenêtre : écrit le son de la course dans ce fichier
     int gridStart = -1;  // -1 : selon le mode, 0 : départ lancé, 1 : grille
     gfx::RenderSettings render;
@@ -117,6 +118,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--screen")) o.screen = value();
         else if (!std::strcmp(a, "--no-audio")) o.audio = false;
         else if (!std::strcmp(a, "--no-music")) o.music = false;
+        else if (!std::strcmp(a, "--no-click")) o.click = false;
         else if (!std::strcmp(a, "--wav")) o.wav = value();
         else if (!std::strcmp(a, "--grid-start")) o.gridStart = 1;
         else if (!std::strcmp(a, "--rolling-start")) o.gridStart = 0;
@@ -223,6 +225,7 @@ int runHeadless(const Options& opt) {
     game::App app;
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
     app.ownClock = opt.ownClock;
+    app.race.beatClick = opt.click;
     app.init(opt.track);
     game::Race& race = app.race;
     if (opt.screen.empty()) {
@@ -395,6 +398,7 @@ int runWindowed(const Options& opt) {
     }
     app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
     app.ownClock = opt.ownClock;
+    app.race.beatClick = opt.click;
     app.init(opt.track);
     if (opt.race || opt.autopilot) {
         game::RaceConfig config = game::defaultConfig(opt.track, opt.gridStart != 0);

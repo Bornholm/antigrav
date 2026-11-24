@@ -48,7 +48,7 @@ class Music {
   private:
     stb_vorbis* decoders_[kCount] = {};
     std::atomic<int> wanted_{-1};
-    std::atomic<float> volume_{0.5f};
+    std::atomic<float> volume_{0.8f};
     std::atomic<bool> synced_{false};
     std::atomic<bool> syncRunning_{false};
     std::atomic<double> syncTime_{0.0};

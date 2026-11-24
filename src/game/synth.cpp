@@ -37,9 +37,12 @@ void Synth::render(float* out, int frames) {
     uint32_t beeps = beepCount_.load();
     if (beeps != beepSeen_) {
         beepSeen_ = beeps;
-        bool go = beepKind_.load() == 1;
-        beepFreq_ = go ? 660.0f : 440.0f;
-        beepLength_ = go ? 0.45f : 0.13f;
+        const int kind = beepKind_.load();
+        bool go = kind == 1;
+        beepFreq_ = kind == 3 ? 2640.0f : kind == 2 ? 1760.0f : go ? 660.0f : 440.0f;
+        beepLength_ = kind >= 2 ? 0.035f : go ? 0.45f : 0.13f;
+        // Les clics doivent percer la musique : plus forts que les bips.
+        beepLevel_ = kind == 3 ? 0.55f : kind == 2 ? 0.38f : 0.20f;
         beepTime_ = 0.0f;
         beepPhase_ = 0.0f;
     }
@@ -93,17 +96,18 @@ void Synth::render(float* out, int frames) {
             for (int c = 0; c < 2; c++) crushHold_[c] = std::round(bright[c] * 10.0f) / 10.0f;
         }
         float throb = 1.0f + 0.14f * std::sin(phase_[4] * kTau);
-        float engineGain = (0.20f + 0.26f * ratio + 0.10f * boostSmooth_) * throb;
+        // Le moteur reste sous la musique, qui porte le rythme.
+        float engineGain = (0.09f + 0.12f * ratio + 0.06f * boostSmooth_) * throb;
 
         float beep = 0.0f;
         if (beepTime_ < beepLength_) {
             beepPhase_ += beepFreq_ * dt;
             if (beepPhase_ >= 1.0f) beepPhase_ -= 1.0f;
-            float envelope = std::min(1.0f, beepTime_ * 200.0f) *
+            float envelope = std::min(1.0f, beepTime_ * 2000.0f) *
                              std::min(1.0f, (beepLength_ - beepTime_) * 40.0f);
             // Carré adouci, dans le même registre numérique.
             float wave = 0.6f * std::sin(beepPhase_ * kTau) + (beepPhase_ < 0.5f ? 0.2f : -0.2f);
-            beep = wave * envelope * 0.20f;
+            beep = wave * envelope * beepLevel_;
             beepTime_ += dt;
         }
 
@@ -128,7 +132,7 @@ void Synth::render(float* out, int frames) {
             float scrape = (scrapeLow_[c] - scrapeBand_[c]) * 0.40f * scrapeSmooth_;
 
             float body = engine[c] * 0.62f + crushHold_[c] * 0.38f;
-            float sample = body * engineGain + wind + rush + scrape + beep;
+            float sample = (body * engineGain + wind + rush) * 0.5f + scrape + beep;
             // Écrêtage doux : la somme ne sature jamais brutalement.
             out[i * 2 + c] = std::tanh(sample * 1.4f) * volume;
         }

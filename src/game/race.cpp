@@ -54,6 +54,7 @@ void Race::init(const RaceConfig& cfg, int local) {
     sim::setSong(cfg.track, Music::partition(cfg.track));
     start(cfg, local);
     accumulator = 0.0f;
+    clickTime = 0.0f;
     camLateral = world.vehicles[localIndex].lateral;
     for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
 
@@ -75,6 +76,18 @@ void Race::update(float dt, const Controls& input) {
         if (clientTick) clientTick(clientUser, *this, local);
         else tick(local);
         accumulator -= sim::kFixedDt;
+        // Clic quand le joueur franchit un temps du morceau.
+        if (synth && world.countdown <= 0.0f) {
+            const sim::Vehicle& me = world.vehicles[localIndex];
+            const float now = sim::songTime(world, track, me);
+            if (beatClick && !me.finished && now > clickTime && now - clickTime < 0.5f) {
+                const std::vector<music::Beat>& beats = sim::song(config.track).beats;
+                auto hit = std::upper_bound(beats.begin(), beats.end(), clickTime,
+                                            [](float t, const music::Beat& b) { return t < b.time; });
+                if (hit != beats.end() && hit->time <= now) synth->beep(hit->bar == 0 ? 3 : 2);
+            }
+            clickTime = now;
+        }
         if (pinToSync && world.countdown <= 0.0f) {
             // Démonstration : le vaisseau reste sur le point de synchronisation,
             // pour vérifier que la piste tombe sur la musique.

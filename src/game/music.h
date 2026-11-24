@@ -73,6 +73,11 @@ class Music {
     float previous_[2] = {}, next_[2] = {};
     bool have_ = false;
     bool ended_ = false;
+    bool locked_ = false;       // calé sur le jeu depuis le dernier saut
+    double errorSmooth_ = 0.0;  // écart au jeu, lissé
+    static constexpr int kBlockFrames = 512;
+    float block_[kBlockFrames * 2] = {};
+    int blockLength_ = 0, blockAt_ = 0;
     float gain_ = 0.0f;
 };
 

@@ -135,6 +135,8 @@ void Music::mix(float* out, int frames) {
             fraction_ = 0.0;
             have_ = false;
             ended_ = false;
+            blockLength_ = blockAt_ = 0;
+            locked_ = false;
             customCursor_ = 0;
             if (current_ >= 0 && current_ < kCount) stb_vorbis_seek_start(decoders_[current_]);
         }
@@ -151,23 +153,32 @@ void Music::mix(float* out, int frames) {
             // le morceau suit l'instant du jeu.
             const double target = syncTime_.load();
             if (!syncRunning_.load() || target < 0.0) {
+                locked_ = false; // à la reprise, on se recalera d'un saut
                 out += chunk * 2;
                 frames -= chunk;
                 continue;
             }
             const double rate = Synth::kSampleRate;
-            // Un écart de plus d'un quart de seconde se rattrape d'un saut,
-            // un écart plus petit en jouant un rien plus vite ou plus lentement.
+            // Le morceau se joue à sa vitesse, sans suivre les à-coups du jeu :
+            // une image en retard ne doit ni couper ni faire onduler le son.
+            // On ne saute qu'au démarrage ou si l'écart, lissé sur une seconde
+            // et demie, dépasse trois dixièmes de seconde. Une dérive lente se
+            // rattrape en jouant au plus 0,4 % plus vite ou plus lentement.
             const double error = target - readPosition_ / rate;
-            if (std::abs(error) > 0.25) {
+            if (!locked_ || std::abs(errorSmooth_) > 0.3 || std::abs(error) > 1.5) {
                 if (current_ == kCustom) customCursor_ = static_cast<size_t>(std::max(0.0, target * rate));
                 else stb_vorbis_seek(decoders_[current_], static_cast<unsigned>(std::max(0.0, target * rate)));
                 readPosition_ = std::max(0.0, target * rate);
                 fraction_ = 0.0;
                 have_ = false;
                 ended_ = false;
+                blockLength_ = blockAt_ = 0;
+                errorSmooth_ = 0.0;
+                locked_ = true;
+            } else {
+                errorSmooth_ += (error - errorSmooth_) * std::min(1.0, chunk / rate / 1.5);
             }
-            const double play = std::clamp(syncSpeed_.load() + std::clamp(error, -0.25, 0.25) * 0.4, 0.2, 1.9);
+            const double play = std::clamp(syncSpeed_.load() + std::clamp(errorSmooth_ * 0.05, -0.004, 0.004), 0.2, 1.9);
             gain_ = 1.0f; // pas de fondu : le premier temps doit claquer
 
             // Rééchantillonnage linéaire entre deux échantillons décodés.
@@ -184,8 +195,19 @@ void Music::mix(float* out, int frames) {
                             sample[1] = static_cast<float>((*custom_)[customCursor_ * 2 + 1]) / 32768.0f;
                             customCursor_++;
                         }
-                    } else if (!ended_ && stb_vorbis_get_samples_float_interleaved(decoders_[current_], 2, sample, 2) == 0) {
-                        ended_ = true;
+                    } else {
+                        // Décodage par blocs : un appel au décodeur par
+                        // échantillon coûterait cher sur un téléphone.
+                        if (blockAt_ >= blockLength_ && !ended_) {
+                            blockLength_ = stb_vorbis_get_samples_float_interleaved(decoders_[current_], 2, block_, kBlockFrames * 2);
+                            blockAt_ = 0;
+                            if (blockLength_ == 0) ended_ = true;
+                        }
+                        if (blockAt_ < blockLength_) {
+                            sample[0] = block_[blockAt_ * 2];
+                            sample[1] = block_[blockAt_ * 2 + 1];
+                            blockAt_++;
+                        }
                     }
                     next_[0] = sample[0];
                     next_[1] = sample[1];

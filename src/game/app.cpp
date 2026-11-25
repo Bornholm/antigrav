@@ -727,6 +727,9 @@ void App::drawMenus(glm::vec2) {
         if (ui.button({655.0f, 726.0f}, {135.0f, 38.0f}, "OPTIONS", true, kQuiet)) go(Screen::Options);
         if (ui.button({945.0f, 726.0f}, {135.0f, 38.0f}, "QUITTER", true, kQuiet)) quit = true;
         if (ui.in.back) quit = true;
+#ifdef SOUNDWAVE_VERSION
+        ui.text({1540.0f, 862.0f}, SOUNDWAVE_VERSION, 16.0f, vec4(1.0f, 1.0f, 1.0f, 0.45f), gfx::Align::Right);
+#endif
         return;
     }
     ui.veil(0.58f);

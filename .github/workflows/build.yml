@@ -50,8 +50,10 @@ jobs:
             -o .cache/sdl/SDL3-$SDL_VERSION.tar.gz \
             https://www.libsdl.org/release/SDL3-$SDL_VERSION.tar.gz
 
+      # Sur un tag, la version affichée dans le menu est celle du tag.
       - name: Configurer
         run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then export SOUNDWAVE_VERSION="${GITHUB_REF_NAME#v}"; fi
           cmake -S . -B build -G Ninja \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_BUILD_TYPE=Release \

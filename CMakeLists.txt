@@ -219,6 +219,32 @@ else()
   set(GAME_TARGET soundwave)
 endif()
 
+# Version affichée dans le menu principal. Elle vient, dans l'ordre, de
+# -DSOUNDWAVE_VERSION, de la variable d'environnement du même nom, puis de
+# git describe. Elle est relue à chaque configuration.
+set(SOUNDWAVE_VERSION "" CACHE STRING "Version affichée dans le menu principal")
+set(GAME_VERSION "${SOUNDWAVE_VERSION}")
+if(GAME_VERSION STREQUAL "" AND DEFINED ENV{SOUNDWAVE_VERSION})
+  set(GAME_VERSION "$ENV{SOUNDWAVE_VERSION}")
+endif()
+if(GAME_VERSION STREQUAL "")
+  find_package(Git QUIET)
+  if(Git_FOUND)
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      OUTPUT_VARIABLE GAME_VERSION
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET)
+  endif()
+endif()
+if(GAME_VERSION MATCHES "^[0-9]+\\.")
+  set(GAME_VERSION "v${GAME_VERSION}")
+endif()
+message(STATUS "Version du jeu : ${GAME_VERSION}")
+set_source_files_properties(src/game/app.cpp PROPERTIES
+  COMPILE_DEFINITIONS "SOUNDWAVE_VERSION=\"${GAME_VERSION}\"")
+
 add_dependencies(${GAME_TARGET} shaders)
 target_include_directories(${GAME_TARGET} PRIVATE src ${SHADER_OUT_DIR})
 target_link_libraries(${GAME_TARGET} PRIVATE net sim music_decode third_party SDL3::SDL3)

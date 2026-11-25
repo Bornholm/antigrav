@@ -34,6 +34,10 @@ android {
                 arguments '-DANDROID_STL=c++_static',
                           '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON',
                           '-DCMAKE_BUILD_TYPE=Release'
+                // Sans numéro fourni, CMake prend celui de git describe.
+                if (System.getenv('SOUNDWAVE_VERSION')) {
+                    arguments "-DSOUNDWAVE_VERSION=${System.getenv('SOUNDWAVE_VERSION')}"
+                }
                 if (sdlArchive.exists()) {
                     arguments "-DSOUNDWAVE_SDL_ARCHIVE=${sdlArchive.absolutePath}"
                 }

@@ -8,4 +8,4 @@ if [ -d "$layers" ]; then
     export VK_ADD_LAYER_PATH="$layers/share/vulkan/explicit_layer.d"
     export LD_LIBRARY_PATH="$layers/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
-exec "$root/build/antigrav" --validation "$@"
+exec "$root/build/soundwave" --validation "$@"

@@ -15,10 +15,10 @@
 #include <vector>
 
 extern "C" {
-extern const unsigned char antigrav_music_0[], antigrav_music_0_end[];
-extern const unsigned char antigrav_music_1[], antigrav_music_1_end[];
-extern const unsigned char antigrav_music_2[], antigrav_music_2_end[];
-extern const unsigned char antigrav_music_3[], antigrav_music_3_end[];
+extern const unsigned char soundwave_music_0[], soundwave_music_0_end[];
+extern const unsigned char soundwave_music_1[], soundwave_music_1_end[];
+extern const unsigned char soundwave_music_2[], soundwave_music_2_end[];
+extern const unsigned char soundwave_music_3[], soundwave_music_3_end[];
 }
 
 namespace game {
@@ -35,10 +35,10 @@ struct Blob {
 };
 Blob blob(int piece) {
     static const Blob blobs[Music::kCount] = {
-        {antigrav_music_0, antigrav_music_0_end},
-        {antigrav_music_1, antigrav_music_1_end},
-        {antigrav_music_2, antigrav_music_2_end},
-        {antigrav_music_3, antigrav_music_3_end},
+        {soundwave_music_0, soundwave_music_0_end},
+        {soundwave_music_1, soundwave_music_1_end},
+        {soundwave_music_2, soundwave_music_2_end},
+        {soundwave_music_3, soundwave_music_3_end},
     };
     return blobs[piece];
 }

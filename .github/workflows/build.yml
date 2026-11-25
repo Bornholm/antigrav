@@ -55,8 +55,8 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_BUILD_TYPE=Release \
-            -DANTIGRAV_BUNDLED_SDL=ON \
-            -DANTIGRAV_SDL_ARCHIVE=$PWD/.cache/sdl/SDL3-$SDL_VERSION.tar.gz
+            -DSOUNDWAVE_BUNDLED_SDL=ON \
+            -DSOUNDWAVE_SDL_ARCHIVE=$PWD/.cache/sdl/SDL3-$SDL_VERSION.tar.gz
 
       - name: Compiler
         run: cmake --build build
@@ -66,15 +66,15 @@ jobs:
 
       - name: Préparer l'archive
         run: |
-          mkdir -p dist/antigrav-linux-x86_64
-          cp build/antigrav README.md LICENSE dist/antigrav-linux-x86_64/
-          strip dist/antigrav-linux-x86_64/antigrav
-          tar -C dist -czf dist/antigrav-linux-x86_64.tar.gz antigrav-linux-x86_64
+          mkdir -p dist/soundwave-linux-x86_64
+          cp build/soundwave README.md LICENSE dist/soundwave-linux-x86_64/
+          strip dist/soundwave-linux-x86_64/soundwave
+          tar -C dist -czf dist/soundwave-linux-x86_64.tar.gz soundwave-linux-x86_64
 
       - uses: actions/upload-artifact@v4
         with:
-          name: antigrav-linux-x86_64
-          path: dist/antigrav-linux-x86_64.tar.gz
+          name: soundwave-linux-x86_64
+          path: dist/soundwave-linux-x86_64.tar.gz
           if-no-files-found: error
 
   android:
@@ -118,8 +118,8 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/antigrav.keystore"
-            echo "ANTIGRAV_KEYSTORE=$RUNNER_TEMP/antigrav.keystore" >> "$GITHUB_ENV"
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/soundwave.keystore"
+            echo "SOUNDWAVE_KEYSTORE=$RUNNER_TEMP/soundwave.keystore" >> "$GITHUB_ENV"
             echo "Signature avec la clé fixe."
           else
             echo "::notice::Secret ANDROID_KEYSTORE_BASE64 absent, signature avec la clé de debug du runner."
@@ -128,25 +128,25 @@ jobs:
       - name: Compiler l'APK
         working-directory: android
         env:
-          ANTIGRAV_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANTIGRAV_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANTIGRAV_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANTIGRAV_VERSION_CODE: ${{ github.run_number }}
+          SOUNDWAVE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SOUNDWAVE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SOUNDWAVE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          SOUNDWAVE_VERSION_CODE: ${{ github.run_number }}
         # Un tag produit la variante release, numérotée d'après le tag.
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then
-            export ANTIGRAV_VERSION="${GITHUB_REF_NAME#v}"
+            export SOUNDWAVE_VERSION="${GITHUB_REF_NAME#v}"
             gradle assembleRelease
-            cp app/build/outputs/apk/release/app-release.apk ../antigrav.apk
+            cp app/build/outputs/apk/release/app-release.apk ../soundwave.apk
           else
             gradle assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk ../antigrav.apk
+            cp app/build/outputs/apk/debug/app-debug.apk ../soundwave.apk
           fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: antigrav-android
-          path: antigrav.apk
+          name: soundwave-android
+          path: soundwave.apk
           if-no-files-found: error
 
   # Sur un tag v*, publie les deux fichiers dans une release GitHub.
@@ -167,11 +167,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          mv artifacts/antigrav-linux-x86_64/antigrav-linux-x86_64.tar.gz "antigrav-$TAG-linux-x86_64.tar.gz"
-          mv artifacts/antigrav-android/antigrav.apk "antigrav-$TAG-android.apk"
-          sha256sum "antigrav-$TAG-linux-x86_64.tar.gz" "antigrav-$TAG-android.apk" > SHA256SUMS
+          mv artifacts/soundwave-linux-x86_64/soundwave-linux-x86_64.tar.gz "soundwave-$TAG-linux-x86_64.tar.gz"
+          mv artifacts/soundwave-android/soundwave.apk "soundwave-$TAG-android.apk"
+          sha256sum "soundwave-$TAG-linux-x86_64.tar.gz" "soundwave-$TAG-android.apk" > SHA256SUMS
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" antigrav-* SHA256SUMS --clobber
+            gh release upload "$TAG" soundwave-* SHA256SUMS --clobber
           else
-            gh release create "$TAG" antigrav-* SHA256SUMS --title "$TAG" --generate-notes --verify-tag
+            gh release create "$TAG" soundwave-* SHA256SUMS --title "$TAG" --generate-notes --verify-tag
           fi

@@ -11,7 +11,7 @@ namespace game {
 namespace {
 
 std::string settingsPath() {
-    char* pref = SDL_GetPrefPath("antigrav", "antigrav");
+    char* pref = SDL_GetPrefPath("soundwave", "soundwave");
     if (!pref) return "";
     std::string path = std::string(pref) + "settings.txt";
     SDL_free(pref);

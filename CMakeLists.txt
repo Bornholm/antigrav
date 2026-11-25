@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(antigrav LANGUAGES C CXX ASM)
+project(soundwave LANGUAGES C CXX ASM)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,12 +39,12 @@ FetchContent_MakeAvailable(vulkan_headers volk vma glm stb dr_libs)
 
 # SDL est compilé avec le jeu sur Android, et sur Linux quand le système ne
 # fournit pas SDL3 : l'exécutable l'embarque alors en statique.
-# ANTIGRAV_SDL_ARCHIVE peut désigner une archive déjà téléchargée.
-option(ANTIGRAV_BUNDLED_SDL "Compiler SDL3 avec le jeu" ${ANDROID})
-if(ANTIGRAV_BUNDLED_SDL)
-  set(ANTIGRAV_SDL_ARCHIVE "https://www.libsdl.org/release/SDL3-3.4.16.tar.gz"
+# SOUNDWAVE_SDL_ARCHIVE peut désigner une archive déjà téléchargée.
+option(SOUNDWAVE_BUNDLED_SDL "Compiler SDL3 avec le jeu" ${ANDROID})
+if(SOUNDWAVE_BUNDLED_SDL)
+  set(SOUNDWAVE_SDL_ARCHIVE "https://www.libsdl.org/release/SDL3-3.4.16.tar.gz"
       CACHE STRING "Archive des sources de SDL3")
-  FetchContent_Declare(SDL3 URL ${ANTIGRAV_SDL_ARCHIVE}
+  FetchContent_Declare(SDL3 URL ${SOUNDWAVE_SDL_ARCHIVE}
     URL_HASH SHA256=7322236cd12090c3eb40b9728be4d49c76f66ad17d04369584d4ecad5cf77c68)
   set(SDL_SHARED ${ANDROID} CACHE BOOL "" FORCE)
   if(ANDROID)
@@ -177,7 +177,7 @@ if(NOT ANDROID)
   target_link_libraries(analyze PRIVATE music_decode third_party)
   add_executable(balance tools/balance.cpp)
   target_link_libraries(balance PRIVATE sim music_decode)
-  target_compile_definitions(balance PRIVATE ANTIGRAV_MUSIC_DIR="${CMAKE_SOURCE_DIR}/assets/music")
+  target_compile_definitions(balance PRIVATE SOUNDWAVE_MUSIC_DIR="${CMAKE_SOURCE_DIR}/assets/music")
   add_test(NAME balance COMMAND balance)
 endif()
 
@@ -210,8 +210,8 @@ if(ANDROID)
   add_library(main SHARED ${GAME_SOURCES})
   set(GAME_TARGET main)
 else()
-  add_executable(antigrav ${GAME_SOURCES})
-  set(GAME_TARGET antigrav)
+  add_executable(soundwave ${GAME_SOURCES})
+  set(GAME_TARGET soundwave)
 endif()
 
 add_dependencies(${GAME_TARGET} shaders)

@@ -68,8 +68,8 @@ void Gpu::init(SDL_Window* window, bool wantValidation) {
     if (validation) extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
     VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
-    app.pApplicationName = "antigrav";
-    app.pEngineName = "antigrav";
+    app.pApplicationName = "soundwave";
+    app.pEngineName = "soundwave";
     app.apiVersion = VK_API_VERSION_1_1;
 
     VkInstanceCreateInfo ici{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};

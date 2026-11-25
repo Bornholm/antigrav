@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     for (int t = 0; t < sim::kTrackCount; t++) {
         music::Audio audio;
         std::string error;
-        const std::string path = std::string(ANTIGRAV_MUSIC_DIR) + "/" + files[t];
+        const std::string path = std::string(SOUNDWAVE_MUSIC_DIR) + "/" + files[t];
         if (!music::decodeFile(path, audio, error)) {
             std::printf("%s : %s\n", path.c_str(), error.c_str());
             return 1;

@@ -13,8 +13,8 @@ Cette dernière joue 864 courses entre IA sur les pistes des morceaux livrés et
 Essai réseau entre deux instances sur la même machine, chacune filmée :
 
 ```sh
-./build/antigrav --headless --screen salon --host-auto 2 --frames 540 --fps 30 --realtime --out "out/h/f_%04d.png" &
-./build/antigrav --headless --screen multi --join-auto --frames 510 --fps 30 --realtime --out "out/c/f_%04d.png"
+./build/soundwave --headless --screen salon --host-auto 2 --frames 540 --fps 30 --realtime --out "out/h/f_%04d.png" &
+./build/soundwave --headless --screen multi --join-auto --frames 510 --fps 30 --realtime --out "out/c/f_%04d.png"
 ```
 
 ## Analyse d'un morceau
@@ -34,8 +34,8 @@ Essai réseau entre deux instances sur la même machine, chacune filmée :
 Le mode sans fenêtre avance la course d'un pas fixe, donc deux exécutions produisent les mêmes images.
 
 ```sh
-./build/antigrav --headless --frames 1 --time 14 --out out/capture.png
-./build/antigrav --headless --frames 300 --size 1280x720 --out "out/frames/f_%04d.png"
+./build/soundwave --headless --frames 1 --time 14 --out out/capture.png
+./build/soundwave --headless --frames 300 --size 1280x720 --out "out/frames/f_%04d.png"
 ffmpeg -framerate 60 -i out/frames/f_%04d.png -c:v libx264 -pix_fmt yuv420p out/course.mp4
 ```
 

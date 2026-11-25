@@ -8,22 +8,22 @@ def sdlArchive = rootProject.file('../.cache/sdl/SDL3-3.4.16.tar.gz')
 
 // Clé de signature fixe, fournie par l'environnement. Sans elle, Gradle signe
 // avec la clé de debug de la machine, différente d'un poste à l'autre.
-def keystorePath = System.getenv('ANTIGRAV_KEYSTORE')
+def keystorePath = System.getenv('SOUNDWAVE_KEYSTORE')
 def fixedKey = keystorePath != null && !keystorePath.isEmpty() && file(keystorePath).exists()
 
 android {
-    namespace 'dev.antigrav.game'
+    namespace 'dev.soundwave.game'
     compileSdk 36
     ndkVersion '27.2.12479018'
 
     defaultConfig {
-        applicationId 'dev.antigrav.game'
+        applicationId 'dev.soundwave.game'
         // Android 13 : première version où Vulkan 1.3 est courant.
         minSdk 33
         targetSdk 36
         // La CI fournit le numéro de version à partir du tag.
-        versionCode((System.getenv('ANTIGRAV_VERSION_CODE') ?: '1') as int)
-        versionName System.getenv('ANTIGRAV_VERSION') ?: '0.1.0'
+        versionCode((System.getenv('SOUNDWAVE_VERSION_CODE') ?: '1') as int)
+        versionName System.getenv('SOUNDWAVE_VERSION') ?: '0.1.0'
 
         ndk {
             // Tous les téléphones visés sont en ARM 64 bits.
@@ -35,7 +35,7 @@ android {
                           '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON',
                           '-DCMAKE_BUILD_TYPE=Release'
                 if (sdlArchive.exists()) {
-                    arguments "-DANTIGRAV_SDL_ARCHIVE=${sdlArchive.absolutePath}"
+                    arguments "-DSOUNDWAVE_SDL_ARCHIVE=${sdlArchive.absolutePath}"
                 }
             }
         }
@@ -52,9 +52,9 @@ android {
         if (fixedKey) {
             fixed {
                 storeFile file(keystorePath)
-                storePassword System.getenv('ANTIGRAV_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('ANTIGRAV_KEY_ALIAS')
-                keyPassword System.getenv('ANTIGRAV_KEY_PASSWORD') ?: System.getenv('ANTIGRAV_KEYSTORE_PASSWORD')
+                storePassword System.getenv('SOUNDWAVE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('SOUNDWAVE_KEY_ALIAS')
+                keyPassword System.getenv('SOUNDWAVE_KEY_PASSWORD') ?: System.getenv('SOUNDWAVE_KEYSTORE_PASSWORD')
             }
         }
     }

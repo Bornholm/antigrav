@@ -33,7 +33,7 @@ int theme = 0;
 int serial = 0;
 
 std::string libraryDir() {
-    char* pref = SDL_GetPrefPath("antigrav", "antigrav");
+    char* pref = SDL_GetPrefPath("soundwave", "soundwave");
     if (!pref) return "";
     std::string dir = std::string(pref) + "songs";
     SDL_free(pref);
@@ -44,7 +44,7 @@ std::string libraryDir() {
 // Ordre des morceaux, du dernier joué au plus ancien : une ligne par nom de
 // fichier, dans le dossier du jeu.
 std::string orderPath() {
-    char* pref = SDL_GetPrefPath("antigrav", "antigrav");
+    char* pref = SDL_GetPrefPath("soundwave", "soundwave");
     if (!pref) return "";
     std::string path = std::string(pref) + "recent.txt";
     SDL_free(pref);

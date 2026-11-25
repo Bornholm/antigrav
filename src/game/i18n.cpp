@@ -19,7 +19,7 @@ struct Entry {
 // Les chaînes de format gardent leurs arguments dans le même ordre.
 const Entry kEntries[] = {
     // Menu principal
-    {"COURSE ANTIGRAVITÉ", "ANTIGRAVITY RACING", "CARRERAS ANTIGRAVEDAD"},
+    {"COURSE MUSICALE", "MUSIC RACING", "CARRERAS MUSICALES"},
     {"SOLO", "SOLO", "UN JUGADOR"},
     {"MULTIJOUEUR", "MULTIPLAYER", "MULTIJUGADOR"},
     {"QUITTER", "QUIT", "SALIR"},

@@ -28,7 +28,7 @@ void fatal(const char* fmt, ...) {
 #ifdef __ANDROID__
     // Sur un téléphone personne ne lit le journal : sans cette fenêtre, le jeu
     // se ferme sans explication.
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Antigrav ne peut pas démarrer", message,
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Soundwave ne peut pas démarrer", message,
                              nullptr);
 #endif
     std::abort();

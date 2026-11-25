@@ -369,7 +369,7 @@ int runWindowed(const Options& opt) {
 #ifdef __ANDROID__
     flags |= SDL_WINDOW_FULLSCREEN;
 #endif
-    SDL_Window* window = SDL_CreateWindow("Antigrav", opt.width, opt.height, flags);
+    SDL_Window* window = SDL_CreateWindow("Soundwave", opt.width, opt.height, flags);
     if (!window) fatal("SDL_CreateWindow: %s", SDL_GetError());
 
     gfx::Gpu gpu;

@@ -535,8 +535,8 @@ void App::drawMenus(glm::vec2) {
     const vec2 big{230.0f, 40.0f};
 
     if (screen == Screen::Main) {
-        ui.title({800.0f, 250.0f}, "ANTIGRAV", 150.0f);
-        ui.text({800.0f, 300.0f}, "COURSE ANTIGRAVITÉ", 24.0f, kCyan);
+        ui.title({800.0f, 250.0f}, "SOUNDWAVE", 150.0f);
+        ui.text({800.0f, 300.0f}, "COURSE MUSICALE", 24.0f, kCyan);
         if (ui.button({800.0f, 440.0f}, big, "SOLO")) go(Screen::Solo);
         if (ui.button({800.0f, 540.0f}, big, "MULTIJOUEUR", true, kMagenta)) {
             notice = "";

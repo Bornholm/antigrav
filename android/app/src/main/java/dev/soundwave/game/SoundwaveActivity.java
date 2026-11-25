@@ -1,4 +1,4 @@
-package dev.antigrav.game;
+package dev.soundwave.game;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -9,7 +9,7 @@ import android.net.wifi.WifiManager;
 import org.libsdl.app.SDLActivity;
 
 /** Activité unique du jeu. Tout le reste est en C++, chargé par SDL. */
-public class AntigravActivity extends SDLActivity {
+public class SoundwaveActivity extends SDLActivity {
     private WifiManager.MulticastLock multicastLock;
 
     @Override
@@ -29,7 +29,7 @@ public class AntigravActivity extends SDLActivity {
         if (wifi == null) {
             return;
         }
-        multicastLock = wifi.createMulticastLock("antigrav");
+        multicastLock = wifi.createMulticastLock("soundwave");
         multicastLock.setReferenceCounted(false);
         multicastLock.acquire();
     }

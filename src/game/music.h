@@ -49,6 +49,9 @@ class Music {
     // Partition du morceau d'un circuit, analysée à la première demande.
     static const music::Partition& partition(int track);
     void setVolume(float volume) { volume_.store(volume); }
+    // Atténuation passagère, de 0 à 1, appliquée en fondu d'une demi-seconde :
+    // le morceau s'efface à l'arrivée d'une course.
+    void setDuck(float level) { duck_.store(level); }
 
     // Ajoute la musique à `frames` échantillons stéréo entrelacés à 48 kHz.
     void mix(float* out, int frames);
@@ -62,6 +65,8 @@ class Music {
     size_t customCursor_ = 0;
     std::atomic<int> wanted_{-1};
     std::atomic<float> volume_{0.8f};
+    std::atomic<float> duck_{1.0f};
+    float duckSmooth_ = 1.0f; // fil audio
     std::atomic<bool> synced_{false};
     std::atomic<bool> syncRunning_{false};
     std::atomic<double> syncTime_{0.0};

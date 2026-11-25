@@ -20,6 +20,8 @@ class Synth {
     void setEngine(float speed, bool boosting, bool scraping);
     // kind 0 : bip du compte à rebours. kind 1 : signal du départ.
     void beep(int kind);
+    // Petite musique de fin de course. kind 0 : victoire. kind 1 : défaite.
+    void jingle(int kind);
     void setVolume(float volume) { volume_.store(volume); }
     // Joue un effet sonore, à un volume de 0 à 1.
     void play(Sfx sfx, float volume = 1.0f);
@@ -46,6 +48,14 @@ class Synth {
     uint32_t noise_ = 0x1234567u;
     uint32_t beepSeen_ = 0;
     float beepPhase_ = 0.0f, beepTime_ = 1e9f, beepFreq_ = 0.0f, beepLength_ = 0.0f;
+    std::atomic<uint32_t> jingleCount_{0};
+    std::atomic<int> jingleKind_{0};
+    uint32_t jingleSeen_ = 0;
+    int jinglePlaying_ = -1;
+    float jingleTime_ = 0.0f;
+    float jingleEcho_[2][12000] = {}; // écho d'un quart de seconde
+    int jingleEchoAt_ = 0;
+    float jingleSample(float dt);
 
     // Effets sonores : le jeu les dépose dans une file, le rendu les joue
     // sur quelques voix.

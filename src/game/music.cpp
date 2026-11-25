@@ -103,7 +103,9 @@ void Music::setCustom(std::shared_ptr<const std::vector<int16_t>> pcm) {
 
 void Music::mix(float* out, int frames) {
     const float step = 1.0f / (kFadeSeconds * static_cast<float>(Synth::kSampleRate));
-    const float volume = volume_.load();
+    // Le fondu de l'atténuation avance d'un cran par bloc audio.
+    duckSmooth_ += (duck_.load() - duckSmooth_) * std::min(1.0f, static_cast<float>(frames) / (0.3f * static_cast<float>(Synth::kSampleRate)));
+    const float volume = volume_.load() * duckSmooth_;
     float buffer[1024];
 
     // Nouveau morceau du joueur : le fil audio le prend ici, hors de la boucle.

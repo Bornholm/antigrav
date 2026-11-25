@@ -382,6 +382,8 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     // Thème dans les menus. En course, le morceau du circuit, calé sur le
     // temps de course : il démarre au signal du départ.
     if (music) {
+        // À l'arrivée, le morceau s'efface devant la musique de fin.
+        music->setDuck(screen == Screen::Race && race.finished() ? 0.0f : 1.0f);
         if (screen == Screen::Race) {
             // Horloge par joueur : le morceau avance avec le vaisseau, plus
             // vite quand il va vite, au ralenti quand il percute.

@@ -1,6 +1,7 @@
 #include "game/synth.h"
 
 #include <algorithm>
+#include <iterator>
 #include <cmath>
 
 namespace game {
@@ -15,6 +16,58 @@ void Synth::setEngine(float speed, bool boosting, bool scraping) {
     speed_.store(speed);
     boost_.store(boosting ? 1.0f : 0.0f);
     scrape_.store(scraping ? 1.0f : 0.0f);
+}
+
+void Synth::jingle(int kind) {
+    jingleKind_.store(kind);
+    jingleCount_.fetch_add(1);
+}
+
+namespace {
+
+// Une note d'une musique de fin : début et durée en secondes, fréquence en hertz, force.
+struct JingleNote {
+    float start, length, freq, level;
+};
+// Victoire : arpège de do majeur qui monte, puis l'accord tenu.
+const JingleNote kVictory[] = {
+    {0.00f, 0.16f, 392.00f, 0.8f}, {0.15f, 0.16f, 523.25f, 0.8f}, {0.30f, 0.16f, 659.25f, 0.8f},
+    {0.45f, 0.34f, 783.99f, 0.9f}, {0.45f, 0.60f, 130.81f, 0.9f}, {0.82f, 0.16f, 659.25f, 0.8f},
+    {0.97f, 0.18f, 783.99f, 0.8f}, {1.15f, 1.90f, 1046.50f, 1.0f}, {1.15f, 1.90f, 523.25f, 0.6f},
+    {1.15f, 1.90f, 659.25f, 0.6f}, {1.15f, 1.90f, 783.99f, 0.6f}, {1.15f, 1.90f, 130.81f, 1.0f},
+};
+// Défaite : trois notes qui descendent, lentes, vers un accord de la mineur.
+const JingleNote kDefeat[] = {
+    {0.00f, 0.50f, 659.25f, 0.8f}, {0.48f, 0.50f, 587.33f, 0.8f}, {0.96f, 0.50f, 523.25f, 0.8f},
+    {1.44f, 2.10f, 440.00f, 0.9f}, {1.44f, 2.10f, 220.00f, 0.6f}, {1.44f, 2.10f, 261.63f, 0.6f},
+    {1.44f, 2.10f, 329.63f, 0.5f}, {1.44f, 2.10f, 110.00f, 1.0f},
+};
+
+} // namespace
+
+float Synth::jingleSample(float dt) {
+    if (jinglePlaying_ < 0) return 0.0f;
+    const JingleNote* notes = jinglePlaying_ == 0 ? kVictory : kDefeat;
+    const int count = jinglePlaying_ == 0 ? static_cast<int>(std::size(kVictory)) : static_cast<int>(std::size(kDefeat));
+    float sum = 0.0f, end = 0.0f;
+    for (int i = 0; i < count; i++) {
+        const JingleNote& n = notes[i];
+        end = std::max(end, n.start + n.length);
+        const float t = jingleTime_ - n.start;
+        if (t < 0.0f || t >= n.length) continue;
+        // Attaque franche, décroissance douce, fin sans clic.
+        const float envelope = std::min(1.0f, t * 150.0f) * std::exp(-t * 1.6f) *
+                               std::min(1.0f, (n.length - t) * 25.0f);
+        const float x = n.freq * t;
+        const float phase = x - std::floor(x);
+        // Sinus épaissi d'un carré adouci : le même registre numérique que les bips.
+        const float wave = 0.62f * std::sin(phase * kTau) + 0.20f * std::sin(phase * 2.0f * kTau) +
+                           (phase < 0.5f ? 0.12f : -0.12f);
+        sum += wave * envelope * n.level;
+    }
+    jingleTime_ += dt;
+    if (jingleTime_ > end + 1.0f) jinglePlaying_ = -1; // l'écho a fini de s'éteindre
+    return sum * 0.16f;
 }
 
 void Synth::beep(int kind) {
@@ -112,6 +165,12 @@ void Synth::render(float* out, int frames) {
         voice->volume = static_cast<float>(packed & 0xFF) / 255.0f;
     }
 
+    if (const uint32_t jingles = jingleCount_.load(); jingles != jingleSeen_) {
+        jingleSeen_ = jingles;
+        jinglePlaying_ = jingleKind_.load() == 0 ? 0 : 1;
+        jingleTime_ = 0.0f;
+    }
+
     uint32_t beeps = beepCount_.load();
     if (beeps != beepSeen_) {
         beepSeen_ = beeps;
@@ -186,6 +245,18 @@ void Synth::render(float* out, int frames) {
             beepTime_ += dt;
         }
 
+        // Musique de fin, avec un écho alterné entre les deux oreilles.
+        const float dry = jingleSample(dt);
+        float jingleOut[2];
+        {
+            const int other = (jingleEchoAt_ + 6000) % 12000;
+            jingleOut[0] = dry + 0.35f * jingleEcho_[0][jingleEchoAt_];
+            jingleOut[1] = dry + 0.35f * jingleEcho_[1][other];
+            jingleEcho_[0][jingleEchoAt_] = dry + 0.3f * jingleEcho_[0][jingleEchoAt_];
+            jingleEcho_[1][other] = dry + 0.3f * jingleEcho_[1][other];
+            jingleEchoAt_ = (jingleEchoAt_ + 1) % 12000;
+        }
+
         float effects = 0.0f;
         for (Voice& v : voices_)
             if (v.kind >= 0) effects += voiceSample(v, dt);
@@ -211,7 +282,7 @@ void Synth::render(float* out, int frames) {
             float scrape = (scrapeLow_[c] - scrapeBand_[c]) * 0.40f * scrapeSmooth_;
 
             float body = engine[c] * 0.62f + crushHold_[c] * 0.38f;
-            float sample = (body * engineGain + wind + rush) * 0.5f + scrape + beep + effects * 0.6f;
+            float sample = (body * engineGain + wind + rush) * 0.5f + scrape + beep + jingleOut[c] + effects * 0.6f;
             // Écrêtage doux : la somme ne sature jamais brutalement.
             out[i * 2 + c] = std::tanh(sample * 1.4f) * volume;
         }

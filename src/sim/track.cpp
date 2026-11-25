@@ -23,7 +23,7 @@ float featureRoll(uint32_t seed, int slot, uint32_t salt) {
 
 
 constexpr float kLead = 400.0f;  // piste avant la ligne de départ
-constexpr float kTail = 1600.0f; // piste après l'arrivée, pour finir sur sa lancée
+constexpr float kTail = 2600.0f; // piste après l'arrivée : les vaisseaux s'y arrêtent, avec de la piste devant eux
 constexpr float kStep = 4.0f;
 constexpr float kPi = 3.14159265f;
 
@@ -418,6 +418,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     Track track;
     track.halfWidth = halfWidth;
     track.lead = kLead;
+    track.tail = kTail;
     track.length = length;
     track.duration = duration;
     track.tempoKnown = tempoKnown;

@@ -55,6 +55,7 @@ struct Track {
     float step = 0.0f;
     float halfWidth = 15.0f;
     float lead = 0.0f;     // piste construite avant la ligne de départ
+    float tail = 0.0f;     // piste construite après la ligne d'arrivée
     float duration = 0.0f; // durée du morceau, en secondes
     std::vector<TrackFrame> frames;
     std::vector<Feature> features;

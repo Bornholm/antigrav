@@ -228,7 +228,12 @@ void Race::update(float dt, const Controls& input) {
                 tally.step(sim::kFixedDt, sim::gapOf(world, track, me), me.scraping);
             if (me.finished && !scored) {
                 scored = true;
-                score = computeScore(tally, sim::rankOf(world, localIndex), world.count, config.difficulty);
+                const int rank = sim::rankOf(world, localIndex);
+                score = computeScore(tally, rank, world.count, config.difficulty);
+                // Musique de fin : victoire sur le podium, qui compte deux
+                // places à partir de quatre concurrents et trois à partir de six.
+                const int podium = world.count >= 6 ? 3 : world.count >= 4 ? 2 : 1;
+                if (synth) synth->jingle(rank <= podium ? 0 : 1);
                 SDL_Log("Score %d (%c) : place %d, tempo %d, pilotage %d, bonus %d ; %d chocs, %.1f s de frottement, %d bonus en %.0f s",
                         score.total, score.grade, score.place, score.tempo, score.clean, score.items,
                         tally.hits, tally.scrape, tally.pickups, tally.time);

@@ -92,6 +92,12 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
     float delta = target - v.speed;
     float gain = (v.boosting ? kBoostAccel : kAccel) * stats.accel;
     v.speed += std::clamp(delta, -(stunned ? 4.0f : 1.0f) * kDecel * dt, gain * dt);
+    // Après l'arrivée, le vaisseau se laisse glisser puis s'arrête à mi-chemin
+    // de la piste construite au-delà de la ligne, sans jamais en sortir.
+    if (v.finished) {
+        const float room = track.length + track.tail * 0.55f - v.dist;
+        v.speed = std::min(v.speed, std::max(0.0f, room * 0.45f));
+    }
 
     // Braquage, plus la dérive vers l'extérieur du virage.
     float steerSpeed = kSteerSpeed * stats.handling;

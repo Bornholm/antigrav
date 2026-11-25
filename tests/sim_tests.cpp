@@ -1,6 +1,7 @@
 // Tests de la simulation. Aucun cadre de test : un échec affiche la ligne et
 // fait sortir le programme avec un code non nul.
 #include "game/synth.h"
+#include "gfx/adaptive.h"
 #include "sim/track.h"
 #include "sim/generate.h"
 #include "sim/world.h"
@@ -630,9 +631,49 @@ void testRanking() {
     CHECK(sim::rankOf(world, 2) == 2);
 }
 
+// Résolution adaptative : elle baisse sous la charge, remonte au calme, et
+// espace ses essais quand le palier du dessus ne tient pas.
+void testAdaptiveScale() {
+    const float budget = 1000.0f / 60.0f;
+    auto run = [&](gfx::AdaptiveScale& a, float frameMs, float gpuMs, float seconds) {
+        int changes = 0;
+        for (float t = 0.0f; t < seconds; t += frameMs * 0.001f)
+            if (a.update(frameMs, budget, gpuMs)) changes++;
+        return changes;
+    };
+    gfx::AdaptiveScale a;
+    CHECK(run(a, budget, 0.0f, 30.0f) == 0 && a.step == 0);
+    // Une image sur deux manquée : l'échelle descend, sans dépasser le dernier palier.
+    run(a, budget * 2.0f, 0.0f, 1.0f);
+    CHECK(a.step == 1);
+    run(a, budget * 2.0f, 0.0f, 60.0f);
+    CHECK(a.step == gfx::AdaptiveScale::kSteps - 1);
+    // Un à-coup isolé ne compte pas.
+    gfx::AdaptiveScale b;
+    CHECK(!b.update(budget * 20.0f, budget, 0.0f) && b.step == 0);
+    // Au calme, elle remonte palier par palier.
+    run(a, budget, 0.0f, 60.0f);
+    CHECK(a.step == 0);
+    // Le GPU mesuré est déjà au bord du budget : pas de remontée.
+    gfx::AdaptiveScale c;
+    run(c, budget * 2.0f, 0.0f, 1.0f);
+    CHECK(c.step == 1);
+    CHECK(run(c, budget, budget * 0.9f, 60.0f) == 0 && c.step == 1);
+    // Un palier qui ne tient jamais : les essais s'espacent au lieu de battre.
+    gfx::AdaptiveScale d;
+    int changes = 0;
+    for (float t = 0.0f; t < 240.0f;) {
+        const float ms = d.step == 0 ? budget * 2.0f : budget;
+        if (d.update(ms, budget, 0.0f)) changes++;
+        t += ms * 0.001f;
+    }
+    CHECK(changes >= 3 && changes <= 14);
+}
+
 } // namespace
 
 int main() {
+    testAdaptiveScale();
     testTrackGeometry();
     testTrackEnds();
     testDeterminism();

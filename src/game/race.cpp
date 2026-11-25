@@ -370,7 +370,8 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
             h ^= h >> 12;
             return static_cast<float>(h & 0xFFFFu) / 65535.0f;
         };
-        const int count = look.scenery == gfx::Scenery::Canyon ? 12 : 40;
+        // En décor allégé : deux bandes au lieu de trois, vingt objets au lieu de quarante.
+        const int count = look.scenery == gfx::Scenery::Canyon ? (lightDecor ? 8 : 12) : (lightDecor ? 20 : 40);
         for (int i = 0; i < count && out.flyerCount < gfx::kMaxFlyers; i++) {
             gfx::FlyerDraw& draw = out.flyers[out.flyerCount];
             float lateral, height, speed, size, flap = 1.0f, spin = 0.0f;

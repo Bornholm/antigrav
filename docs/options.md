@@ -13,6 +13,9 @@
 | `--grid-start`, `--rolling-start` | départ arrêté ou lancé |
 | `--size LxH` | taille de la fenêtre ou de l'image |
 | `--scale N` | échelle de la 3D par rapport à la sortie, 0.7 par exemple |
+| `--quality N` | qualité du rendu pour ce lancement : 0 basse, 1 moyenne, 2 haute |
+| `--cap60` | plafonne l'affichage à 60 images par seconde |
+| `--no-adaptive` | garde la 3D à une définition fixe |
 | `--stats` | affiche les temps GPU et le nombre d'images par seconde |
 | `--no-vsync` | ne pas attendre l'écran, pour mesurer |
 | `--no-bloom`, `--no-reflections`, `--no-hud`, `--no-audio`, `--no-music` | couper un effet |

@@ -342,6 +342,7 @@ void App::leaveNetwork() {
 void App::update(double time, float dt, const Controls& controls, const UiInput& input,
                  glm::vec2 screenSize, const gfx::FontAtlas& fonts) {
     now = time;
+    race.lightDecor = settings.quality == 0;
     // Travail en attente : le message de chargement a eu une image pour
     // s'afficher, on peut bloquer.
     if (pending && pendingFrames++ >= 1) {
@@ -594,8 +595,8 @@ void App::drawMenus(glm::vec2) {
     };
 
     if (screen == Screen::Options) {
-        ui.title({800.0f, 120.0f}, "OPTIONS", 64.0f);
-        float y = 250.0f;
+        ui.title({800.0f, 96.0f}, "OPTIONS", 64.0f);
+        float y = touchInterface() ? 208.0f : 250.0f;
         if (int d = ui.selector({800.0f, y}, 400.0f, "LANGUE", langName(lang())); d != 0) {
             const int count = static_cast<int>(Lang::Count);
             setLang(static_cast<Lang>((static_cast<int>(lang()) + d + count) % count));
@@ -617,6 +618,18 @@ void App::drawMenus(glm::vec2) {
             }
             y += kRow;
         }
+        // Charge du rendu, pour les appareils modestes.
+        static const char* const kQualities[] = {"Basse", "Moyenne", "Haute"};
+        if (int d = ui.selector({800.0f, y}, 400.0f, "QUALITÉ", kQualities[std::clamp(settings.quality, 0, 2)]); d != 0) {
+            settings.quality = (settings.quality + d + 3) % 3;
+            settings.save();
+        }
+        y += kRow;
+        if (ui.selector({800.0f, y}, 400.0f, "CADENCE", settings.cap60 ? "60 images/s" : "Maximale") != 0) {
+            settings.cap60 = !settings.cap60;
+            settings.save();
+        }
+        y += kRow;
         if (ui.button({800.0f, y + 14.0f}, {400.0f, 40.0f}, "RETOUR", true, kQuiet) || ui.in.back) go(Screen::Main);
         return;
     }

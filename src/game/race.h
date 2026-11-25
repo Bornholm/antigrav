@@ -46,6 +46,7 @@ struct Race : sim::Session {
     glm::vec3 flashColor{0.0f};
     float flash = 0.0f;
     float hitShake = 0.0f;
+    bool lightDecor = false; // qualité basse : moins d'objets volants
     float beatKick = 0.0f; // secousse de la caméra sur le temps, selon la hargne du morceau
     float bands[8] = {}; // niveaux de la musique, lissés pour l'affichage
     bool keepSong = false; // le morceau vient de l'hôte : ne pas le réanalyser

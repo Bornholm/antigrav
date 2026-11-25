@@ -9,6 +9,8 @@ struct Settings {
     char name[20] = ""; // pseudo, vide tant que le joueur n'en a pas choisi
     Lang lang = Lang::Count; // Count : pas encore choisie, on suit le système
     bool swapButtons = false; // direction à droite, bonus à gauche
+    int quality = 2;          // 0 basse, 1 moyenne, 2 haute
+    bool cap60 = false;       // plafonne l'affichage à 60 images par seconde
 
     void load();
     void save() const;

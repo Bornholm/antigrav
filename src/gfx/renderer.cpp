@@ -59,7 +59,6 @@ const uint32_t kHudFrag[] =
 #include "hud_frag.inc"
     ;
 
-const VkSampleCountFlagBits kSamples = VK_SAMPLE_COUNT_4_BIT;
 constexpr float kEqualizerStretch = 0.30f;
 
 // Miroir de shaders/common.glsl, disposition std140.
@@ -204,9 +203,17 @@ void Renderer::init(Gpu& gpuRef, VkFormat output) {
     pass.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     pass.name = "reflection";
     reflectionPass = createRenderPass(*gpu, pass);
-    pass.samples = kSamples;
     pass.name = "scene";
-    scenePass = createRenderPass(*gpu, pass);
+    // Vulkan ne garantit que 1 et 4 échantillons : sans le 2x, la variante
+    // légère reste en 4x.
+    const VkSampleCountFlags counts = gpu->properties.limits.framebufferColorSampleCounts &
+                                      gpu->properties.limits.framebufferDepthSampleCounts;
+    sceneSamples[0] = VK_SAMPLE_COUNT_4_BIT;
+    sceneSamples[1] = counts & VK_SAMPLE_COUNT_2_BIT ? VK_SAMPLE_COUNT_2_BIT : VK_SAMPLE_COUNT_4_BIT;
+    for (int v = 0; v < 2; v++) {
+        pass.samples = sceneSamples[v];
+        scenePass[v] = createRenderPass(*gpu, pass);
+    }
 
     pass = PassDesc{};
     pass.color = hdrFormat;
@@ -354,9 +361,11 @@ void Renderer::init(Gpu& gpuRef, VkFormat output) {
         desc.blend = def.blend;
         desc.name = def.name;
 
-        desc.samples = kSamples;
-        desc.renderPass = scenePass;
-        scenePipelines[static_cast<int>(def.material)] = createPipeline(*gpu, desc);
+        for (int v = 0; v < 2; v++) {
+            desc.samples = sceneSamples[v];
+            desc.renderPass = scenePass[v];
+            scenePipelines[v][static_cast<int>(def.material)] = createPipeline(*gpu, desc);
+        }
         desc.samples = VK_SAMPLE_COUNT_1_BIT;
         desc.renderPass = reflectionPass;
         reflectionPipelines[static_cast<int>(def.material)] = createPipeline(*gpu, desc);
@@ -491,14 +500,15 @@ void Renderer::shutdown() {
     for (Mesh& m : flyerMeshes) destroyMesh(*gpu, m);
     destroyMesh(*gpu, missile);
     for (int i = 0; i < static_cast<int>(Material::Count); i++) {
-        vkDestroyPipeline(dev, scenePipelines[i], nullptr);
+        vkDestroyPipeline(dev, scenePipelines[0][i], nullptr);
+        vkDestroyPipeline(dev, scenePipelines[1][i], nullptr);
         vkDestroyPipeline(dev, reflectionPipelines[i], nullptr);
     }
     vkDestroyPipeline(dev, bloomDownPipeline, nullptr);
     vkDestroyPipeline(dev, bloomUpPipeline, nullptr);
     vkDestroyPipeline(dev, compositePipeline, nullptr);
     vkDestroyPipeline(dev, hudPipeline, nullptr);
-    for (VkRenderPass pass : {reflectionPass, scenePass, bloomDownPass, bloomUpPass, outputPass})
+    for (VkRenderPass pass : {reflectionPass, scenePass[0], scenePass[1], bloomDownPass, bloomUpPass, outputPass})
         vkDestroyRenderPass(dev, pass, nullptr);
     if (queryPool) vkDestroyQueryPool(dev, queryPool, nullptr);
     gpu->destroyImage(fontTexture);
@@ -512,6 +522,22 @@ void Renderer::shutdown() {
     vkDestroyDescriptorSetLayout(dev, texturesLayout, nullptr);
     vkDestroySampler(dev, sampler, nullptr);
     *this = Renderer{};
+}
+
+RenderSettings qualitySettings(int quality, const RenderSettings& base) {
+    RenderSettings s = base;
+    if (quality >= 2) return s;
+    s.msaa = 2;
+    if (quality == 1) {
+        s.renderScale *= 0.85f;
+        s.bloomLevels = std::min(s.bloomLevels, 5);
+        return s;
+    }
+    s.renderScale *= 0.7f;
+    s.bloomLevels = std::min(s.bloomLevels, 4);
+    s.reflections = false;
+    s.viewDistance = 0.6f;
+    return s;
 }
 
 void Renderer::releaseOutputs() {
@@ -547,9 +573,10 @@ void Renderer::destroyTargets() {
     for (Image& level : bloom) gpu->destroyImage(level);
 }
 
-void Renderer::createTargets(VkExtent2D extent) {
+void Renderer::createTargets(VkExtent2D extent, int msaaVariant) {
     destroyTargets();
     sceneExtent = extent;
+    sceneMsaa = msaaVariant;
     auto halved = [](VkExtent2D e, int shift) {
         return VkExtent2D{std::max(1u, e.width >> shift), std::max(1u, e.height >> shift)};
     };
@@ -570,7 +597,7 @@ void Renderer::createTargets(VkExtent2D extent) {
     reflectionDepth = gpu->createImage(desc);
 
     desc.extent = extent;
-    desc.samples = kSamples;
+    desc.samples = sceneSamples[msaaVariant];
     desc.name = "msaa depth";
     msaaDepth = gpu->createImage(desc);
 
@@ -595,7 +622,7 @@ void Renderer::createTargets(VkExtent2D extent) {
     reflectionFramebuffer =
         createFramebuffer(*gpu, reflectionPass, reflectionViews, reflectionColor.extent);
     const VkImageView sceneViews[] = {msaaColor.view, msaaDepth.view, sceneColor.view};
-    sceneFramebuffer = createFramebuffer(*gpu, scenePass, sceneViews, extent);
+    sceneFramebuffer = createFramebuffer(*gpu, scenePass[msaaVariant], sceneViews, extent);
     for (int i = 0; i < kBloomLevels; i++)
         bloomFramebuffer[i] =
             createFramebuffer(*gpu, bloomDownPass, {&bloom[i].view, 1}, bloom[i].extent);
@@ -634,7 +661,7 @@ void Renderer::createTargets(VkExtent2D extent) {
 }
 
 void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool reflection) {
-    const VkPipeline* pipelines = reflection ? reflectionPipelines : scenePipelines;
+    const VkPipeline* pipelines = reflection ? reflectionPipelines : scenePipelines[sceneMsaa];
     auto bind = [&](Material m) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines[static_cast<int>(m)]);
     };
@@ -654,8 +681,9 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
             return;
         }
         const float at = params.trackDist + trackLead;
-        const int c0 = std::clamp(static_cast<int>((at - behind) / kChunkLength), 0, count);
-        const int c1 = std::clamp(static_cast<int>((at + ahead) / kChunkLength) + 1, c0, count);
+        const float view = std::clamp(settings.viewDistance, 0.2f, 1.0f);
+        const int c0 = std::clamp(static_cast<int>((at - behind * view) / kChunkLength), 0, count);
+        const int c1 = std::clamp(static_cast<int>((at + ahead * view) / kChunkLength) + 1, c0, count);
         const uint32_t first = mesh.chunks[c0], last = mesh.chunks[c1];
         if (last > first) vkCmdDrawIndexed(cmd, last - first, 1, first, 0, 0);
     };
@@ -791,9 +819,13 @@ void Renderer::drawBloom(VkCommandBuffer cmd) {
         vkCmdPushConstants(cmd, postLayout, kPushStages, 0, sizeof(push), &push);
     };
 
+    // Sans bloom, seul le premier niveau est écrit : la composition le lit
+    // toujours, avec une force nulle.
+    const int levels = settings.bloom ? std::clamp(settings.bloomLevels, 2, kBloomLevels) : 1;
+
     // Réductions successives.
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bloomDownPipeline);
-    for (int i = 0; i < kBloomLevels; i++) {
+    for (int i = 0; i < levels; i++) {
         VkExtent2D srcExtent = i == 0 ? sceneExtent : bloom[i - 1].extent;
         VkDescriptorSet src = i == 0 ? sceneSet : bloomSet[i - 1];
         beginPass(cmd, bloomDownPass, bloomFramebuffer[i], bloom[i].extent);
@@ -808,7 +840,7 @@ void Renderer::drawBloom(VkCommandBuffer cmd) {
 
     // Agrandissements, chacun ajouté au niveau au-dessus.
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bloomUpPipeline);
-    for (int i = kBloomLevels - 2; i >= 0; i--) {
+    for (int i = levels - 2; i >= 0; i--) {
         beginPass(cmd, bloomUpPass, bloomFramebuffer[i], bloom[i].extent);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, postLayout, 0, 1,
                                 &bloomSet[i + 1], 0, nullptr);
@@ -854,9 +886,11 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
                          static_cast<float>(target.logicalExtent.width) * settings.renderScale))),
         std::max(1u, static_cast<uint32_t>(std::lround(
                          static_cast<float>(target.logicalExtent.height) * settings.renderScale)))};
-    if (wanted.width != sceneExtent.width || wanted.height != sceneExtent.height) {
+    const int msaaVariant = settings.msaa <= 2 ? 1 : 0;
+    if (wanted.width != sceneExtent.width || wanted.height != sceneExtent.height ||
+        msaaVariant != sceneMsaa) {
         VK_CHECK(vkDeviceWaitIdle(gpu->device));
-        createTargets(wanted);
+        createTargets(wanted, msaaVariant);
     }
 
     // Données globales des deux vues.
@@ -907,7 +941,7 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
 
     // Passe 2 : scène en MSAA. Les images multi-échantillonnées et la
     // profondeur ne sont jamais conservées : seule la résolution est écrite.
-    beginPass(cmd, scenePass, sceneFramebuffer, sceneExtent);
+    beginPass(cmd, scenePass[sceneMsaa], sceneFramebuffer, sceneExtent);
     drawWorld(cmd, params, false);
     vkCmdEndRenderPass(cmd);
 

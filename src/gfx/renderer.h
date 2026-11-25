@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gfx/adaptive.h"
 #include "gfx/gpu.h"
 #include "gfx/hud.h"
 #include "gfx/mesh.h"
@@ -105,7 +106,14 @@ struct RenderSettings {
     float exposure = 1.0f;
     bool reflections = true;
     bool bloom = true;
+    int msaa = 4;                   // 4 ou 2 échantillons par pixel
+    int bloomLevels = kBloomLevels; // moins de niveaux : halo plus étroit, moins cher
+    float viewDistance = 1.0f;      // part de la distance de vue dessinée
 };
+
+// Niveaux de qualité proposés dans les options : 0 basse, 1 moyenne, 2 haute.
+// Les valeurs de base viennent de la ligne de commande.
+RenderSettings qualitySettings(int quality, const RenderSettings& base);
 
 enum class Material { Road, Neon, Building, Ship, Sky, Trail, Count };
 
@@ -136,6 +144,8 @@ struct Renderer {
 
     VkFormat outputFormat = VK_FORMAT_UNDEFINED;
     VkExtent2D sceneExtent{};
+    VkSampleCountFlagBits sceneSamples[2] = {VK_SAMPLE_COUNT_4_BIT, VK_SAMPLE_COUNT_4_BIT};
+    int sceneMsaa = 0; // variante de MSAA des cibles actuelles : 0 pour 4x, 1 pour 2x
 
     VkSampler sampler = VK_NULL_HANDLE;
     VkDescriptorSetLayout globalsLayout = VK_NULL_HANDLE;
@@ -145,7 +155,7 @@ struct Renderer {
     VkDescriptorPool staticPool = VK_NULL_HANDLE;
     VkDescriptorPool targetPool = VK_NULL_HANDLE;
 
-    // Deux variantes par matériau : scène en MSAA, reflet sans MSAA.
+    // Trois variantes par matériau : scène en MSAA 4x ou 2x, reflet sans MSAA.
     // Formats retenus pour ce GPU, voir init.
     VkFormat hdrFormat = VK_FORMAT_UNDEFINED;
     VkFormat depthFormat = VK_FORMAT_UNDEFINED;
@@ -153,7 +163,7 @@ struct Renderer {
     // Passes de rendu, et un framebuffer par cible. bloomUp relit le niveau
     // qu'il complète, bloomDown l'écrase : même framebuffer, deux passes.
     VkRenderPass reflectionPass = VK_NULL_HANDLE;
-    VkRenderPass scenePass = VK_NULL_HANDLE;
+    VkRenderPass scenePass[2]{}; // MSAA 4x, MSAA 2x
     VkRenderPass bloomDownPass = VK_NULL_HANDLE;
     VkRenderPass bloomUpPass = VK_NULL_HANDLE;
     VkRenderPass outputPass = VK_NULL_HANDLE;
@@ -168,7 +178,7 @@ struct Renderer {
     };
     std::vector<OutputFramebuffer> outputs;
 
-    VkPipeline scenePipelines[static_cast<int>(Material::Count)]{};
+    VkPipeline scenePipelines[2][static_cast<int>(Material::Count)]{};
     VkPipeline reflectionPipelines[static_cast<int>(Material::Count)]{};
     VkPipeline bloomDownPipeline = VK_NULL_HANDLE;
     VkPipeline bloomUpPipeline = VK_NULL_HANDLE;
@@ -222,7 +232,7 @@ struct Renderer {
     void draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameParams& params);
 
   private:
-    void createTargets(VkExtent2D extent);
+    void createTargets(VkExtent2D extent, int msaaVariant);
     void destroyTargets();
     VkFramebuffer outputFramebuffer(const FrameTarget& target);
     void drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool reflection);

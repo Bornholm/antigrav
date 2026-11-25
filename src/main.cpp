@@ -74,6 +74,9 @@ struct Options {
     std::string importSong; // fichier audio à copier dans la bibliothèque du joueur
     bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
+    int quality = -1;     // -1 : celle des réglages ; 0 basse, 1 moyenne, 2 haute
+    bool cap60 = false;   // force le plafond à 60 images par seconde
+    bool adaptive = true; // résolution adaptative, en fenêtre
     int track = 0;
     bool race = false;   // démarre directement en course, sans menu
     std::string screen;  // mode sans fenêtre : écran de menu à capturer
@@ -118,6 +121,9 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--loading")) o.loading = true;
         else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
+        else if (!std::strcmp(a, "--quality")) o.quality = std::atoi(value());
+        else if (!std::strcmp(a, "--cap60")) o.cap60 = true;
+        else if (!std::strcmp(a, "--no-adaptive")) o.adaptive = false;
         else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
         else if (!std::strcmp(a, "--ship")) o.ship = std::atoi(value());
         else if (!std::strcmp(a, "--race")) o.race = true;
@@ -285,7 +291,10 @@ int runHeadless(const Options& opt) {
     gfx::Renderer renderer;
     renderer.init(gpu, format);
     renderer.loadTrack(race.track, race.theme, race.songSerial);
-    renderer.settings = opt.render;
+    // Les captures ne dépendent pas des réglages enregistrés : qualité haute
+    // sauf demande contraire.
+    app.settings.quality = opt.quality >= 0 ? std::clamp(opt.quality, 0, 2) : 2;
+    renderer.settings = gfx::qualitySettings(app.settings.quality, opt.render);
 
     FrameData frames[kFramesInFlight];
     createFrames(gpu, frames);
@@ -448,9 +457,16 @@ int runWindowed(const Options& opt) {
     renderer.init(gpu, swapchain.format);
     renderer.loadTrack(race.track, race.theme, race.songSerial);
     renderer.settings = opt.render;
+    if (opt.quality >= 0) app.settings.quality = std::clamp(opt.quality, 0, 2);
+    if (opt.cap60) app.settings.cap60 = true;
 
     FrameData frames[kFramesInFlight];
     createFrames(gpu, frames);
+
+    // Sans synchronisation verticale, la cadence ne dit rien de la charge.
+    gfx::AdaptiveScale adaptive;
+    const bool useAdaptive = opt.adaptive && opt.vsync;
+    Uint64 nextFrameNs = 0;
 
     bool running = true;
     bool background = false;
@@ -529,6 +545,15 @@ int runWindowed(const Options& opt) {
             }
         }
 
+        // Plafond à 60 images par seconde : on attend le créneau suivant.
+        const Uint64 kCapNs = 1000000000ull / 60;
+        if (app.settings.cap60) {
+            const Uint64 nowNs = SDL_GetTicksNS();
+            if (nextFrameNs > nowNs) SDL_DelayPrecise(nextFrameNs - nowNs);
+            // Après un retard, repartir de maintenant plutôt que rattraper.
+            nextFrameNs = std::max(nextFrameNs, SDL_GetTicksNS() - kCapNs / 2) + kCapNs;
+        }
+
         FrameData& frame = frames[frameIndex % kFramesInFlight];
         VK_CHECK(vkWaitForFences(gpu.device, 1, &frame.fence, VK_TRUE, UINT64_MAX));
 
@@ -560,6 +585,21 @@ int runWindowed(const Options& opt) {
         // Le menu a changé de circuit : la géométrie suit.
         if (race.songSerial != renderer.loadedTrack)
             renderer.loadTrack(race.track, race.theme, race.songSerial);
+
+        // Qualité choisie dans les options, puis résolution adaptative : la 3D
+        // perd des pixels quand les images arrivent en retard sur l'écran.
+        renderer.settings = gfx::qualitySettings(app.settings.quality, opt.render);
+        if (useAdaptive) {
+            float refresh = 60.0f;
+            if (const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window));
+                mode && mode->refresh_rate > 1.0f)
+                refresh = mode->refresh_rate;
+            if (app.settings.cap60) refresh = std::min(refresh, 60.0f);
+            adaptive.update(dt * 1000.0f, 1000.0f / refresh,
+                            static_cast<float>(renderer.stats.lastTotalMs()));
+            renderer.settings.renderScale =
+                std::max(0.4f, renderer.settings.renderScale * adaptive.factor());
+        }
 
         // Mesures lissées, rafraîchies deux fois par seconde.
         cpuMsSmoothed += (static_cast<double>(dt) * 1000.0 - cpuMsSmoothed) * 0.05;

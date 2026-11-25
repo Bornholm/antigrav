@@ -46,6 +46,13 @@ Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un
 
 L'écran **Options** du menu principal règle la langue de l'interface (français, anglais ou espagnol) et le pseudo vu par les autres joueurs, 16 caractères au plus. Au premier lancement, le jeu prend la langue du système. Sur un écran tactile, le réglage DIRECTION place les boutons de direction à gauche ou à droite, le bouton de bonus passant de l'autre côté. Le pseudo se change aussi dans **Multijoueur**. Ces réglages sont gardés d'un lancement à l'autre.
 
+Deux réglages allègent le jeu sur un appareil modeste.
+
+- **Qualité.** Haute par défaut. Moyenne réduit l'anticrénelage, le halo et la définition de la 3D à 85 %. Basse coupe en plus les reflets sur la piste, descend la 3D à 70 %, raccourcit la distance de vue et retire la moitié des objets volants.
+- **Cadence.** Maximale suit l'écran. 60 images/s plafonne l'affichage, pour un téléphone qui chauffe ou une batterie à ménager.
+
+À tous les niveaux, le jeu réduit de lui-même la définition de la 3D quand les images arrivent en retard, jusqu'à la moitié, et la remonte quand la charge retombe. L'interface reste nette.
+
 Au clavier ou à la manette, les boutons tactiles ne sont pas affichés. Le bonus porté apparaît en bas à droite.
 
 Le jeu s'ouvre sur le menu. **Solo** règle le morceau, le vaisseau, le nombre d'IA de 0 à 7 et leur caractère. **Multijoueur** héberge une partie ou rejoint celles trouvées sur le réseau local.

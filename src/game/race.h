@@ -1,5 +1,6 @@
 #pragma once
 
+#include "game/score.h"
 #include "game/hud.h"
 #include "game/input.h"
 #include "game/synth.h"
@@ -46,6 +47,14 @@ struct Race : sim::Session {
     glm::vec3 flashColor{0.0f};
     float flash = 0.0f;
     float hitShake = 0.0f;
+    // Relevé du joueur pour le score, et score figé à l'arrivée.
+    ScoreTally tally;
+    Score score;
+    bool scored = false;
+    // Renseignés par le jeu une fois le score enregistré : record précédent
+    // sur ce morceau, 0 s'il n'y en avait pas, et s'il vient d'être battu.
+    int bestScore = 0;
+    bool newRecord = false;
     bool lightDecor = false; // qualité basse : moins d'objets volants
     float beatKick = 0.0f; // secousse de la caméra sur le temps, selon la hargne du morceau
     float bands[8] = {}; // niveaux de la musique, lissés pour l'affichage

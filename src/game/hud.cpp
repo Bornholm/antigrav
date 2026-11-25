@@ -314,14 +314,41 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Center;
     hud.vAnchor = gfx::VAnchor::Middle;
     if (s.finished) {
-        hud.quad({0.0f, 318.0f}, {1600.0f, 318.0f}, {1600.0f, 482.0f}, {0.0f, 482.0f},
-                 vec4(0.02f, 0.02f, 0.08f, 0.72f));
-        hud.line({200.0f, 318.0f}, {1400.0f, 318.0f}, 2.0f, kCyan, 0.5f);
-        hud.line({200.0f, 482.0f}, {1400.0f, 482.0f}, 2.0f, kMagenta, 0.5f);
-        hud.text(FontId::Bold, tr("COURSE TERMINÉE"), {800.0f, 392.0f}, 58.0f, kWhite, Align::Center,
+        hud.quad({0.0f, 232.0f}, {1600.0f, 232.0f}, {1600.0f, 540.0f}, {0.0f, 540.0f},
+                 vec4(0.02f, 0.02f, 0.08f, 0.78f));
+        hud.line({200.0f, 232.0f}, {1400.0f, 232.0f}, 2.0f, kCyan, 0.5f);
+        hud.line({200.0f, 540.0f}, {1400.0f, 540.0f}, 2.0f, kMagenta, 0.5f);
+        hud.text(FontId::Bold, tr("COURSE TERMINÉE"), {800.0f, 292.0f}, 50.0f, kWhite, Align::Center,
                  0.2f, alpha(kCyan, 0.6f));
+        // La note à gauche, le détail à droite.
+        const vec4 tint = gradeColor(s.score.grade);
+        const char letter[2] = {s.score.grade, '\0'};
+        hud.text(FontId::Bold, letter, {560.0f, 478.0f}, 190.0f, tint, Align::Center, 0.0f, alpha(tint, 0.3f));
+        const float x = 700.0f;
         std::snprintf(buf, sizeof(buf), tr("POSITION %d / %d"), s.position, s.racers);
-        hud.text(FontId::Medium, buf, {800.0f, 448.0f}, 34.0f, kYellow, Align::Center);
+        hud.text(FontId::Medium, buf, {x, 362.0f}, 28.0f, kYellow, Align::Left);
+        std::snprintf(buf, sizeof(buf), tr("SCORE %d"), s.score.total);
+        hud.text(FontId::Bold, buf, {x, 418.0f}, 48.0f, kWhite, Align::Left);
+        char parts[160];
+        std::snprintf(parts, sizeof(parts), "%s %d    %s %d    %s %d    %s %d", tr("PLACE"), s.score.place,
+                      tr("TEMPO"), s.score.tempo, tr("PILOTAGE"), s.score.clean, tr("BONUS"), s.score.items);
+        hud.text(FontId::Medium, parts, {x, 460.0f}, 19.0f, alpha(kWhite, 0.75f), Align::Left);
+        if (s.newRecord) {
+            hud.text(FontId::Bold, tr("NOUVEAU RECORD"), {x, 504.0f}, 24.0f, kYellow, Align::Left);
+        } else if (s.bestScore > 0) {
+            std::snprintf(buf, sizeof(buf), tr("RECORD %d (%c)"), s.bestScore, gradeOf(s.bestScore));
+            hud.text(FontId::Medium, buf, {x, 504.0f}, 22.0f, alpha(kWhite, 0.75f), Align::Left);
+        }
+    }
+}
+
+vec4 gradeColor(char grade) {
+    switch (grade) {
+    case 'S': return kYellow;
+    case 'A': return vec4(0.35f, 1.0f, 0.45f, 1.0f);
+    case 'B': return kCyan;
+    case 'C': return kMagenta;
+    default: return vec4(0.65f, 0.65f, 0.75f, 1.0f);
     }
 }
 

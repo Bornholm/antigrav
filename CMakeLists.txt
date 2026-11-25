@@ -188,6 +188,7 @@ set(GAME_SOURCES
   src/gfx/swapchain.cpp
   src/gfx/pipeline.cpp
   src/gfx/renderer.cpp
+  src/game/records.cpp
   src/gfx/capture.cpp
   src/gfx/mesh.cpp
   src/gfx/geometry.cpp

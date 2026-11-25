@@ -42,6 +42,25 @@ Un vaisseau touché perd une bonne part de sa vitesse et le contrôle pendant pr
 
 Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un élastique freine qui prend de l'avance sur elle et aspire qui traîne, donc le peloton reste groupé. La ligne ÉCART donne l'avance du vaisseau sur la musique.
 
+## Score et note
+
+Chaque course finit sur un score sur 10 000 et une note : S à partir de 9 000, A à partir de 7 500, B à partir de 6 000, C à partir de 4 000, D en dessous. Le score ne dépend pas de la durée du morceau.
+
+| Part | Points | Ce qui compte |
+|---|---|---|
+| Place | 4 000 | Le classement à l'arrivée. Premier, tout ; dernier, rien. |
+| Tempo | 3 000 | Le temps passé à hauteur de la musique. La part est pleine à une demi-seconde d'avance et nulle à trois secondes de retard. |
+| Pilotage | 2 000 | Les chocs encaissés et le temps passé à frotter un muret, rapportés à la minute. |
+| Bonus | 1 000 | Les bonus ramassés. Huit par minute font le plein. |
+
+La part de place dépend de la difficulté : elle est multipliée par 0,7 en facile et par 0,85 en normale, si bien que la note S demande au moins la difficulté normale. Seul en piste, elle vaut la moitié.
+
+En solo, le jeu garde le meilleur score de chaque morceau. Sa note s'affiche dans la liste des morceaux, et l'écran de fin dit si le record est battu.
+
+## Difficulté
+
+Le réglage DIFFICULTÉ, en solo et dans le salon de l'hôte, a trois niveaux. En difficile, les IA lisent la piste de loin et ne ratent pas une occasion d'utiliser un bonus. En normale, elles anticipent un peu moins, ont des moments d'inattention et laissent passer un tiers des occasions. En facile, elles voient les barrières tard, décrochent près d'une seconde sur trois et n'utilisent leurs bonus qu'une fois sur trois.
+
 ## Menus et commandes
 
 L'écran **Options** du menu principal règle la langue de l'interface (français, anglais ou espagnol) et le pseudo vu par les autres joueurs, 16 caractères au plus. Par défaut, sur Android comme sur Linux, le jeu suit la langue du système : le choix « Auto » du réglage LANGUE. Une langue non traduite donne l'anglais. Sur un écran tactile, le réglage DIRECTION place les boutons de direction à gauche ou à droite, le bouton de bonus passant de l'autre côté. Le pseudo se change aussi dans **Multijoueur**. Ces réglages sont gardés d'un lancement à l'autre.

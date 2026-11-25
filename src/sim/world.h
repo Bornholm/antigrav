@@ -133,8 +133,11 @@ void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track, const
 
 // Pilote automatique : conduite, boost, tir et bouclier selon sa personnalité.
 // laneOffset est son couloir préféré, en mètres par rapport à l'axe.
+// difficulty : 0 facile, 1 normal, 2 difficile. En dessous de difficile, le
+// pilote lit la piste de moins loin, a des moments d'inattention et laisse
+// passer des occasions d'utiliser ses bonus.
 Input autopilot(const World& world, int index, const Track& track, const AiProfile& profile,
-                float laneOffset);
+                float laneOffset, int difficulty = 2);
 
 // Vitesse de croisière d'un vaisseau là où il se trouve.
 float cruiseSpeed(const Vehicle& vehicle, const Track& track);

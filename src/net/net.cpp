@@ -125,7 +125,9 @@ WireConfig packConfig(const sim::RaceConfig& c) {
     w.track = static_cast<int8_t>(c.track);
     w.ownClock = c.ownClock ? 1 : 0;
     w.racerCount = static_cast<int8_t>(c.racerCount);
-    w.gridStart = c.gridStart;
+    // Bit 0 : départ arrêté. Bits 1 et 2 : difficulté, comptée depuis
+    // difficile pour qu'un hôte d'une version antérieure donne difficile.
+    w.gridStart = static_cast<uint8_t>((c.gridStart ? 1 : 0) | ((2 - std::clamp(c.difficulty, 0, 2)) << 1));
     for (int i = 0; i < sim::kMaxVehicles; i++) {
         std::memcpy(w.racers[i].name, c.racers[i].name, sizeof(w.racers[i].name));
         w.racers[i].ship = static_cast<int8_t>(c.racers[i].ship);
@@ -140,7 +142,8 @@ sim::RaceConfig unpackConfig(const WireConfig& w) {
     c.track = std::clamp<int>(w.track, 0, sim::kSongSlots - 1);
     c.ownClock = w.ownClock != 0;
     c.racerCount = std::clamp<int>(w.racerCount, 0, sim::kMaxVehicles);
-    c.gridStart = w.gridStart != 0;
+    c.gridStart = (w.gridStart & 1) != 0;
+    c.difficulty = 2 - std::clamp((w.gridStart >> 1) & 3, 0, 2);
     for (int i = 0; i < sim::kMaxVehicles; i++) {
         std::memcpy(c.racers[i].name, w.racers[i].name, sizeof(c.racers[i].name));
         c.racers[i].name[sizeof(c.racers[i].name) - 1] = '\0';

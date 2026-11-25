@@ -342,8 +342,27 @@ void step(World& world, const Track& track, const Input* inputs) {
         world.vehicles[i].lateral = std::clamp(world.vehicles[i].lateral, -limit, limit);
 }
 
+namespace {
+
+// Ce que la difficulté retire au pilote automatique.
+struct AiSkill {
+    float foresight; // part de son anticipation
+    float trigger;   // part de son empressement à déclencher un bonus
+    float lapse;     // part des secondes où il ne regarde ni boîtes ni barrières
+};
+const AiSkill kAiSkills[3] = {
+    {0.55f, 0.35f, 0.30f}, // facile
+    {0.80f, 0.65f, 0.12f}, // normal
+    {1.00f, 1.00f, 0.00f}, // difficile
+};
+
+} // namespace
+
 Input autopilot(const World& world, int index, const Track& track, const AiProfile& profile,
-                float laneOffset) {
+                float laneOffset, int difficulty) {
+    const AiSkill& skill = kAiSkills[std::clamp(difficulty, 0, 2)];
+    // Inattention tirée seconde par seconde.
+    const bool lapse = skill.lapse > 0.0f && chance(index, world.tick / 60u, 9u) < skill.lapse;
     const Vehicle& v = world.vehicles[index];
     const ShipStats& stats = shipStats(v.ship);
     Input in;
@@ -376,7 +395,7 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     float steerSpeed = kSteerSpeed * stats.handling;
     // Éléments de piste : les mains vides, viser la boîte à bonus atteignable
     // la plus proche. Puis s'écarter des barrières, qui ont le dernier mot.
-    const float look = v.speed * profile.foresight;
+    const float look = lapse ? 0.0f : v.speed * profile.foresight * skill.foresight;
     float padAhead = look;
     for (const Feature& f : track.features) {
         if (f.type != FeatureType::ItemBox || v.item != Item::None) continue;
@@ -450,7 +469,7 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
         if (whim && chance(index, slot, 6u) < 0.3f) wanted = true;
         // Un appui d'un seul pas : la simulation ne lit que le front montant.
         const bool moment = world.tick % 20u == static_cast<uint32_t>(index) % 20u;
-        in.use = wanted && moment && chance(index, slot, 4u) < profile.trigger;
+        in.use = wanted && moment && chance(index, slot, 4u) < profile.trigger * skill.trigger;
     }
     return in;
 }

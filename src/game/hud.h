@@ -1,5 +1,6 @@
 #pragma once
 
+#include "game/score.h"
 #include "game/input.h"
 #include "gfx/hud.h"
 
@@ -39,6 +40,9 @@ struct HudState {
     float countdown = 0.0f; // secondes avant le départ
     float raceTime = 0.0f;
     bool finished = false;
+    Score score;           // score de la course, affiché à l'arrivée
+    int bestScore = 0;     // record précédent sur ce morceau, 0 s'il n'y en a pas
+    bool newRecord = false;
     // Ligne de mesures affichée en bas de l'écran, vide pour la masquer.
     const char* statsLine = "";
     glm::vec3 shipPos{0.0f}; // vaisseau du joueur, pour y accrocher les alertes
@@ -51,5 +55,8 @@ struct HudState {
 };
 
 void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewProj);
+
+// Couleur d'une note, de S à D.
+glm::vec4 gradeColor(char grade);
 
 } // namespace game

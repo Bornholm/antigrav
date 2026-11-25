@@ -55,8 +55,11 @@ void Session::gatherInputs(const Input& local, Input* out) const {
         bool ai = racer.profile != kHuman || (isLocal && autopilot) || world.vehicles[i].finished;
         if (ai) {
             int profile = racer.profile != kHuman ? racer.profile : 2;
+            // La difficulté ne bride que les IA, pas le pilote automatique
+            // qui remplace un joueur.
             out[i] = sim::autopilot(world, i, track, aiProfile(profile),
-                                    laneOf(i, world.count, track.halfWidth));
+                                    laneOf(i, world.count, track.halfWidth),
+                                    racer.profile != kHuman ? config.difficulty : 2);
         } else {
             out[i] = isLocal ? local : remoteInputs[i];
         }

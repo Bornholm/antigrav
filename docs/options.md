@@ -13,6 +13,7 @@
 | `--grid-start`, `--rolling-start` | départ arrêté ou lancé |
 | `--size LxH` | taille de la fenêtre ou de l'image |
 | `--scale N` | échelle de la 3D par rapport à la sortie, 0.7 par exemple |
+| `--difficulty N` | niveau des IA d'une course lancée par `--race` : 0 facile, 1 normale, 2 difficile |
 | `--quality N` | qualité du rendu pour ce lancement : 0 basse, 1 moyenne, 2 haute |
 | `--cap60` | plafonne l'affichage à 60 images par seconde |
 | `--no-adaptive` | garde la 3D à une définition fixe |

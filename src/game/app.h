@@ -1,5 +1,6 @@
 #pragma once
 
+#include "game/records.h"
 #include "game/music.h"
 #include "game/race.h"
 #include "game/settings.h"
@@ -28,6 +29,12 @@ struct App {
     SDL_Window* window = nullptr; // pour le sélecteur de fichiers
     SongLibrary songs;
     Settings settings;
+    Records records;
+    bool scoreSaved = false; // le score de la course en cours est déjà enregistré
+    // Clé d'un morceau dans les records : par son indice dans la liste, ou
+    // celui de la course en cours.
+    std::string songKey(int index) const;
+    std::string raceSongKey() const;
     char nameDraft[20] = ""; // pseudo en cours de saisie
     // Écrans où reviennent le choix du morceau et la saisie du pseudo.
     Screen songReturn = Screen::Solo;

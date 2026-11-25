@@ -22,6 +22,7 @@ struct RaceConfig {
     int racerCount = 0;
     RacerSetup racers[kMaxVehicles];
     bool gridStart = true; // départ arrêté avec compte à rebours
+    int difficulty = 2;    // niveau des IA : 0 facile, 1 normal, 2 difficile
 };
 
 // Une course en cours : circuit, état du monde et origine des commandes de

@@ -8,6 +8,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
+#include <SDL3/SDL.h>
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -61,6 +63,11 @@ void Race::initBlank() {
     theme = 0;
     songSerial = -2;
     start(cfg, 0);
+    tally = {};
+    score = {};
+    scored = false;
+    bestScore = 0;
+    newRecord = false;
     accumulator = 0.0f;
     camLateral = world.vehicles[localIndex].lateral;
     for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
@@ -78,6 +85,11 @@ void Race::init(const RaceConfig& cfg, int local) {
     theme = custom ? customTheme() : cfg.track;
     songSerial = custom ? 100 + customSerial() : cfg.track;
     start(cfg, local);
+    tally = {};
+    score = {};
+    scored = false;
+    bestScore = 0;
+    newRecord = false;
     accumulator = 0.0f;
     camLateral = world.vehicles[localIndex].lateral;
     for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
@@ -131,6 +143,11 @@ void Race::react(const sim::World& before) {
             flash = std::max(flash, amount);
         };
 
+        // Relevé du score : chocs encaissés et bonus ramassés par le joueur.
+        if (mine && !now.finished) {
+            if (now.stunTime > was.stunTime + 0.05f) tally.hits++;
+            if (was.item == sim::Item::None && now.item != sim::Item::None) tally.pickups++;
+        }
         // Bonus ramassé.
         if (was.item == sim::Item::None && now.item != sim::Item::None) {
             sound(Sfx::Pickup);
@@ -205,6 +222,18 @@ void Race::update(float dt, const Controls& input) {
         else tick(local);
         accumulator -= sim::kFixedDt;
         react(previous);
+        {
+            const sim::Vehicle& me = world.vehicles[localIndex];
+            if (world.countdown <= 0.0f && !me.finished)
+                tally.step(sim::kFixedDt, sim::gapOf(world, track, me), me.scraping);
+            if (me.finished && !scored) {
+                scored = true;
+                score = computeScore(tally, sim::rankOf(world, localIndex), world.count, config.difficulty);
+                SDL_Log("Score %d (%c) : place %d, tempo %d, pilotage %d, bonus %d ; %d chocs, %.1f s de frottement, %d bonus en %.0f s",
+                        score.total, score.grade, score.place, score.tempo, score.clean, score.items,
+                        tally.hits, tally.scrape, tally.pickups, tally.time);
+            }
+        }
         if (pinToSync && world.countdown <= 0.0f) {
             // Démonstration : le vaisseau reste sur le point de synchronisation,
             // pour vérifier que la piste tombe sur la musique.
@@ -507,6 +536,9 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.countdown = world.countdown;
     state.raceTime = player.finished ? player.finishTime : world.raceTime;
     state.finished = player.finished;
+    state.score = score;
+    state.bestScore = bestScore;
+    state.newRecord = newRecord;
     state.speedKmh = player.speed * 3.6f;
     // Radar : la piste à venir vue de dessus, dans le repère du vaisseau.
     {

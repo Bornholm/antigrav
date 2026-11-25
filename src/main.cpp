@@ -74,6 +74,7 @@ struct Options {
     std::string importSong; // fichier audio à copier dans la bibliothèque du joueur
     bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
+    int difficulty = 1;   // niveau des IA : 0 facile, 1 normal, 2 difficile
     int quality = -1;     // -1 : celle des réglages ; 0 basse, 1 moyenne, 2 haute
     bool cap60 = false;   // force le plafond à 60 images par seconde
     bool adaptive = true; // résolution adaptative, en fenêtre
@@ -122,6 +123,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
         else if (!std::strcmp(a, "--quality")) o.quality = std::atoi(value());
+        else if (!std::strcmp(a, "--difficulty")) o.difficulty = std::clamp(std::atoi(value()), 0, 2);
         else if (!std::strcmp(a, "--cap60")) o.cap60 = true;
         else if (!std::strcmp(a, "--no-adaptive")) o.adaptive = false;
         else if (!std::strcmp(a, "--track")) o.track = std::atoi(value());
@@ -258,6 +260,7 @@ int runHeadless(const Options& opt) {
         // Course jouée par l'ordinateur, pour les captures.
         game::RaceConfig config = game::defaultConfig(track, opt.gridStart == 1);
         config.racers[0].ship = app.ship;
+        config.difficulty = opt.difficulty;
         if (!opt.wav.empty()) app.synth = &synth;
         app.startQuickRace(config, true);
         race.pinToSync = opt.sync;
@@ -449,6 +452,7 @@ int runWindowed(const Options& opt) {
     if (opt.race || opt.autopilot || !opt.song.empty()) {
         game::RaceConfig config = game::defaultConfig(track, opt.gridStart != 0);
         config.racers[0].ship = app.ship;
+        config.difficulty = opt.difficulty;
         app.startQuickRace(config, opt.autopilot);
     }
     game::Race& race = app.race;

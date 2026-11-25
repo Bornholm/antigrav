@@ -1,5 +1,6 @@
 // Tests de la simulation. Aucun cadre de test : un échec affiche la ligne et
 // fait sortir le programme avec un code non nul.
+#include "game/score.h"
 #include "game/synth.h"
 #include "gfx/adaptive.h"
 #include "sim/track.h"
@@ -670,9 +671,34 @@ void testAdaptiveScale() {
     CHECK(changes >= 3 && changes <= 14);
 }
 
+// Score : borné, croissant avec la place, et la note S hors de portée en facile.
+void testScore() {
+    game::ScoreTally perfect;
+    for (int i = 0; i < 120 * 60; i++) perfect.step(1.0f / 60.0f, 1.0f, false);
+    perfect.pickups = 20;
+    const game::Score best = game::computeScore(perfect, 1, 4, 2);
+    CHECK(best.total == 10000 && best.grade == 'S');
+    CHECK(game::computeScore(perfect, 1, 4, 0).grade == 'A');
+    CHECK(game::computeScore(perfect, 2, 4, 2).total < best.total);
+    CHECK(game::computeScore(perfect, 4, 4, 2).place == 0);
+    game::ScoreTally rough = perfect;
+    rough.hits = 10;
+    rough.scrape = 30.0f;
+    CHECK(game::computeScore(rough, 1, 4, 2).clean < best.clean);
+    // En retard de trois secondes sur la musique, la part de tempo est nulle.
+    game::ScoreTally late;
+    for (int i = 0; i < 600; i++) late.step(1.0f / 60.0f, -3.0f, false);
+    CHECK(game::computeScore(late, 4, 4, 2).tempo == 0);
+    CHECK(game::gradeOf(0) == 'D' && game::gradeOf(4000) == 'C' && game::gradeOf(6000) == 'B' &&
+          game::gradeOf(7500) == 'A' && game::gradeOf(9000) == 'S');
+    // Une course vide ne divise pas par zéro.
+    CHECK(game::computeScore(game::ScoreTally{}, 1, 1, 1).total >= 0);
+}
+
 } // namespace
 
 int main() {
+    testScore();
     testAdaptiveScale();
     testTrackGeometry();
     testTrackEnds();

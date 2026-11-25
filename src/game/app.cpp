@@ -225,6 +225,7 @@ void App::init(int startTrack) {
     track = std::clamp(startTrack, 0, sim::kSongSlots - 1);
     songIndex = track < sim::kTrackCount ? track : sim::kTrackCount;
     settings.load();
+    records.load();
     setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
     setButtonsSwapped(settings.swapButtons);
     if (settings.name[0]) {
@@ -282,12 +283,36 @@ RaceConfig App::withOpponents(RaceConfig base, int count) const {
         ai.ship = (ship + 1 + i) % sim::kShipCount;
         ai.profile = personality == 0 ? i % sim::kProfileCount : personality - 1;
     }
+    base.difficulty = settings.difficulty;
     (void)humans;
     return base;
 }
 
+namespace {
+
+// Nom de fichier d'un chemin : la clé d'un morceau du joueur.
+std::string baseName(const std::string& path) {
+    const size_t slash = path.find_last_of("/\\");
+    return slash == std::string::npos ? path : path.substr(slash + 1);
+}
+
+} // namespace
+
+std::string App::songKey(int index) const {
+    if (index < sim::kTrackCount) return "inclus:" + std::to_string(index);
+    const int entry = index - sim::kTrackCount;
+    if (entry < static_cast<int>(songs.entries.size())) return baseName(songs.entries[entry].path);
+    return "";
+}
+
+std::string App::raceSongKey() const {
+    if (track != sim::kCustomTrack) return "inclus:" + std::to_string(track);
+    return baseName(songs.loadedPath);
+}
+
 void App::startQuickRace(const RaceConfig& config, bool autopilot) {
     track = config.track;
+    scoreSaved = false;
     race.clientTick = nullptr;
     race.init(config, 0);
     race.autopilot = autopilot;
@@ -464,13 +489,22 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     ui.begin(menuHud, busy ? quiet : input, static_cast<float>(now));
     if (screen == Screen::Race) {
         bool over = race.finished();
+        // Le score d'une course en solo va aux records du morceau.
+        if (race.scored && !scoreSaved) {
+            scoreSaved = true;
+            if (net.role == net::Role::Off && !race.autopilot) {
+                const std::string key = raceSongKey();
+                race.bestScore = records.get(key);
+                race.newRecord = records.submit(key, race.score.total);
+            }
+        }
         auto abandon = [&] {
             if (net.role != net::Role::Off) leaveNetwork();
             else startAttract();
             go(Screen::Main);
         };
         if (over) {
-            if (ui.button({800.0f, 560.0f}, {190.0f, 38.0f}, "CONTINUER", true, kYellow)) {
+            if (ui.button({800.0f, 606.0f}, {190.0f, 38.0f}, "CONTINUER", true, kYellow)) {
                 if (net.role == net::Role::Host) {
                     net.hostBackToLobby();
                     startAttract();
@@ -664,6 +698,12 @@ void App::drawMenus(glm::vec2) {
         y += kRow;
         if ((d = ui.selector({x, y}, kColumn, "CARACTÈRES", kPersonalityLabels[personality])) != 0)
             personality = (personality + d + 5) % 5;
+        y += kRow;
+        static const char* const kDifficulties[] = {"Facile", "Normale", "Difficile"};
+        if ((d = ui.selector({x, y}, kColumn, "DIFFICULTÉ", kDifficulties[std::clamp(settings.difficulty, 0, 2)])) != 0) {
+            settings.difficulty = (settings.difficulty + d + 3) % 3;
+            settings.save();
+        }
         return y + kRow;
     };
 
@@ -675,7 +715,13 @@ void App::drawMenus(glm::vec2) {
         ui.text({right, 196.0f}, "RÉCENTS", 22.0f, kCyan, Align::Center, FontId::Bold);
         auto entry = [&](int index, vec2 at) {
             const bool current = index == songIndex;
-            if (!ui.button(at, half, clip(songLabel(index), 26).c_str(), true, current ? kYellow : kCyan)) return false;
+            const bool chosen = ui.button(at, half, clip(songLabel(index), 24).c_str(), true, current ? kYellow : kCyan);
+            // Meilleure note obtenue sur ce morceau, au bout de la ligne.
+            if (const int best = records.get(songKey(index)); best > 0) {
+                const char grade[2] = {gradeOf(best), '\0'};
+                ui.text(at + vec2(half.x - 34.0f, 12.0f), grade, 34.0f, gradeColor(gradeOf(best)), Align::Center, FontId::Bold);
+            }
+            if (!chosen) return false;
             if (!current) selectSong(index);
             go(songReturn);
             return true;

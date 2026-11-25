@@ -21,6 +21,8 @@ struct TrackFrame {
     // Chaleur du morceau ici, de 0 à 1 : calme et froid, intense et chaud. Le
     // rendu en tire la couleur de la piste.
     float heat = 0.0f;
+    // Vrille : angle dont la piste a tourné autour de son axe, en radians.
+    float twist = 0.0f;
 };
 
 // Au-delà de cet écart entre deux temps, soit sous 100 battements par minute,
@@ -32,9 +34,10 @@ constexpr float kPulseSplit = 0.6f;
 constexpr float kClearAfterPad = 1.5f;  // secondes
 constexpr float kClearHalfWidth = 5.0f; // mètres
 
+// Un tremplin occupe toute la largeur : tous les vaisseaux décollent.
 // Élément posé sur la piste. Tous agissent selon la seule position du
 // vaisseau, sans état propre : la prédiction réseau les rejoue telle quelle.
-enum class FeatureType { ItemBox, Barrier };
+enum class FeatureType { ItemBox, Barrier, Jump };
 struct Feature {
     FeatureType type = FeatureType::ItemBox;
     float dist = 0.0f;      // début de l'élément le long de la piste

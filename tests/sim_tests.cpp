@@ -122,6 +122,26 @@ void testTrackEnds() {
         CHECK(track.at(track.distAt(drop + 3.0f)).heat > track.at(track.distAt(drop - 4.0f)).heat + 0.3f);
     }
 
+    // Vrilles : la piste fait un tour complet sur elle-même, puis se remet à plat.
+    {
+        music::Partition loud = sim::metronome(150.0f, 80.0f);
+        for (float& d : loud.drive) d = 0.9f;
+        loud.drive.assign(loud.energy.size(), 0.9f);
+        const sim::Track twisted = sim::generateTrack(loud, 15.0f, 3u);
+        float most = 0.0f;
+        bool upsideDown = false;
+        for (const sim::TrackFrame& f : twisted.frames) {
+            most = std::max(most, std::abs(f.twist));
+            upsideDown = upsideDown || f.up.y < -0.8f;
+            CHECK(std::abs(glm::dot(f.right, f.up)) < 1e-3f);
+        }
+        CHECK(most > 6.0f);
+        CHECK(upsideDown);
+        CHECK(twisted.frames.back().up.y > 0.9f);
+        // Un morceau doux n'en a pas.
+        for (const sim::TrackFrame& f : track.frames) CHECK(f.twist == 0.0f);
+    }
+
     // Le même morceau donne toujours la même piste.
     sim::Track again = sim::Track::make(0);
     CHECK(again.features.size() == track.features.size());
@@ -468,6 +488,19 @@ void testFeatures() {
     CHECK(driveTo(track, grazing, 210.0f).stunTime == 0.0f);
     grazing.lateral = 4.0f + sim::kHitRadius - 0.3f;
     CHECK(driveTo(track, grazing, 210.0f).stunTime > 0.0f);
+    // Tremplin : le vaisseau décolle, survole une barrière, puis retombe.
+    {
+        sim::Track jumpTrack = track;
+        jumpTrack.features = {{sim::FeatureType::Jump, 200.0f, 12.0f, 0.0f, 15.0f},
+                              {sim::FeatureType::Barrier, 320.0f, 3.0f, 0.0f, 4.0f}};
+        sim::Vehicle flying = driveTo(jumpTrack, start, 260.0f);
+        CHECK(flying.airTime > 0.0f && sim::airHeight(flying) > 3.0f);
+        flying = driveTo(jumpTrack, start, 400.0f);
+        CHECK(flying.stunTime == 0.0f); // passé au-dessus de la barrière
+        flying = driveTo(jumpTrack, start, 200.0f + sim::kCruiseSpeed * (sim::kAirTime + 0.3f));
+        CHECK(flying.airTime == 0.0f && sim::airHeight(flying) == 0.0f);
+    }
+
     // Le bouclier encaisse la barrière et s'éteint.
     v = driveTo(track, shielded, 210.0f);
     CHECK(v.stunTime == 0.0f);
@@ -503,7 +536,7 @@ void testFeatures() {
     // départ libre et garde toujours un passage entre ses barrières.
     for (int id = 0; id < sim::kTrackCount; id++) {
         sim::Track t = sim::Track::make(id);
-        int counts[2] = {};
+        int counts[3] = {};
         for (const sim::Feature& f : t.features) {
             counts[static_cast<int>(f.type)]++;
             CHECK(f.dist > 250.0f && f.dist + f.length < t.length - 100.0f);
@@ -516,7 +549,14 @@ void testFeatures() {
                     closed += 2.0f * g.halfWidth;
             CHECK(2.0f * t.halfWidth - closed >= 4.0f * sim::kShipHalfWidth);
         }
-        for (int c : counts) CHECK(c >= 4);
+        CHECK(counts[0] >= 4 && counts[1] >= 4);
+        // Un tremplin par grand moment, et rien sur l'aire d'atterrissage.
+        CHECK(counts[2] >= 1 && counts[2] <= static_cast<int>(t.drops.size()));
+        for (const sim::Feature& jump : t.features) {
+            if (jump.type != sim::FeatureType::Jump) continue;
+            for (const sim::Feature& f : t.features)
+                if (f.type != sim::FeatureType::Jump) CHECK(f.dist + f.length < jump.dist - 50.0f || f.dist > jump.dist + 300.0f);
+        }
 
         // Une barrière ne suit jamais une plaque : après une plaque, son
         // couloir reste libre une seconde et demie.

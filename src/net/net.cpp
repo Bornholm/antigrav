@@ -14,7 +14,7 @@ namespace net {
 
 namespace {
 
-const uint32_t kMagic = 0x36474141u; // "AAG6"
+const uint32_t kMagic = 0x37474141u; // "AAG7"
 constexpr double kTimeout = 5.0;      // secondes sans nouvelles avant de couper
 
 enum Type : uint8_t {
@@ -82,7 +82,7 @@ struct InputPacket {
     WireInput input;
 };
 struct WireVehicle {
-    float dist, lateral, lateralVel, speed, roll, finishTime, shieldTime, turboTime, stunTime;
+    float dist, lateral, lateralVel, speed, roll, finishTime, shieldTime, turboTime, stunTime, airTime;
     uint8_t item;
     uint8_t flags; // bit 0 turbo, 1 frottement, 2 arrivé, 3 bouton tenu, 4 boîte franchie
 };
@@ -387,6 +387,7 @@ void Net::hostSendSnapshot(const sim::Session& session) {
         o.shieldTime = v.shieldTime;
         o.turboTime = v.turboTime;
         o.stunTime = v.stunTime;
+        o.airTime = v.airTime;
         o.item = static_cast<uint8_t>(v.item);
         o.flags = static_cast<uint8_t>((v.boosting ? 1 : 0) | (v.scraping ? 2 : 0) | (v.finished ? 4 : 0) |
                                        (v.useHeld ? 8 : 0) | (v.boxHit ? 16 : 0));
@@ -426,6 +427,7 @@ void Net::reconcile(sim::Session& session, const void* data) {
         v.shieldTime = o.shieldTime;
         v.turboTime = o.turboTime;
         v.stunTime = o.stunTime;
+        v.airTime = o.airTime;
         v.item = o.item < static_cast<uint8_t>(sim::Item::Count) ? static_cast<sim::Item>(o.item) : sim::Item::None;
         v.boosting = o.flags & 1;
         v.scraping = o.flags & 2;

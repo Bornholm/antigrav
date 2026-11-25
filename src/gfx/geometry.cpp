@@ -199,6 +199,24 @@ MeshData buildFeatures(const sim::Track& track) {
             const float top = 60.0f;
             quad({mid, c - 0.8f, high}, {mid, c + 0.8f, high}, {mid, c + 0.25f, top}, {mid, c - 0.25f, top}, glm::vec4(kPad, 6.0f));
             quad({mid - 0.8f, c, high}, {mid + 0.8f, c, high}, {mid + 0.25f, c, top}, {mid - 0.25f, c, top}, glm::vec4(kPad, 6.0f));
+        } else if (f.type == sim::FeatureType::Jump) {
+            // Tremplin : une rampe lumineuse sur toute la largeur, striée de
+            // chevrons blancs, entre deux pylônes.
+            const glm::vec3 kJump{0.75f, 0.95f, 1.0f};
+            const float lift = 2.2f;
+            quad({d0, l0, 0.06f}, {d0, l1, 0.06f}, {d1, l1, lift}, {d1, l0, lift}, glm::vec4(kJump, 0.5f));
+            for (int c = 0; c < 4; c++) {
+                const float a0 = d0 + (d1 - d0) * (static_cast<float>(c) + 0.15f) / 4.0f;
+                const float a1 = a0 + (d1 - d0) * 0.12f;
+                const float h0 = lift * (a0 - d0) / (d1 - d0) + 0.1f, h1 = lift * (a1 - d0) / (d1 - d0) + 0.1f;
+                quad({a0, l0, h0}, {a0, l1, h0}, {a1, l1, h1}, {a1, l0, h1}, glm::vec4(kJump, 6.0f));
+            }
+            for (float post : {l0, l1}) {
+                quad({d1, post - 0.5f, 0.0f}, {d1, post + 0.5f, 0.0f}, {d1, post + 0.5f, 26.0f}, {d1, post - 0.5f, 26.0f},
+                     glm::vec4(kJump, 7.0f));
+                quad({d1 - 0.5f, post, 0.0f}, {d1 + 0.5f, post, 0.0f}, {d1 + 0.5f, post, 26.0f}, {d1 - 0.5f, post, 26.0f},
+                     glm::vec4(kJump, 7.0f));
+            }
         } else {
             // Barrière : bloc sombre, bandes lumineuses face au pilote.
             const float top = 3.4f;

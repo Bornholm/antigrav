@@ -167,7 +167,9 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         sim::TrackFrame f = track.at(dist);
         glm::vec3 up = glm::normalize(f.up * std::cos(roll) + f.right * std::sin(roll));
         glm::vec3 right = glm::cross(f.tangent, up);
-        glm::vec3 pos = f.pos + f.right * lateral + f.up * (kHover + bob);
+        // En plein saut, le vaisseau quitte la piste.
+        const float air = mixf(sim::airHeight(a), sim::airHeight(b), alpha);
+        glm::vec3 pos = f.pos + f.right * lateral + f.up * (kHover + bob + air);
         if (i == localIndex) state.shipPos = pos + f.up * 0.6f;
 
         gfx::ShipDraw& ship = out.ships[out.shipCount++];
@@ -244,6 +246,13 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     out.camTarget = track.point(playerDist + 26.0f, camLateral * 0.55f, 0.0f);
     out.camUp = camFrame.up;
     out.fovY = camFov + 0.05f * beatKick;
+    // La caméra accompagne le saut, un peu en retrait : on voit la piste se dérober.
+    {
+        const float air = sim::airHeight(player);
+        out.camPos += camFrame.up * (0.75f * air);
+        out.camTarget += camFrame.up * (0.45f * air);
+        out.fovY += 0.004f * air;
+    }
     out.camPos += camFrame.up * (0.45f * beatKick) - camFrame.tangent * (0.8f * beatKick);
     if (orbit) {
         // Vue de présentation : la caméra tourne autour du vaisseau.

@@ -3,7 +3,9 @@
 Chaque piste est générée à partir d'un morceau de musique. La course va de sa première note à sa dernière : pas de tours, et le classement se joue à l'arrivée.
 
 - **Tempo.** Un trait barre la piste sur chaque temps, plus épais sur le premier temps de la mesure. Les boîtes à bonus tombent sur les temps forts, les barrières sur les temps accentués.
-- **Intensité.** La piste plonge dans les passages intenses et remonte dans les passages calmes. Les virages se resserrent avec l'intensité.
+- **Intensité.** La piste plonge dans les passages intenses et remonte dans les passages calmes, avec des descentes plus raides que les montées. Sa couleur suit : froide quand le morceau est calme, elle vire à l'orange quand il chauffe. Les virages se resserrent avec l'intensité.
+- **Grands moments.** Avant chaque montée brutale du morceau, la piste grimpe pendant sept secondes et bascule au sommet pile sur le drop. Un tremplin y attend : tous les vaisseaux décollent, survolent barrières et mines pendant un peu plus d'une seconde, puis retombent dans la descente.
+- **Vrilles.** Dans un morceau qui cogne, la piste fait par moments un tour complet sur elle-même, sur huit temps.
 - **Hargne.** Un morceau saturé et dense, du metal par exemple, donne une piste plus rapide, des virages deux fois plus fréquents, des boîtes à bonus plus nombreuses, et une caméra qui encaisse chaque temps. Deux barrières ne se suivent jamais à moins de deux secondes. Une barrière ne suit jamais une boîte à bonus : après une boîte, son couloir reste libre une seconde et demie.
 - **Décor.** Les bâtiments s'étirent avec les bandes de fréquences du morceau, comme un égaliseur, et les néons battent sur les temps.
 

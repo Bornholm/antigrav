@@ -39,6 +39,10 @@ constexpr float kShieldTime = 9.0f;    // secondes, ou jusqu'au premier choc
 constexpr float kMineLife = 30.0f;     // secondes
 constexpr float kPulseRange = 75.0f;   // portée de l'onde le long de la piste, en mètres
 constexpr float kPulseWidth = 16.0f;   // et en travers
+// Saut : un tremplin envoie le vaisseau en l'air. Il survole alors barrières,
+// mines et boîtes, et braque moins bien.
+constexpr float kAirTime = 1.25f;      // secondes en l'air
+constexpr float kJumpHeight = 16.0f;   // hauteur au sommet du saut, en mètres
 constexpr float kCometSpeed = 300.0f;  // vitesse de la comète en plus de celle du lanceur, en m/s
 constexpr float kCometLife = 14.0f;    // secondes
 constexpr float kCometChance = 0.22f;  // part des boîtes du dernier qui donnent une comète
@@ -76,6 +80,7 @@ struct Vehicle {
     float shieldTime = 0.0f; // secondes de bouclier restantes
     float turboTime = 0.0f;  // secondes de turbo restantes
     float stunTime = 0.0f;   // secondes restantes sans contrôle après un choc
+    float airTime = 0.0f;    // secondes de saut restantes
     Item item = Item::None;  // bonus porté
     bool useHeld = false;    // état précédent de la commande, pour détecter l'appui
     bool boxHit = false;     // vient de passer sur une boîte à bonus, à servir au prochain pas
@@ -133,6 +138,8 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
 
 // Vitesse de croisière d'un vaisseau là où il se trouve.
 float cruiseSpeed(const Vehicle& vehicle, const Track& track);
+// Hauteur d'un vaisseau au-dessus de la piste pendant un saut, en mètres.
+float airHeight(const Vehicle& vehicle);
 
 // Rang d'un vaisseau, 1 pour le premier.
 int rankOf(const World& world, int index);

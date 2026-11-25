@@ -409,7 +409,7 @@ bool SongLibrary::applyPackage(const std::vector<unsigned char>& bytes, Music* m
         int32_t type = 0;
         sim::Feature f;
         if (!get(&type, 4) || !get(&f.dist, 4) || !get(&f.length, 4) || !get(&f.lateral, 4) || !get(&f.halfWidth, 4)) return false;
-        if (type < 0 || type > static_cast<int32_t>(sim::FeatureType::Barrier)) return false;
+        if (type < 0 || type > static_cast<int32_t>(sim::FeatureType::Jump)) return false;
         if (!std::isfinite(f.dist) || !std::isfinite(f.length) || !std::isfinite(f.lateral) || !std::isfinite(f.halfWidth)) return false;
         if (f.length < 0.0f || f.length > 500.0f || f.halfWidth <= 0.0f || f.halfWidth > 60.0f || std::abs(f.lateral) > 60.0f) return false;
         f.type = static_cast<sim::FeatureType>(type);

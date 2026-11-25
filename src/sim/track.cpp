@@ -166,7 +166,9 @@ void finishFrames(Track& track) {
         glm::vec3 flatRight = glm::normalize(glm::cross(f.tangent, glm::vec3(0.0f, 1.0f, 0.0f)));
         glm::vec3 flatUp = glm::cross(flatRight, f.tangent);
         // Dans un virage à droite, la normale penche vers l'intérieur.
-        f.up = glm::normalize(flatUp * std::cos(bank[i]) + flatRight * std::sin(bank[i]));
+        // La vrille s'ajoute au dévers : même rotation autour de l'axe de la piste.
+        const float angle = bank[i] + f.twist;
+        f.up = glm::normalize(flatUp * std::cos(angle) + flatRight * std::sin(angle));
         f.right = glm::normalize(glm::cross(f.tangent, f.up));
     }
 }
@@ -310,14 +312,14 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     // d'une ligne droite et suivi d'une autre.
     struct Sample {
         glm::vec3 pos;
-        float time, pace, dist, heat;
+        float time, pace, dist, heat, twist;
     };
     std::vector<Sample> dense;
     auto paceAt = [&](float time) { return paceFor(smoothEnergy(p, time, 1.0f), smoothDrive(p, time, 1.0f)); };
     const float startPace = paceAt(0.0f);
     // La piste part vers -z : la ligne droite de départ est donc en z positif.
     for (float d = -kLead; d < 0.0f; d += kStep)
-        dense.push_back({{0.0f, 0.0f, -d}, d / startPace, startPace, d, 0.0f});
+        dense.push_back({{0.0f, 0.0f, -d}, d / startPace, startPace, d, 0.0f, 0.0f});
 
     const float dt = 0.01f;
     glm::vec3 pos{0.0f};
@@ -328,6 +330,35 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     // et remonte dans les calmes. Avant chaque grand moment elle grimpe
     // encore, pour basculer au sommet pile dessus : on voit le drop arriver.
     const std::vector<Drop> drops = findDrops(p, beats, duration);
+    // Vrilles : après un grand moment dans un morceau qui cogne, et de loin en
+    // loin dans les passages hargneux. Chacune dure huit temps.
+    struct Twist {
+        float start, end, sign;
+    };
+    std::vector<Twist> twists;
+    {
+        auto beatAfter = [&](float time, int count) {
+            auto it = std::lower_bound(beats.begin(), beats.end(), time, [](const music::Beat& b, float t) { return b.time < t; });
+            const size_t i = std::min(beats.size() - 1, static_cast<size_t>(it - beats.begin()) + static_cast<size_t>(count));
+            return beats[i].time;
+        };
+        float sign = 1.0f, last = -100.0f;
+        auto add = [&](float start) {
+            const float end = beatAfter(start, 8);
+            if (end - start < 1.5f || start - last < 14.0f || end > duration - 6.0f) return;
+            twists.push_back({start, end, sign});
+            sign = -sign;
+            last = start;
+        };
+        for (const Drop& d : drops)
+            if (smoothDrive(p, d.time + 4.0f, 3.0f) > 0.5f) add(beatAfter(d.time, 6));
+        for (float t = 12.0f; t < duration - 12.0f; t += 4.0f) {
+            bool taken = false;
+            for (const Twist& tw : twists) taken = taken || std::abs(tw.start - t) < 18.0f;
+            if (!taken && smoothDrive(p, t + 2.0f, 4.0f) > 0.75f) add(beatAfter(t, 0));
+        }
+        std::sort(twists.begin(), twists.end(), [](const Twist& a, const Twist& b) { return a.start < b.start; });
+    }
     auto heightAt = [&](float time) {
         // L'énergie est lue sur les cinq secondes passées, jamais en avance :
         // sinon la piste commencerait à plonger avant le grand moment.
@@ -352,7 +383,14 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
             heat = x * x * (3.0f - 2.0f * x) * (0.75f + 0.25f * smoothDrive(p, time, 1.0f));
         }
         pace += (fastPace - pace) * 0.02f;
-        dense.push_back({pos, time, pace, dist, heat});
+        // Vrille en cours : la piste fait un tour complet sur elle-même.
+        float twist = 0.0f;
+        for (const Twist& tw : twists) {
+            if (time < tw.start || time >= tw.end) continue;
+            const float u = (time - tw.start) / (tw.end - tw.start);
+            twist = tw.sign * 2.0f * kPi * u * u * (3.0f - 2.0f * u);
+        }
+        dense.push_back({pos, time, pace, dist, heat, twist});
 
         while (phrase + 1 < phrases.size() && time >= phrases[phrase].end) phrase++;
         const Phrase& ph = phrases[phrase];
@@ -372,7 +410,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     const float length = dist;
     const float endTime = duration;
     for (float d = 0.0f; d <= kTail; d += kStep) {
-        dense.push_back({pos, endTime + d / pace, pace, length + d, heat * std::max(0.0f, 1.0f - d / 400.0f)});
+        dense.push_back({pos, endTime + d / pace, pace, length + d, heat * std::max(0.0f, 1.0f - d / 400.0f), 0.0f});
         slope *= 0.9f;
         pos += glm::normalize(glm::vec3(std::sin(heading), slope, -std::cos(heading))) * kStep;
     }
@@ -400,9 +438,23 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         track.frames[i].time = glm::mix(a.time, b.time, t);
         track.frames[i].pace = glm::mix(a.pace, b.pace, t);
         track.frames[i].heat = glm::mix(a.heat, b.heat, t);
+        track.frames[i].twist = glm::mix(a.twist, b.twist, t);
     }
     finishFrames(track);
     placeFeatures(track, p, beats, seed);
+    // Tremplin sur chaque grand moment : tout le monde décolle au sommet. Rien
+    // ne traîne sur l'aire d'envol ni à l'atterrissage.
+    for (const Drop& d : drops) {
+        const float at = track.distAt(d.time);
+        if (at < 400.0f || at > track.length - 800.0f) continue;
+        const float clear = track.at(at).pace * 1.6f;
+        std::vector<Feature> kept;
+        for (const Feature& f : track.features)
+            if (f.dist + f.length < at - 60.0f || f.dist > at + clear) kept.push_back(f);
+        track.features.swap(kept);
+        track.features.push_back({FeatureType::Jump, at, 12.0f, 0.0f, track.halfWidth});
+    }
+    std::sort(track.features.begin(), track.features.end(), [](const Feature& a, const Feature& b) { return a.dist < b.dist; });
     for (size_t i = 0; i < beats.size(); i++) {
         track.beats.push_back(beats[i].time);
         track.downbeats.push_back(beats[i].bar == 0);
@@ -473,6 +525,7 @@ TrackFrame Track::at(float distance) const {
     out.pace = glm::mix(a.pace, b.pace, t);
     out.time = glm::mix(a.time, b.time, t);
     out.heat = glm::mix(a.heat, b.heat, t);
+    out.twist = glm::mix(a.twist, b.twist, t);
     out.right = glm::normalize(glm::cross(out.tangent, out.up));
     out.up = glm::cross(out.right, out.tangent);
     return out;

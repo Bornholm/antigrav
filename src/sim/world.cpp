@@ -37,7 +37,13 @@ bool hit(Vehicle& v, float loss, float stun) {
 // à v.dist.
 void applyFeatures(Vehicle& v, const Track& track, float before) {
     float moved = v.dist - before;
+    const bool flying = v.airTime > 0.0f;
     for (const Feature& f : track.features) {
+        if (f.type == FeatureType::Jump) {
+            if (before < f.dist && v.dist >= f.dist) v.airTime = kAirTime;
+            continue;
+        }
+        if (flying) continue; // en l'air, on survole tout
         if (f.type == FeatureType::Barrier) {
             // À cette vitesse un pas dépasse l'épaisseur de la barrière : on
             // teste le franchissement, pas la présence.
@@ -62,6 +68,8 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
     bool stunned = v.stunTime > 0.0f;
     v.stunTime = std::max(0.0f, v.stunTime - dt);
     if (stunned) steer *= 0.3f;
+    v.airTime = std::max(0.0f, v.airTime - dt);
+    if (v.airTime > 0.0f) steer *= 0.45f; // en l'air, on corrige à peine
 
     // Horloge commune : un élastique retient qui prend de l'avance sur la
     // musique et aspire qui prend du retard. Tout le peloton reste dans la
@@ -244,6 +252,8 @@ void stepMissiles(World& world, const Track& track, float dt) {
         for (int i = 0; i < world.count; i++) {
             if (i == m.owner) continue; // celui qui l'a lancé ne craint rien
             Vehicle& v = world.vehicles[i];
+            // En plein saut on passe au-dessus d'une mine.
+            if (m.kind == MissileKind::Mine && v.airTime > 0.0f) continue;
             if (m.kind == MissileKind::Comet) {
                 // Elle va plus vite qu'un pas ne couvre : on teste le dépassement.
                 if (v.dist <= before - 6.5f || v.dist > m.dist + 6.5f) continue;
@@ -267,6 +277,12 @@ void stepMissiles(World& world, const Track& track, float dt) {
 
 void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track, const World& world) {
     stepVehicleDt(vehicle, input, track, {world.raceTime, world.ownClock}, kFixedDt);
+}
+
+float airHeight(const Vehicle& vehicle) {
+    if (vehicle.airTime <= 0.0f) return 0.0f;
+    const float u = 1.0f - vehicle.airTime / kAirTime;
+    return kJumpHeight * 4.0f * u * (1.0f - u);
 }
 
 float cruiseSpeed(const Vehicle& vehicle, const Track& track) {
@@ -379,11 +395,11 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     };
     float nearest = look;
     for (const Feature& f : track.features)
-        if (f.type != FeatureType::ItemBox) nearest = std::min(nearest, hazardAhead(f));
+        if (f.type == FeatureType::Barrier) nearest = std::min(nearest, hazardAhead(f));
     bool dodging = false;
     for (int pass = 0; pass < 2; pass++) {
         for (const Feature& f : track.features) {
-            if (f.type == FeatureType::ItemBox) continue;
+            if (f.type != FeatureType::Barrier) continue;
             float ahead = hazardAhead(f);
             if (ahead >= look || ahead > nearest + 40.0f) continue;
             float margin = f.halfWidth +

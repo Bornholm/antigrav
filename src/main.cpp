@@ -501,6 +501,11 @@ int runWindowed(const Options& opt) {
             case SDL_EVENT_QUIT:
                 running = false;
                 break;
+            case SDL_EVENT_LOCALE_CHANGED:
+                // La langue du système a changé pendant que le jeu tournait.
+                if (app.settings.lang == game::Lang::Count && opt.lang.empty())
+                    game::setLang(game::systemLang());
+                break;
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                 needResize = true;
                 break;

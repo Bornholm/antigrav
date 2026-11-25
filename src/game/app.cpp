@@ -597,10 +597,17 @@ void App::drawMenus(glm::vec2) {
     if (screen == Screen::Options) {
         ui.title({800.0f, 96.0f}, "OPTIONS", 64.0f);
         float y = touchInterface() ? 208.0f : 250.0f;
-        if (int d = ui.selector({800.0f, y}, 400.0f, "LANGUE", langName(lang())); d != 0) {
-            const int count = static_cast<int>(Lang::Count);
-            setLang(static_cast<Lang>((static_cast<int>(lang()) + d + count) % count));
-            settings.lang = lang();
+        // Premier choix : suivre la langue du système, affichée entre parenthèses.
+        const bool autoLang = settings.lang == Lang::Count;
+        char langLabel[48];
+        std::snprintf(langLabel, sizeof(langLabel), "Auto (%s)", langName(lang()));
+        if (int d = ui.selector({800.0f, y}, 400.0f, "LANGUE", autoLang ? langLabel : langName(lang())); d != 0) {
+            // Ordre du sélecteur : automatique, puis chaque langue.
+            const int count = static_cast<int>(Lang::Count) + 1;
+            const int at = autoLang ? 0 : static_cast<int>(settings.lang) + 1;
+            const int next = (at + d + count) % count;
+            settings.lang = next == 0 ? Lang::Count : static_cast<Lang>(next - 1);
+            setLang(next == 0 ? systemLang() : settings.lang);
             settings.save();
         }
         y += kRow;

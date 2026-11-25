@@ -44,7 +44,7 @@ Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un
 
 ## Menus et commandes
 
-L'écran **Options** du menu principal règle la langue de l'interface (français, anglais ou espagnol) et le pseudo vu par les autres joueurs, 16 caractères au plus. Au premier lancement, le jeu prend la langue du système. Sur un écran tactile, le réglage DIRECTION place les boutons de direction à gauche ou à droite, le bouton de bonus passant de l'autre côté. Le pseudo se change aussi dans **Multijoueur**. Ces réglages sont gardés d'un lancement à l'autre.
+L'écran **Options** du menu principal règle la langue de l'interface (français, anglais ou espagnol) et le pseudo vu par les autres joueurs, 16 caractères au plus. Par défaut, sur Android comme sur Linux, le jeu suit la langue du système : le choix « Auto » du réglage LANGUE. Une langue non traduite donne l'anglais. Sur un écran tactile, le réglage DIRECTION place les boutons de direction à gauche ou à droite, le bouton de bonus passant de l'autre côté. Le pseudo se change aussi dans **Multijoueur**. Ces réglages sont gardés d'un lancement à l'autre.
 
 Deux réglages allègent le jeu sur un appareil modeste.
 

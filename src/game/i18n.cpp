@@ -186,7 +186,13 @@ Lang systemLang() {
         if (locales[i] && locales[i]->language) found = langFromCode(locales[i]->language);
     SDL_free(locales);
     // Hors de nos trois langues, l'anglais est le choix le plus lisible.
-    return found == Lang::Count ? (count > 0 ? Lang::En : Lang::Fr) : found;
+    if (found == Lang::Count) found = count > 0 ? Lang::En : Lang::Fr;
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        SDL_Log("Langue du système : %d langue(s) préférée(s), interface en %s", count, langName(found));
+    }
+    return found;
 }
 
 const char* tr(const char* french) {

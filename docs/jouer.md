@@ -41,7 +41,9 @@ Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un
 
 ## Menus et commandes
 
-Le menu principal propose la langue de l'interface : français, anglais ou espagnol. Au premier lancement, le jeu prend celle du système. Dans **Multijoueur**, le bouton PSEUDO ouvre la saisie du nom vu par les autres joueurs, 16 caractères au plus. Langue et pseudo sont gardés d'un lancement à l'autre.
+Le menu principal propose la langue de l'interface : français, anglais ou espagnol. Au premier lancement, le jeu prend celle du système. Dans **Multijoueur**, le bouton PSEUDO ouvre la saisie du nom vu par les autres joueurs, 16 caractères au plus. Sur un écran tactile, le réglage BOUTONS inverse la disposition : direction à droite, bonus à gauche. Langue, pseudo et disposition sont gardés d'un lancement à l'autre.
+
+Au clavier ou à la manette, les boutons tactiles ne sont pas affichés. Le bonus porté apparaît en bas à droite.
 
 Le jeu s'ouvre sur le menu. **Solo** règle le morceau, le vaisseau, le nombre d'IA de 0 à 7 et leur caractère. **Multijoueur** héberge une partie ou rejoint celles trouvées sur le réseau local.
 

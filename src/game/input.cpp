@@ -10,6 +10,20 @@
 
 namespace game {
 
+namespace {
+bool swappedButtons = false;
+#ifdef __ANDROID__
+bool touchSeen = true;
+#else
+bool touchSeen = false;
+#endif
+} // namespace
+
+void setButtonsSwapped(bool swapped) { swappedButtons = swapped; }
+bool buttonsSwapped() { return swappedButtons; }
+bool touchInterface() { return touchSeen; }
+void forceTouchInterface() { touchSeen = true; }
+
 ButtonShape buttonShape(Button button, glm::vec2 screen) {
     // Positions dans le repère de référence de l'interface, 1600 par 900.
     struct Def {
@@ -22,7 +36,15 @@ ButtonShape buttonShape(Button button, glm::vec2 screen) {
         {gfx::Anchor::Left, {356.0f, 756.0f}, 104.0f},
         {gfx::Anchor::Right, {1418.0f, 734.0f}, 118.0f},
     };
-    const Def& def = defs[static_cast<int>(button)];
+    Def def = defs[static_cast<int>(button)];
+    if (swappedButtons) {
+        // Miroir : chaque bouton passe de l'autre côté de l'écran. Gauche et
+        // droite gardent leur ordre entre eux.
+        def.anchor = def.anchor == gfx::Anchor::Left ? gfx::Anchor::Right : gfx::Anchor::Left;
+        def.center.x = gfx::HudBatch::kRefWidth - def.center.x;
+        if (button == Button::Left) def.center.x -= 228.0f;
+        if (button == Button::Right) def.center.x += 228.0f;
+    }
     return {gfx::HudBatch::place(def.center, def.anchor, gfx::VAnchor::Bottom, screen),
             def.radius * gfx::HudBatch::fitScale(screen)};
 }
@@ -84,6 +106,7 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
         default: break;
         }
     }
+    if (event.type == SDL_EVENT_FINGER_DOWN) touchSeen = true;
     if (event.type == SDL_EVENT_FINGER_DOWN)
         tap({event.tfinger.x * screen.x, event.tfinger.y * screen.y});
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.which != SDL_TOUCH_MOUSEID)
@@ -186,17 +209,19 @@ Controls InputReader::read(glm::vec2 screen) const {
         ButtonShape left = buttonShape(Button::Left, screen);
         ButtonShape right = buttonShape(Button::Right, screen);
         float split = (left.center.x + right.center.x) * 0.5f;
+        float begin = left.center.x - left.radius * 1.35f;
         float end = right.center.x + right.radius * 1.35f;
         float top = left.center.y - left.radius * 1.9f;
         for (const Pointer& p : pointers) {
-            if (!p.active || p.pos.y < top || p.pos.x > end) continue;
+            // Sans écran tactile, la souris ne pilote pas : elle sert aux menus.
+            if (!touchSeen || !p.active || p.pos.y < top || p.pos.x > end || p.pos.x < begin) continue;
             c.pressed[static_cast<int>(p.pos.x < split ? Button::Left : Button::Right)] = true;
         }
     }
     for (int b = static_cast<int>(Button::Use); b < static_cast<int>(Button::Count); b++) {
         ButtonShape shape = buttonShape(static_cast<Button>(b), screen);
         for (const Pointer& p : pointers) {
-            if (!p.active) continue;
+            if (!touchSeen || !p.active) continue;
             // Marge de tolérance : un pouce vise moins bien qu'une souris.
             if (glm::distance(p.pos, shape.center) <= shape.radius * 1.15f) c.pressed[b] = true;
         }

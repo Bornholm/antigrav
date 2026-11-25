@@ -68,6 +68,7 @@ struct Options {
     bool hud = true;
     bool autopilot = false;
     std::string song; // fichier audio sur lequel courir
+    bool swap = false; // boutons tactiles inversés, pour ce lancement
     bool loading = false; // mode sans fenêtre : passe par l'écran de chargement, comme en fenêtre
     std::string lang; // langue de l'interface pour ce lancement : fr, en ou es
     std::string importSong; // fichier audio à copier dans la bibliothèque du joueur
@@ -112,6 +113,8 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--sync")) o.sync = true;
         else if (!std::strcmp(a, "--song")) o.song = value();
         else if (!std::strcmp(a, "--lang")) o.lang = value();
+        else if (!std::strcmp(a, "--touch")) game::forceTouchInterface();
+        else if (!std::strcmp(a, "--swap")) o.swap = true;
         else if (!std::strcmp(a, "--loading")) o.loading = true;
         else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
@@ -234,6 +237,7 @@ int runHeadless(const Options& opt) {
     app.init(opt.track);
     if (!opt.lang.empty() && game::langFromCode(opt.lang.c_str()) != game::Lang::Count)
         game::setLang(game::langFromCode(opt.lang.c_str()));
+    if (opt.swap) game::setButtonsSwapped(true);
     int track = opt.track;
     if (!opt.song.empty()) {
         if (!app.useSongFile(opt.song)) fatal("%s : %s", opt.song.c_str(), app.songs.error.c_str());
@@ -421,6 +425,7 @@ int runWindowed(const Options& opt) {
     app.init(opt.track);
     if (!opt.lang.empty() && game::langFromCode(opt.lang.c_str()) != game::Lang::Count)
         game::setLang(game::langFromCode(opt.lang.c_str()));
+    if (opt.swap) game::setButtonsSwapped(true);
     int track = opt.track;
     if (!opt.song.empty()) {
         if (!app.useSongFile(opt.song)) fatal("%s : %s", opt.song.c_str(), app.songs.error.c_str());

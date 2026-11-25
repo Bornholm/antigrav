@@ -126,7 +126,31 @@ void drawSongBar(gfx::HudBatch& hud, const HudState& s) {
     }
 }
 
+// Couleur et nom de chaque bonus, dans l'ordre de sim::Item.
+const char* const kItemNames[] = {"", "TIR", "MINE", "ONDE", "TURBO", "BOUCLIER", "COMÈTE"};
+const vec4 kItemColors[] = {
+    kWhite, vec4(1.0f, 0.35f, 0.75f, 1.0f), vec4(1.0f, 0.30f, 0.20f, 1.0f),
+    vec4(0.55f, 0.45f, 1.0f, 1.0f), kYellow, kCyan, vec4(1.0f, 0.55f, 0.15f, 1.0f),
+};
+
+// Au clavier ou à la manette, pas de boutons à l'écran : seulement le bonus
+// porté, en bas à droite.
+void drawItemBadge(gfx::HudBatch& hud, const HudState& s) {
+    const int item = std::clamp(s.item, 0, 6);
+    if (!item) return;
+    hud.anchor = Anchor::Right;
+    hud.vAnchor = gfx::VAnchor::Bottom;
+    const vec2 c{1440.0f, 800.0f};
+    hud.roundRect(c, {120.0f, 40.0f}, 14.0f, vec4(0.05f, 0.04f, 0.09f, 0.6f), kItemColors[item], 3.0f);
+    hud.text(FontId::Bold, tr(kItemNames[item]), c + vec2(0.0f, 12.0f), 32.0f, kWhite, Align::Center, 0.2f,
+             alpha(kItemColors[item], 0.6f));
+}
+
 void drawButtons(gfx::HudBatch& hud, const HudState& s) {
+    if (!touchInterface()) {
+        drawItemBadge(hud, s);
+        return;
+    }
     // Les formes viennent de buttonShape, en pixels : les mêmes que celles
     // testées au toucher. On les ramène au repère de référence.
     hud.anchor = Anchor::Left;
@@ -154,11 +178,6 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
     {
         // Bouton du bonus : il porte le nom de ce qu'on tient, et s'éteint
         // quand on n'a rien.
-        static const char* const kItemNames[] = {"", "TIR", "MINE", "ONDE", "TURBO", "BOUCLIER", "COMÈTE"};
-        static const vec4 kItemColors[] = {
-            kWhite, vec4(1.0f, 0.35f, 0.75f, 1.0f), vec4(1.0f, 0.30f, 0.20f, 1.0f),
-            vec4(0.55f, 0.45f, 1.0f, 1.0f), kYellow, kCyan, vec4(1.0f, 0.55f, 0.15f, 1.0f),
-        };
         const bool down = shapeOf(Button::Use, c, r);
         const int item = std::clamp(s.item, 0, 6);
         const vec4 tint = item ? kItemColors[item] : alpha(kWhite, 0.35f);

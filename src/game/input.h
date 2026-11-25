@@ -16,6 +16,15 @@ struct ButtonShape {
 };
 ButtonShape buttonShape(Button button, glm::vec2 screen);
 
+// Disposition inversée : direction à droite, bonus à gauche.
+void setButtonsSwapped(bool swapped);
+bool buttonsSwapped();
+// Vrai quand le jeu se joue au doigt : sur Android, ou dès qu'un écran
+// tactile a servi. Sinon les boutons à l'écran ne sont ni dessinés ni lus.
+bool touchInterface();
+// Pour les captures : fait comme si un écran tactile avait servi.
+void forceTouchInterface();
+
 // Commandes du joueur pour une image.
 struct Controls {
     float steer = 0.0f;

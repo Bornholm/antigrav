@@ -217,6 +217,7 @@ void App::init(int startTrack) {
     songIndex = track < sim::kTrackCount ? track : sim::kTrackCount;
     settings.load();
     setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
+    setButtonsSwapped(settings.swapButtons);
     if (settings.name[0]) {
         std::snprintf(playerName, sizeof(playerName), "%s", settings.name);
     } else {
@@ -550,6 +551,13 @@ void App::drawMenus(glm::vec2) {
             const int count = static_cast<int>(Lang::Count);
             setLang(static_cast<Lang>((static_cast<int>(lang()) + d + count) % count));
             settings.lang = lang();
+            settings.save();
+        }
+        // Disposition des boutons, pour qui joue au doigt.
+        if (touchInterface() &&
+            ui.selector({800.0f, 846.0f}, 300.0f, "BOUTONS", buttonsSwapped() ? "Direction à droite" : "Direction à gauche") != 0) {
+            setButtonsSwapped(!buttonsSwapped());
+            settings.swapButtons = buttonsSwapped();
             settings.save();
         }
         if (ui.in.back) quit = true;

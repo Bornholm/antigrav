@@ -24,6 +24,9 @@ const Entry kEntries[] = {
     {"MULTIJOUEUR", "MULTIPLAYER", "MULTIJUGADOR"},
     {"QUITTER", "QUIT", "SALIR"},
     {"LANGUE", "LANGUAGE", "IDIOMA"},
+    {"BOUTONS", "BUTTONS", "BOTONES"},
+    {"Direction à gauche", "Steering on the left", "Dirección a la izquierda"},
+    {"Direction à droite", "Steering on the right", "Dirección a la derecha"},
     // Réglages de partie
     {"PARTIE SOLO", "SOLO RACE", "CARRERA EN SOLITARIO"},
     {"MORCEAU", "TRACK", "TEMA"},

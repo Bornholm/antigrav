@@ -39,6 +39,7 @@ void Settings::load() {
         const std::string key = line.substr(0, eq), value = line.substr(eq + 1);
         if (key == "name") std::snprintf(name, sizeof(name), "%s", value.c_str());
         else if (key == "lang") lang = langFromCode(value.c_str());
+        else if (key == "swap") swapButtons = value == "1";
     }
 }
 
@@ -47,6 +48,7 @@ void Settings::save() const {
     if (path.empty()) return;
     std::string text = std::string("name=") + name + "\n";
     if (lang != Lang::Count) text += std::string("lang=") + langCode(lang) + "\n";
+    text += std::string("swap=") + (swapButtons ? "1" : "0") + "\n";
     SDL_SaveFile(path.c_str(), text.data(), text.size());
 }
 

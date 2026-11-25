@@ -14,7 +14,7 @@ struct SDL_Window;
 
 namespace game {
 
-enum class Screen { Main, Solo, Multi, Address, Name, Lobby, Race };
+enum class Screen { Main, Options, Solo, Songs, Multi, Address, Name, Lobby, Race };
 
 // Le jeu au-dessus d'une course : menus, réglages de partie, salon réseau.
 struct App {
@@ -29,6 +29,9 @@ struct App {
     SongLibrary songs;
     Settings settings;
     char nameDraft[20] = ""; // pseudo en cours de saisie
+    // Écrans où reviennent le choix du morceau et la saisie du pseudo.
+    Screen songReturn = Screen::Solo;
+    Screen nameReturn = Screen::Multi;
     bool quit = false;
     const char* statsLine = "";
 

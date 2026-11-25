@@ -12,7 +12,7 @@ Chaque piste est générée à partir d'un morceau de musique. La course va de s
 
 ## Courir sur ses propres morceaux
 
-Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis vos cinq derniers morceaux joués, du plus récent au plus ancien, puis « Ouvrir un fichier ». Cette dernière entrée ouvre le sélecteur de fichiers du système.
+Dans **Solo**, la ligne MORCEAU ouvre la liste des morceaux : à gauche les trois morceaux livrés, à droite vos cinq derniers morceaux joués, du plus récent au plus ancien. CHOISIR UN FICHIER ouvre le sélecteur de fichiers du système.
 
 - **Formats.** MP3, Ogg Vorbis, FLAC et WAV. L'AAC, le M4A et l'Opus ne sont pas lus.
 - **Durée.** 30 secondes au moins. Au-delà de 8 minutes, seules les 8 premières servent.
@@ -44,7 +44,7 @@ Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un
 
 ## Menus et commandes
 
-Le menu principal propose la langue de l'interface : français, anglais ou espagnol. Au premier lancement, le jeu prend celle du système. Dans **Multijoueur**, le bouton PSEUDO ouvre la saisie du nom vu par les autres joueurs, 16 caractères au plus. Sur un écran tactile, le réglage BOUTONS inverse la disposition : direction à droite, bonus à gauche. Langue, pseudo et disposition sont gardés d'un lancement à l'autre.
+L'écran **Options** du menu principal règle la langue de l'interface (français, anglais ou espagnol) et le pseudo vu par les autres joueurs, 16 caractères au plus. Au premier lancement, le jeu prend la langue du système. Sur un écran tactile, le réglage DIRECTION place les boutons de direction à gauche ou à droite, le bouton de bonus passant de l'autre côté. Le pseudo se change aussi dans **Multijoueur**. Ces réglages sont gardés d'un lancement à l'autre.
 
 Au clavier ou à la manette, les boutons tactiles ne sont pas affichés. Le bonus porté apparaît en bas à droite.
 

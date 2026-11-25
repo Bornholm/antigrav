@@ -27,6 +27,11 @@ struct Ui {
     // Ligne « libellé  < valeur > ». Renvoie -1, 0 ou +1.
     int selector(glm::vec2 center, float halfWidth, const char* label, const char* value);
 
+    // Ligne « libellé  valeur > » qui ouvre un autre écran.
+    bool link(glm::vec2 center, float halfWidth, const char* label, const char* value);
+    // Assombrit toute l'image, pour que les menus se lisent sur le décor.
+    void veil(float strength);
+
     void title(glm::vec2 pos, const char* text, float size);
     void text(glm::vec2 pos, const char* text, float size, glm::vec4 color,
               gfx::Align align = gfx::Align::Center, gfx::FontId font = gfx::FontId::Medium);

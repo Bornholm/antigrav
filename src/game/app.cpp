@@ -142,7 +142,9 @@ void App::pollSongDialog() {
         dialogOpen = false;
         path = dialogPath;
     }
-    if (!path.empty()) later([this, path] { importSong(path); }); // vide : annulé
+    if (path.empty()) return; // annulé
+    if (screen == Screen::Songs) go(songReturn);
+    later([this, path] { importSong(path); });
 }
 
 bool App::importSong(const std::string& path) {
@@ -365,7 +367,7 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 speed = player.speed / std::max(1.0f, f.pace) / std::max(0.5f, 1.0f - f.curvature * player.lateral);
             }
             music->sync(Music::kFirstTrack + race.config.track, songTime, moving, speed);
-        } else if ((screen == Screen::Solo || screen == Screen::Lobby) && !busy && race.songSerial != -2) {
+        } else if ((screen == Screen::Solo || screen == Screen::Lobby || screen == Screen::Songs) && !busy && race.songSerial != -2) {
             // Dans les réglages de partie, on entend le morceau choisi : il
             // suit la démonstration qui tourne derrière le menu.
             music->sync(Music::kFirstTrack + race.config.track, race.world.raceTime + race.accumulator, true);
@@ -501,9 +503,9 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
 
 void App::drawShipCard(vec2 center) {
     const sim::ShipStats& stats = sim::shipStats(ship);
-    ui.panel(center, {250.0f, 150.0f});
-    ui.text(center + vec2(0.0f, -108.0f), stats.name, 34.0f, kWhite, Align::Center, FontId::Bold);
-    ui.text(center + vec2(0.0f, -78.0f), stats.tagline, 16.0f, kDim);
+    ui.panel(center, {250.0f, 184.0f});
+    ui.text(center + vec2(0.0f, -128.0f), stats.name, 40.0f, kWhite, Align::Center, FontId::Bold);
+    ui.text(center + vec2(0.0f, -92.0f), stats.tagline, 19.0f, kDim);
     struct Row {
         const char* label;
         float value;
@@ -516,51 +518,96 @@ void App::drawShipCard(vec2 center) {
         {"ADHÉRENCE", stats.grip, 0.5f, 2.0f},
         {"SOLIDITÉ", stats.sturdy, 0.7f, 1.6f},
     };
-    float y = center.y - 42.0f;
+    float y = center.y - 44.0f;
     for (const Row& row : rows) {
-        ui.text({center.x - 225.0f, y + 6.0f}, row.label, 15.0f, kDim, Align::Left);
+        ui.text({center.x - 228.0f, y + 7.0f}, row.label, 20.0f, kDim, Align::Left);
         float t = std::clamp((row.value - row.lo) / (row.hi - row.lo), 0.05f, 1.0f);
         const int cells = 10;
         for (int i = 0; i < cells; i++) {
-            float x = center.x - 40.0f + 26.0f * static_cast<float>(i);
+            float x = center.x - 34.0f + 26.0f * static_cast<float>(i);
             bool on = static_cast<float>(i) < t * cells;
-            menuHud.quad({x + 5.0f, y - 8.0f}, {x + 25.0f, y - 8.0f}, {x + 20.0f, y + 8.0f},
-                         {x, y + 8.0f}, on ? kCyan : vec4(0.15f, 0.3f, 0.5f, 0.35f));
+            menuHud.quad({x + 5.0f, y - 10.0f}, {x + 25.0f, y - 10.0f}, {x + 20.0f, y + 10.0f},
+                         {x, y + 10.0f}, on ? kCyan : vec4(0.15f, 0.3f, 0.5f, 0.35f));
         }
-        y += 34.0f;
+        y += 42.0f;
     }
 }
 
+namespace {
+
+// Coupe un texte UTF-8 à un nombre de caractères, sans casser un caractère.
+std::string clip(const char* text, int maxChars) {
+    int chars = 0;
+    const char* p = text;
+    for (; *p; p++) {
+        if ((static_cast<unsigned char>(*p) & 0xC0) == 0x80) continue;
+        if (chars == maxChars) break;
+        chars++;
+    }
+    if (!*p) return text;
+    return std::string(text, static_cast<size_t>(p - text)) + "...";
+}
+
+const vec4 kQuiet{0.7f, 0.75f, 0.9f, 1.0f};
+// Les lignes d'un menu : hauteur d'un pouce, et de quoi ne pas en toucher deux.
+const float kRow = 96.0f;
+const float kColumn = 360.0f; // demi-largeur de la colonne de réglages
+
+} // namespace
+
 void App::drawMenus(glm::vec2) {
     char buf[96];
-    const vec2 big{230.0f, 40.0f};
 
     if (screen == Screen::Main) {
-        ui.title({800.0f, 250.0f}, "SOUNDWAVE", 150.0f);
-        ui.text({800.0f, 300.0f}, "COURSE MUSICALE", 24.0f, kCyan);
-        if (ui.button({800.0f, 440.0f}, big, "SOLO")) go(Screen::Solo);
-        if (ui.button({800.0f, 540.0f}, big, "MULTIJOUEUR", true, kMagenta)) {
+        ui.veil(0.30f);
+        ui.title({800.0f, 240.0f}, "SOUNDWAVE", 150.0f);
+        ui.text({800.0f, 318.0f}, "COURSE MUSICALE", 26.0f, kCyan);
+        if (ui.button({800.0f, 440.0f}, {280.0f, 48.0f}, "SOLO")) go(Screen::Solo);
+        if (ui.button({800.0f, 556.0f}, {280.0f, 48.0f}, "MULTIJOUEUR", true, kMagenta)) {
             notice = "";
             net.client(playerName, ship);
             lastDiscover = -10.0;
             go(Screen::Multi);
         }
-        if (ui.button({800.0f, 640.0f}, big, "QUITTER", true, vec4(0.7f, 0.75f, 0.9f, 1.0f)))
-            quit = true;
-        if (int d = ui.selector({800.0f, 760.0f}, 300.0f, "LANGUE", langName(lang())); d != 0) {
+        if (ui.button({655.0f, 672.0f}, {135.0f, 40.0f}, "OPTIONS", true, kQuiet)) go(Screen::Options);
+        if (ui.button({945.0f, 672.0f}, {135.0f, 40.0f}, "QUITTER", true, kQuiet)) quit = true;
+        if (ui.in.back) quit = true;
+        return;
+    }
+    ui.veil(0.58f);
+
+    auto editName = [&](Screen from) {
+        std::snprintf(nameDraft, sizeof(nameDraft), "%s", playerName);
+        if (window) SDL_StartTextInput(window);
+        nameReturn = from;
+        go(Screen::Name);
+    };
+
+    if (screen == Screen::Options) {
+        ui.title({800.0f, 120.0f}, "OPTIONS", 64.0f);
+        float y = 250.0f;
+        if (int d = ui.selector({800.0f, y}, 400.0f, "LANGUE", langName(lang())); d != 0) {
             const int count = static_cast<int>(Lang::Count);
             setLang(static_cast<Lang>((static_cast<int>(lang()) + d + count) % count));
             settings.lang = lang();
             settings.save();
         }
-        // Disposition des boutons, pour qui joue au doigt.
-        if (touchInterface() &&
-            ui.selector({800.0f, 846.0f}, 300.0f, "BOUTONS", buttonsSwapped() ? "Direction à droite" : "Direction à gauche") != 0) {
-            setButtonsSwapped(!buttonsSwapped());
-            settings.swapButtons = buttonsSwapped();
-            settings.save();
+        y += kRow;
+        if (ui.link({800.0f, y}, 400.0f, "PSEUDO", playerName)) {
+            editName(Screen::Options);
+            return;
         }
-        if (ui.in.back) quit = true;
+        y += kRow;
+        // Côté des boutons de direction, pour qui joue au doigt.
+        if (touchInterface()) {
+            if (ui.selector({800.0f, y}, 400.0f, "DIRECTION", buttonsSwapped() ? "À droite" : "À gauche") != 0) {
+                setButtonsSwapped(!buttonsSwapped());
+                settings.swapButtons = buttonsSwapped();
+                settings.save();
+            }
+            y += kRow;
+        }
+        if (ui.button({800.0f, y + 14.0f}, {400.0f, 40.0f}, "RETOUR", true, kQuiet) || ui.in.back) go(Screen::Main);
         return;
     }
 
@@ -568,56 +615,78 @@ void App::drawMenus(glm::vec2) {
     auto raceSettings = [&](float x, float y, bool hostControls) {
         int d = 0;
         if (hostControls) {
-            const int choices = songChoices();
-            // Un nom de fichier long est coupé pour tenir entre les flèches.
-            char label[24];
-            const char* full = songLabel(songIndex);
-            if (std::strlen(full) > 15) std::snprintf(label, sizeof(label), "%.13s...", full);
-            else std::snprintf(label, sizeof(label), "%s", full);
-            if ((d = ui.selector({x, y}, 330.0f, "MORCEAU", label)) != 0) {
-                selectSong((songIndex + d + choices) % choices);
+            if (ui.link({x, y}, kColumn, "MORCEAU", clip(songLabel(songIndex), 20).c_str())) {
+                songReturn = screen;
+                go(Screen::Songs);
             }
-            y += 72.0f;
+            y += kRow;
         }
-        if ((d = ui.selector({x, y}, 330.0f, "VAISSEAU", sim::shipStats(ship).name)) != 0) {
+        if ((d = ui.selector({x, y}, kColumn, "VAISSEAU", sim::shipStats(ship).name)) != 0) {
             ship = (ship + d + sim::kShipCount) % sim::kShipCount;
             if (net.role != net::Role::Off) net.setShip(ship);
             startAttract();
         }
-        y += 72.0f;
+        y += kRow;
         if (!hostControls) return y;
         std::snprintf(buf, sizeof(buf), opponents == 0 ? "Aucune" : "%d", opponents);
-        if ((d = ui.selector({x, y}, 330.0f, "IA", buf)) != 0)
+        if ((d = ui.selector({x, y}, kColumn, "IA", buf)) != 0)
             opponents = (opponents + d + 8) % 8;
-        y += 72.0f;
-        if ((d = ui.selector({x, y}, 330.0f, "CARACTÈRES", kPersonalityLabels[personality])) != 0)
+        y += kRow;
+        if ((d = ui.selector({x, y}, kColumn, "CARACTÈRES", kPersonalityLabels[personality])) != 0)
             personality = (personality + d + 5) % 5;
-        return y + 72.0f;
+        return y + kRow;
     };
 
-    if (screen == Screen::Solo) {
-        ui.title({800.0f, 130.0f}, "PARTIE SOLO", 64.0f);
-        ui.text({800.0f, 172.0f}, sim::trackInfo(track).tagline, 20.0f, kDim);
-        float y = raceSettings(480.0f, 260.0f, true);
-        drawShipCard({1180.0f, 372.0f});
-        const bool openEntry = songIndex == songChoices() - 1;
-        if (ui.button({480.0f, y + 30.0f}, {330.0f, 40.0f}, openEntry ? "CHOISIR UN FICHIER" : "LANCER LA COURSE", true, kYellow)) {
-            if (openEntry) openSongDialog();
-            else later([this] { startSolo(); });
+    if (screen == Screen::Songs) {
+        ui.title({800.0f, 110.0f}, "CHOISIR UN MORCEAU", 56.0f);
+        const float left = 440.0f, right = 1160.0f;
+        const vec2 half{330.0f, 38.0f};
+        ui.text({left, 196.0f}, "INCLUS", 22.0f, kCyan, Align::Center, FontId::Bold);
+        ui.text({right, 196.0f}, "RÉCENTS", 22.0f, kCyan, Align::Center, FontId::Bold);
+        auto entry = [&](int index, vec2 at) {
+            const bool current = index == songIndex;
+            if (!ui.button(at, half, clip(songLabel(index), 26).c_str(), true, current ? kYellow : kCyan)) return false;
+            if (!current) selectSong(index);
+            go(songReturn);
+            return true;
+        };
+        for (int i = 0; i < sim::kTrackCount; i++)
+            if (entry(i, {left, 262.0f + 92.0f * static_cast<float>(i)})) return;
+        if (ui.button({left, 262.0f + 92.0f * sim::kTrackCount + 14.0f}, half, "CHOISIR UN FICHIER", true, kMagenta))
+            openSongDialog();
+        if (ui.button({left, 262.0f + 92.0f * (sim::kTrackCount + 1) + 28.0f}, {330.0f, 36.0f}, "RETOUR", true, kQuiet) ||
+            ui.in.back) {
+            go(songReturn);
+            return;
         }
-        if (notice[0]) ui.text({480.0f, y + 78.0f}, notice, 18.0f, kYellow);
-        if (ui.button({480.0f, y + 124.0f}, {330.0f, 32.0f}, "RETOUR", true,
-                      vec4(0.7f, 0.75f, 0.9f, 1.0f)) ||
-            ui.in.back)
+        const int mine = static_cast<int>(songs.entries.size());
+        for (int i = 0; i < mine; i++)
+            if (entry(sim::kTrackCount + i, {right, 262.0f + 92.0f * static_cast<float>(i)})) return;
+        if (mine == 0) {
+            ui.panel({right, 400.0f}, {330.0f, 176.0f});
+            ui.text({right, 396.0f}, "Vos morceaux apparaîtront ici", 22.0f, kDim);
+            ui.text({right, 430.0f}, "MP3, Ogg, FLAC ou WAV", 19.0f, kDim);
+        }
+        return;
+    }
+
+    if (screen == Screen::Solo) {
+        ui.title({800.0f, 110.0f}, "PARTIE SOLO", 60.0f);
+        ui.text({800.0f, 152.0f}, sim::trackInfo(track).tagline, 22.0f, kDim);
+        float y = raceSettings(470.0f, 236.0f, true);
+        drawShipCard({1190.0f, 380.0f});
+        if (ui.button({470.0f, y + 10.0f}, {kColumn, 46.0f}, "LANCER LA COURSE", true, kYellow))
+            later([this] { startSolo(); });
+        if (notice[0]) ui.text({1190.0f, 620.0f}, notice, 20.0f, kYellow);
+        if (ui.button({470.0f, y + 112.0f}, {kColumn, 36.0f}, "RETOUR", true, kQuiet) || ui.in.back)
             go(Screen::Main);
         return;
     }
 
     if (screen == Screen::Multi) {
-        ui.title({800.0f, 130.0f}, "MULTIJOUEUR", 64.0f);
-        ui.text({800.0f, 172.0f}, "Tous les joueurs doivent être sur le même réseau Wi-Fi", 19.0f,
-                kDim);
-        if (ui.button({480.0f, 270.0f}, {330.0f, 40.0f}, "HÉBERGER UNE PARTIE", true, kYellow)) {
+        ui.title({800.0f, 110.0f}, "MULTIJOUEUR", 60.0f);
+        ui.text({800.0f, 152.0f}, "Tous les joueurs doivent être sur le même réseau Wi-Fi", 22.0f, kDim);
+        if (ui.button({470.0f, 250.0f}, {kColumn, 44.0f}, "HÉBERGER UNE PARTIE", true, kYellow)) {
             if (net.host(playerName, ship)) {
                 acquireMulticastLock();
                 publishSong();
@@ -628,32 +697,27 @@ void App::drawMenus(glm::vec2) {
             notice = "Port réseau indisponible : une partie est déjà hébergée ici";
             net.client(playerName, ship);
         }
-        if (ui.button({480.0f, 366.0f}, {330.0f, 40.0f}, "SAISIR UNE ADRESSE")) go(Screen::Address);
-        std::snprintf(buf, sizeof(buf), "%s : %s", tr("PSEUDO"), playerName);
-        if (ui.button({480.0f, 462.0f}, {330.0f, 40.0f}, buf)) {
-            std::snprintf(nameDraft, sizeof(nameDraft), "%s", playerName);
-            if (window) SDL_StartTextInput(window);
-            go(Screen::Name);
+        if (ui.button({470.0f, 250.0f + kRow}, {kColumn, 40.0f}, "SAISIR UNE ADRESSE")) go(Screen::Address);
+        if (ui.link({470.0f, 250.0f + 2.0f * kRow}, kColumn, "PSEUDO", playerName)) {
+            editName(Screen::Multi);
             return;
         }
-        if (ui.button({480.0f, 558.0f}, {330.0f, 32.0f}, "RETOUR", true,
-                      vec4(0.7f, 0.75f, 0.9f, 1.0f)) ||
-            ui.in.back) {
+        if (ui.button({470.0f, 250.0f + 3.0f * kRow + 10.0f}, {kColumn, 36.0f}, "RETOUR", true, kQuiet) || ui.in.back) {
             net.close();
             go(Screen::Main);
             return;
         }
-        ui.text({480.0f, 636.0f}, notice, 18.0f, kYellow);
+        ui.text({470.0f, 250.0f + 4.0f * kRow}, notice, 20.0f, kYellow);
 
-        ui.panel({1180.0f, 420.0f}, {290.0f, 200.0f});
-        ui.text({1180.0f, 262.0f}, "PARTIES TROUVÉES", 22.0f, kCyan, Align::Center, FontId::Bold);
+        ui.panel({1190.0f, 412.0f}, {250.0f, 216.0f});
+        ui.text({1190.0f, 242.0f}, "PARTIES TROUVÉES", 24.0f, kCyan, Align::Center, FontId::Bold);
         int shown = 0;
         for (int i = 0; i < net.foundCount && shown < 4; i++) {
             const net::FoundHost& h = net.found[i];
             if (now - h.seen > 4.0) continue;
             std::snprintf(buf, sizeof(buf), "%s  %d/%d%s", h.name, h.players, sim::kMaxVehicles,
                           h.racing ? tr("  en course") : "");
-            if (ui.button({1180.0f, 320.0f + 78.0f * static_cast<float>(shown)}, {262.0f, 30.0f},
+            if (ui.button({1190.0f, 306.0f + 86.0f * static_cast<float>(shown)}, {228.0f, 36.0f},
                           buf, !h.racing, kMagenta)) {
                 net.join(h.ip, h.port);
                 notice = "";
@@ -662,12 +726,13 @@ void App::drawMenus(glm::vec2) {
             }
             shown++;
         }
-        if (shown == 0) ui.text({1180.0f, 430.0f}, "Recherche en cours...", 20.0f, kDim);
+        if (shown == 0) ui.text({1190.0f, 430.0f}, "Recherche en cours...", 22.0f, kDim);
         return;
     }
 
     if (screen == Screen::Name) {
-        ui.title({800.0f, 130.0f}, "VOTRE PSEUDO", 56.0f);
+        // Tout tient dans la moitié haute : le clavier du téléphone couvre le bas.
+        ui.title({800.0f, 90.0f}, "VOTRE PSEUDO", 52.0f);
         // Seize caractères au plus, parmi ceux que la police sait dessiner.
         auto length = [](const char* text) {
             int count = 0;
@@ -693,32 +758,32 @@ void App::drawMenus(glm::vec2) {
             while (len > 0 && (static_cast<unsigned char>(nameDraft[len]) & 0xC0) == 0x80);
             nameDraft[len] = '\0';
         }
-        ui.panel({800.0f, 262.0f}, {330.0f, 44.0f});
+        ui.panel({800.0f, 196.0f}, {340.0f, 48.0f});
         const bool blink = static_cast<int>(now * 2.0) % 2 == 0;
         std::snprintf(buf, sizeof(buf), "%s%s", nameDraft, blink ? "_" : " ");
-        ui.text({800.0f, 278.0f}, buf, 38.0f, kWhite, Align::Center, FontId::Bold);
-        ui.text({800.0f, 340.0f}, "16 caractères au plus", 18.0f, kDim);
+        ui.text({800.0f, 212.0f}, buf, 42.0f, kWhite, Align::Center, FontId::Bold);
+        ui.text({800.0f, 278.0f}, "16 caractères au plus", 20.0f, kDim);
         auto leave = [&] {
             if (window) SDL_StopTextInput(window);
-            go(Screen::Multi);
+            go(nameReturn);
         };
         // Un pseudo vide ou fait d'espaces n'est pas accepté.
         bool blank = true;
         for (const char* p = nameDraft; *p; p++) blank = blank && *p == ' ';
-        if (ui.button({800.0f, 440.0f}, {230.0f, 38.0f}, "VALIDER", !blank, kYellow) || (ui.in.accept && !blank)) {
+        if (ui.button({975.0f, 356.0f}, {165.0f, 42.0f}, "VALIDER", !blank, kYellow) || (ui.in.accept && !blank)) {
             std::snprintf(playerName, sizeof(playerName), "%s", nameDraft);
             std::snprintf(settings.name, sizeof(settings.name), "%s", playerName);
             settings.save();
-            net.client(playerName, ship); // le réseau reprend le nouveau nom
+            if (nameReturn == Screen::Multi) net.client(playerName, ship); // le réseau reprend le nouveau nom
             leave();
             return;
         }
-        if (ui.button({800.0f, 530.0f}, {230.0f, 30.0f}, "RETOUR", true, vec4(0.7f, 0.75f, 0.9f, 1.0f)) || ui.in.back) leave();
+        if (ui.button({625.0f, 356.0f}, {165.0f, 42.0f}, "RETOUR", true, kQuiet) || ui.in.back) leave();
         return;
     }
 
     if (screen == Screen::Address) {
-        ui.title({800.0f, 130.0f}, "ADRESSE DE L'HÔTE", 56.0f);
+        ui.title({800.0f, 90.0f}, "ADRESSE DE L'HÔTE", 52.0f);
         // Saisie au clavier physique, en plus du pavé à l'écran.
         size_t len = std::strlen(address);
         for (int i = 0; i < ui.in.typedCount && len + 1 < sizeof(address); i++) {
@@ -727,14 +792,14 @@ void App::drawMenus(glm::vec2) {
         }
         if (ui.in.backspace && len > 0) address[--len] = '\0';
 
-        ui.panel({800.0f, 232.0f}, {300.0f, 38.0f});
-        ui.text({800.0f, 246.0f}, address[0] ? address : "192.168.1.10", 34.0f,
+        ui.panel({800.0f, 190.0f}, {340.0f, 44.0f});
+        ui.text({800.0f, 205.0f}, address[0] ? address : "192.168.1.10", 38.0f,
                 address[0] ? kWhite : vec4(1.0f, 1.0f, 1.0f, 0.25f), Align::Center, FontId::Bold);
         const char* keys[12] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "<"};
         for (int i = 0; i < 12; i++) {
-            vec2 c{680.0f + 120.0f * static_cast<float>(i % 3),
-                   340.0f + 84.0f * static_cast<float>(i / 3)};
-            if (!ui.button(c, {52.0f, 34.0f}, keys[i])) continue;
+            vec2 c{655.0f + 145.0f * static_cast<float>(i % 3),
+                   300.0f + 92.0f * static_cast<float>(i / 3)};
+            if (!ui.button(c, {64.0f, 39.0f}, keys[i])) continue;
             len = std::strlen(address);
             if (keys[i][0] == '<') {
                 if (len > 0) address[len - 1] = '\0';
@@ -744,84 +809,78 @@ void App::drawMenus(glm::vec2) {
             }
         }
         uint32_t ip = net::parseIp(address);
-        if (ui.button({800.0f, 700.0f}, {230.0f, 38.0f}, "REJOINDRE", ip != 0, kYellow)) {
+        if (ui.button({975.0f, 690.0f}, {165.0f, 44.0f}, "REJOINDRE", ip != 0, kYellow)) {
             net.join(ip, net::kPort);
             go(Screen::Lobby);
             return;
         }
-        if (ui.button({800.0f, 790.0f}, {230.0f, 30.0f}, "RETOUR", true,
-                      vec4(0.7f, 0.75f, 0.9f, 1.0f)) ||
-            ui.in.back)
-            go(Screen::Multi);
+        if (ui.button({625.0f, 690.0f}, {165.0f, 44.0f}, "RETOUR", true, kQuiet) || ui.in.back) go(Screen::Multi);
         return;
     }
 
     if (screen == Screen::Lobby) {
         bool hosting = net.role == net::Role::Host;
-        ui.title({800.0f, 120.0f}, "SALON", 64.0f);
+        ui.title({800.0f, 100.0f}, "SALON", 60.0f);
         const sim::RaceConfig& lobby = net.lobby;
         if (hosting)
-            ui.text({800.0f, 162.0f}, "Les autres joueurs vous voient dans Multijoueur", 19.0f, kDim);
+            ui.text({800.0f, 142.0f}, "Les autres joueurs vous voient dans Multijoueur", 22.0f, kDim);
         else if (!net.joined)
-            ui.text({800.0f, 162.0f}, "Connexion à l'hôte...", 19.0f, kYellow);
+            ui.text({800.0f, 142.0f}, "Connexion à l'hôte...", 22.0f, kYellow);
         else
-            ui.text({800.0f, 162.0f}, net.hostInLobby ? "En attente du lancement par l'hôte"
+            ui.text({800.0f, 142.0f}, net.hostInLobby ? "En attente du lancement par l'hôte"
                                                       : "Course en cours, vous jouerez la suivante",
-                    19.0f, kDim);
+                    22.0f, kDim);
 
-        float y = raceSettings(480.0f, 250.0f, hosting);
+        // L'état du salon s'écrit sous la liste des joueurs.
+        const char* status = "";
+        float y = raceSettings(470.0f, 226.0f, hosting);
         if (hosting) {
             // On ne part que lorsque tout le monde a reçu le morceau.
-            const bool openEntry = songIndex == songChoices() - 1;
             const int peers = net.peerCount(), ready = net.peersReady();
             const bool everyone = publishedSong != 0 && ready == peers;
-            if (ui.button({480.0f, y + 26.0f}, {330.0f, 40.0f}, openEntry ? "CHOISIR UN FICHIER" : "LANCER LA COURSE", true, kYellow)) {
-                if (openEntry) openSongDialog();
-                else if (everyone) {
-                    startHosted();
-                    return;
-                }
+            if (ui.button({470.0f, y + 10.0f}, {kColumn, 46.0f}, "LANCER LA COURSE", everyone, kYellow)) {
+                startHosted();
+                return;
             }
             if (notice[0]) {
-                ui.text({480.0f, y + 74.0f}, notice, 18.0f, kYellow);
+                status = notice;
             } else if (!everyone && peers > 0) {
                 std::snprintf(buf, sizeof(buf), tr("Envoi du morceau : %d sur %d prêts"), ready, peers);
-                ui.text({480.0f, y + 74.0f}, buf, 18.0f, kYellow);
+                status = buf;
             }
-            y += 92.0f;
+            y += 112.0f;
         } else if (songStatus[0]) {
-            ui.text({480.0f, y + 4.0f}, songStatus, 18.0f, kYellow);
-            y += 30.0f;
+            status = songStatus;
         } else if (notice[0]) {
-            ui.text({480.0f, y + 4.0f}, notice, 18.0f, kYellow);
-            y += 30.0f;
+            status = notice;
         }
-        if (ui.button({480.0f, y + 20.0f}, {330.0f, 32.0f}, "QUITTER LE SALON", true,
-                      vec4(0.7f, 0.75f, 0.9f, 1.0f)) ||
-            ui.in.back) {
+        if (ui.button({470.0f, y}, {kColumn, 36.0f}, "QUITTER LE SALON", true, kQuiet) || ui.in.back) {
             leaveNetwork();
             net.client(playerName, ship);
             go(Screen::Multi);
             return;
         }
 
-        ui.panel({1180.0f, 372.0f}, {290.0f, 182.0f});
-        std::snprintf(buf, sizeof(buf), tr("JOUEURS  %d"), lobby.racerCount);
-        ui.text({1180.0f, 232.0f}, buf, 22.0f, kCyan, Align::Center, FontId::Bold);
+        ui.panel({1190.0f, 370.0f}, {250.0f, 184.0f});
+        char head[48];
+        std::snprintf(head, sizeof(head), tr("JOUEURS  %d"), lobby.racerCount);
+        ui.text({1190.0f, 226.0f}, head, 24.0f, kCyan, Align::Center, FontId::Bold);
         for (int i = 0; i < lobby.racerCount; i++) {
-            float rowY = 280.0f + 34.0f * static_cast<float>(i);
+            float rowY = 276.0f + 38.0f * static_cast<float>(i);
             bool me = hosting ? i == 0 : i == net.mySlot;
-            ui.text({920.0f, rowY}, lobby.racers[i].name, 21.0f, me ? kYellow : kWhite, Align::Left,
+            ui.text({964.0f, rowY}, lobby.racers[i].name, 26.0f, me ? kYellow : kWhite, Align::Left,
                     FontId::Bold);
-            ui.text({1440.0f, rowY}, sim::shipStats(lobby.racers[i].ship).name, 18.0f, kDim,
+            ui.text({1416.0f, rowY}, sim::shipStats(lobby.racers[i].ship).name, 22.0f, kDim,
                     Align::Right);
         }
-        if (hosting && opponents > 0) {
-            std::snprintf(buf, sizeof(buf), tr("+ %d IA"), std::min(opponents,
+        if (hosting && opponents > 0 && lobby.racerCount < sim::kMaxVehicles) {
+            char more[32];
+            std::snprintf(more, sizeof(more), tr("+ %d IA"), std::min(opponents,
                           sim::kMaxVehicles - lobby.racerCount));
-            ui.text({1180.0f, 280.0f + 34.0f * static_cast<float>(lobby.racerCount) + 4.0f}, buf,
-                    19.0f, kMagenta);
+            ui.text({1190.0f, 276.0f + 38.0f * static_cast<float>(lobby.racerCount) + 4.0f}, more,
+                    23.0f, kMagenta);
         }
+        if (status[0]) ui.text({1190.0f, 596.0f}, status, 20.0f, kYellow);
     }
 }
 

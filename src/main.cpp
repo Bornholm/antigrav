@@ -260,6 +260,8 @@ int runHeadless(const Options& opt) {
             race.update(sim::kFixedDt, game::Controls{});
     } else {
         if (opt.screen == "solo") app.screen = game::Screen::Solo;
+        else if (opt.screen == "options") app.screen = game::Screen::Options;
+        else if (opt.screen == "morceaux") app.screen = game::Screen::Songs;
         else if (opt.screen == "multi") app.screen = game::Screen::Multi;
         else if (opt.screen == "adresse") app.screen = game::Screen::Address;
         else if (opt.screen == "pseudo") {

@@ -71,7 +71,7 @@ Chaque course finit sur un score sur 10 000 et une note : S à partir de 9 000, 
 
 La part de place dépend de la difficulté : elle est multipliée par 0,5 en facile et par 0,7 en normale. Une course parfaite plafonne alors à 8 000 et 8 800 points : la note S ne s'obtient qu'en difficile. Seul en piste, elle vaut la moitié.
 
-À l'arrivée, le morceau s'efface et une courte musique le remplace : une fanfare sur le podium, quelques notes qui descendent sinon. Le podium compte une place jusqu'à trois concurrents, deux à partir de quatre, trois à partir de six. Les vaisseaux freinent après la ligne et s'arrêtent sur la piste.
+À l'arrivée, le morceau s'efface et une courte musique le remplace : sur le podium, une nappe grave de synthé qui s'ouvre sur un accord tenu ; sinon, un accord mineur qui s'affaisse et s'étouffe. Le podium compte une place jusqu'à trois concurrents, deux à partir de quatre, trois à partir de six. Les vaisseaux freinent après la ligne et s'arrêtent sur la piste.
 
 En solo, le jeu garde le meilleur score de chaque morceau. Sa note s'affiche dans la liste des morceaux, et l'écran de fin dit si le record est battu.
 

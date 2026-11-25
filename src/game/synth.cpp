@@ -1,7 +1,6 @@
 #include "game/synth.h"
 
 #include <algorithm>
-#include <iterator>
 #include <cmath>
 
 namespace game {
@@ -23,51 +22,46 @@ void Synth::jingle(int kind) {
     jingleCount_.fetch_add(1);
 }
 
-namespace {
-
-// Une note d'une musique de fin : début et durée en secondes, fréquence en hertz, force.
-struct JingleNote {
-    float start, length, freq, level;
-};
-// Victoire : arpège de do majeur qui monte, puis l'accord tenu.
-const JingleNote kVictory[] = {
-    {0.00f, 0.16f, 392.00f, 0.8f}, {0.15f, 0.16f, 523.25f, 0.8f}, {0.30f, 0.16f, 659.25f, 0.8f},
-    {0.45f, 0.34f, 783.99f, 0.9f}, {0.45f, 0.60f, 130.81f, 0.9f}, {0.82f, 0.16f, 659.25f, 0.8f},
-    {0.97f, 0.18f, 783.99f, 0.8f}, {1.15f, 1.90f, 1046.50f, 1.0f}, {1.15f, 1.90f, 523.25f, 0.6f},
-    {1.15f, 1.90f, 659.25f, 0.6f}, {1.15f, 1.90f, 783.99f, 0.6f}, {1.15f, 1.90f, 130.81f, 1.0f},
-};
-// Défaite : trois notes qui descendent, lentes, vers un accord de la mineur.
-const JingleNote kDefeat[] = {
-    {0.00f, 0.50f, 659.25f, 0.8f}, {0.48f, 0.50f, 587.33f, 0.8f}, {0.96f, 0.50f, 523.25f, 0.8f},
-    {1.44f, 2.10f, 440.00f, 0.9f}, {1.44f, 2.10f, 220.00f, 0.6f}, {1.44f, 2.10f, 261.63f, 0.6f},
-    {1.44f, 2.10f, 329.63f, 0.5f}, {1.44f, 2.10f, 110.00f, 1.0f},
-};
-
-} // namespace
-
+// Musique de fin : une nappe grave de scies désaccordées derrière un filtre
+// qui s'ouvre ou se referme, lancée par un impact sourd. Pas de mélodie.
+// Victoire : accord suspendu qui s'ouvre et tient. Défaite : accord mineur
+// qui s'affaisse comme une bande qu'on freine, et s'étouffe.
 float Synth::jingleSample(float dt) {
     if (jinglePlaying_ < 0) return 0.0f;
-    const JingleNote* notes = jinglePlaying_ == 0 ? kVictory : kDefeat;
-    const int count = jinglePlaying_ == 0 ? static_cast<int>(std::size(kVictory)) : static_cast<int>(std::size(kDefeat));
-    float sum = 0.0f, end = 0.0f;
-    for (int i = 0; i < count; i++) {
-        const JingleNote& n = notes[i];
-        end = std::max(end, n.start + n.length);
-        const float t = jingleTime_ - n.start;
-        if (t < 0.0f || t >= n.length) continue;
-        // Attaque franche, décroissance douce, fin sans clic.
-        const float envelope = std::min(1.0f, t * 150.0f) * std::exp(-t * 1.6f) *
-                               std::min(1.0f, (n.length - t) * 25.0f);
-        const float x = n.freq * t;
-        const float phase = x - std::floor(x);
-        // Sinus épaissi d'un carré adouci : le même registre numérique que les bips.
-        const float wave = 0.62f * std::sin(phase * kTau) + 0.20f * std::sin(phase * 2.0f * kTau) +
-                           (phase < 0.5f ? 0.12f : -0.12f);
-        sum += wave * envelope * n.level;
+    const bool win = jinglePlaying_ == 0;
+    const float t = jingleTime_;
+    const float length = win ? 4.2f : 3.6f;
+    static const float kWin[] = {73.42f, 146.83f, 164.81f, 220.00f, 293.66f};  // ré, mi, la : suspendu
+    static const float kLose[] = {73.42f, 146.83f, 174.61f, 220.00f, 110.00f}; // ré mineur
+    const float* notes = win ? kWin : kLose;
+    // Défaite : la hauteur tombe de trois demi-tons. La phase est l'intégrale de la fréquence.
+    const float sag = win ? 0.0f : 0.055f;
+    const float warp = sag > 0.0f ? (1.0f - std::exp(-sag * t)) / sag : t;
+    float pad = 0.0f;
+    for (int i = 0; i < 5; i++) {
+        for (int k = 0; k < 2; k++) {
+            const float x = notes[i] * (k ? 1.004f : 0.996f) * warp + 0.37f * static_cast<float>(i * 2 + k);
+            pad += (2.0f * (x - std::floor(x)) - 1.0f) * (i == 0 ? 0.9f : 0.5f);
+        }
     }
+    // Filtre passe-bas à un pôle, deux fois : la couleur de la nappe.
+    const float cutoff = win ? 260.0f + 2600.0f * std::min(1.0f, t / 0.7f) * std::exp(-std::max(0.0f, t - 0.7f) * 0.55f)
+                             : 1500.0f * std::exp(-t * 1.1f) + 120.0f;
+    const float a = 1.0f - std::exp(-kTau * cutoff * dt);
+    jingleLp_[0] += (pad - jingleLp_[0]) * a;
+    jingleLp_[1] += (jingleLp_[0] - jingleLp_[1]) * a;
+    const float swell = win ? std::min(1.0f, t / 0.35f) : std::min(1.0f, t / 0.08f);
+    const float fade = std::min(1.0f, (length - t) / 1.4f);
+    float out = jingleLp_[1] * swell * std::max(0.0f, fade) * 0.085f;
+    // Impact d'ouverture : un coup de basse qui descend et un souffle bref.
+    const float hit = std::exp(-t * (win ? 5.0f : 3.5f));
+    const float drop = (win ? 46.0f : 38.0f) * t + (win ? 55.0f : 40.0f) * (1.0f - std::exp(-t * 9.0f)) / 9.0f;
+    out += std::tanh(std::sin(drop * kTau) * 1.8f) * hit * 0.26f;
+    jingleLp_[2] += (nextNoise() - jingleLp_[2]) * 0.06f;
+    out += jingleLp_[2] * std::exp(-t * 7.0f) * 0.5f;
     jingleTime_ += dt;
-    if (jingleTime_ > end + 1.0f) jinglePlaying_ = -1; // l'écho a fini de s'éteindre
-    return sum * 0.16f;
+    if (jingleTime_ > length + 1.0f) jinglePlaying_ = -1; // l'écho a fini de s'éteindre
+    return out;
 }
 
 void Synth::beep(int kind) {
@@ -84,7 +78,7 @@ void Synth::play(Sfx sfx, float volume) {
 
 // Un échantillon d'une voix d'effet. Renvoie 0 et libère la voix à la fin.
 float Synth::voiceSample(Voice& v, float dt) {
-    static const float kLength[static_cast<int>(Sfx::Count)] = {0.24f, 0.30f, 0.22f, 0.75f, 0.85f, 0.50f, 0.32f, 1.40f, 0.50f, 0.50f};
+    static const float kLength[static_cast<int>(Sfx::Count)] = {0.16f, 1.00f, 0.20f, 1.30f, 0.85f, 0.60f, 0.35f, 1.40f, 0.55f, 0.45f};
     const float length = kLength[v.kind], t = v.time, u = t / length;
     if (u >= 1.0f) {
         v.kind = -1;
@@ -96,41 +90,64 @@ float Synth::voiceSample(Voice& v, float dt) {
         return std::sin(v.phase * kTau);
     };
     const float n = nextNoise();
+    // Registre commun : des graves saturés et du souffle filtré, jamais de
+    // note aiguë ni de petite mélodie.
+    auto drive = [](float x) { return std::tanh(x * 2.2f); };
     float out = 0.0f;
     switch (static_cast<Sfx>(v.kind)) {
-    case Sfx::Pickup: // trois notes qui montent
-        out = tone(t < 0.07f ? 880.0f : t < 0.14f ? 1175.0f : 1568.0f) * (1.0f - u) * 0.55f;
+    case Sfx::Pickup: // verrouillage : un déclic et un coup mat
+        v.low += (n - v.low) * 0.35f;
+        out = (n - v.low) * std::exp(-t * 90.0f) * 0.5f + drive(tone(170.0f * std::exp(-t * 10.0f) + 70.0f)) * std::exp(-t * 22.0f) * 0.55f;
         break;
-    case Sfx::Shot: // rayon : sifflement qui tombe
-        out = tone(2200.0f * std::exp(-t * 9.0f) + 180.0f) * (1.0f - u) * (1.0f - u) * 0.6f + n * 0.25f * std::exp(-t * 30.0f);
+    case Sfx::Shot: { // roquette : coup de départ, puis le souffle du moteur qui s'éloigne
+        // Souffle : du bruit dont le filtre se referme à mesure que la roquette part.
+        v.low += (n - v.low) * (0.15f * std::exp(-t * 3.0f) + 0.018f);
+        v.band += (v.low - v.band) * 0.007f;
+        const float roar = v.low - v.band;
+        // Le grondement fait crépiter le souffle, comme une flamme.
+        const float crackle = 0.65f + std::min(0.35f, std::abs(v.band) * 9.0f);
+        const float envelope = std::min(1.0f, t * 140.0f) * std::exp(-t * 3.4f) * std::min(1.0f, (1.0f - u) * 6.0f);
+        out = roar * crackle * envelope * 3.8f + drive(tone(70.0f * std::exp(-t * 12.0f) + 32.0f)) * std::exp(-t * 12.0f) * 0.7f;
         break;
-    case Sfx::Mine: // choc sourd
-        out = tone(150.0f * std::exp(-t * 8.0f) + 50.0f) * (1.0f - u) * 0.8f;
+    }
+    case Sfx::Mine: // pose : coup sourd et court
+        out = drive(tone(95.0f * std::exp(-t * 12.0f) + 40.0f)) * std::exp(-t * 16.0f) * 0.8f;
         break;
-    case Sfx::Pulse: // onde : basse profonde et souffle qui s'étouffe
-        v.low += (n - v.low) * (0.25f * (1.0f - u) + 0.01f);
-        out = tone(58.0f) * (1.0f - u) * 0.9f + v.low * (1.0f - u) * 1.2f;
+    case Sfx::Pulse: { // onde : une vague de pression, sourde, qui enfle puis reflue
+        // Bruit très filtré : il ne reste que le roulement grave.
+        v.low += (n - v.low) * 0.012f;
+        v.band += (v.low - v.band) * 0.012f;
+        // Monte en un dixième de seconde, retombe lentement.
+        const float swell = std::min(1.0f, t / 0.11f) * std::exp(-std::max(0.0f, t - 0.11f) * 3.2f) *
+                            std::min(1.0f, (1.0f - u) * 5.0f);
+        out = (std::sin(tone(46.0f * std::exp(-t * 0.9f) + 22.0f) * 1.2f) * 0.95f + v.band * 9.0f) * swell;
         break;
-    case Sfx::Turbo: // souffle qui monte puis retombe
-        v.low += (n - v.low) * 0.12f;
-        out = (n - v.low) * std::sin(3.14159265f * u) * 0.35f + tone(200.0f + 500.0f * u) * std::sin(3.14159265f * u) * 0.25f;
+    }
+    case Sfx::Turbo: // poussée : souffle dont le filtre s'ouvre, sur un grondement
+        v.low += (n - v.low) * (0.02f + 0.20f * u);
+        out = v.low * std::sin(3.14159265f * u) * 1.1f + drive(tone(48.0f + 30.0f * u)) * std::sin(3.14159265f * u) * 0.35f;
         break;
-    case Sfx::ShieldUp: // accord qui scintille
-        out = (tone(660.0f) + std::sin(v.phase * kTau * 1.5f) * 0.7f + std::sin(v.phase * kTau * 2.0f) * 0.4f) *
-              (0.6f + 0.4f * std::sin(t * kTau * 18.0f)) * std::min(1.0f, t * 30.0f) * (1.0f - u) * 0.28f;
+    case Sfx::ShieldUp: // champ : bourdon de quinte qui enfle, avec un battement lent
+        v.low += (n - v.low) * 0.04f;
+        out = (tone(98.0f) + std::sin(v.phase * kTau * 1.5f) * 0.6f) * (0.75f + 0.25f * std::sin(t * kTau * 7.0f)) *
+                  std::sin(3.14159265f * std::sqrt(u)) * 0.42f +
+              v.low * std::sin(3.14159265f * u) * 0.8f;
         break;
-    case Sfx::ShieldBreak: // verre qui cède
-        out = n * std::exp(-t * 14.0f) * 0.6f + tone(1800.0f) * std::exp(-t * 20.0f) * 0.4f;
+    case Sfx::ShieldBreak: // rupture : craquement et chute grave
+        v.low += (n - v.low) * 0.3f;
+        out = v.low * std::exp(-t * 16.0f) * 1.0f + drive(tone(240.0f * std::exp(-t * 9.0f) + 50.0f)) * std::exp(-t * 11.0f) * 0.5f;
         break;
     case Sfx::Comet: // grondement qui enfle
         v.low += (n - v.low) * 0.05f;
-        out = (tone(90.0f + 170.0f * u) * (0.6f + 0.4f * std::sin(t * kTau * 11.0f)) * 0.7f + v.low * 1.4f) * std::sin(3.14159265f * u);
+        out = (drive(tone(55.0f + 60.0f * u)) * (0.7f + 0.3f * std::sin(t * kTau * 9.0f)) * 0.6f + v.low * 1.5f) * std::sin(3.14159265f * u);
         break;
-    case Sfx::Hit: // impact : fracas et note qui s'effondre
-        out = n * std::exp(-t * 9.0f) * 0.75f + tone(220.0f * std::exp(-t * 6.0f)) * std::exp(-t * 7.0f) * 0.6f;
+    case Sfx::Hit: // impact : fracas étouffé et coup de basse
+        v.low += (n - v.low) * 0.22f;
+        out = v.low * std::exp(-t * 8.0f) * 1.3f + drive(tone(130.0f * std::exp(-t * 6.0f) + 35.0f)) * std::exp(-t * 6.0f) * 0.7f;
         break;
-    case Sfx::Jump: // envol
-        out = tone(300.0f + 600.0f * u) * (1.0f - u) * 0.4f;
+    case Sfx::Jump: // envol : souffle d'air, sans note
+        v.low += (n - v.low) * (0.03f + 0.12f * u);
+        out = v.low * std::sin(3.14159265f * u) * 0.9f + drive(tone(60.0f)) * std::exp(-t * 12.0f) * 0.4f;
         break;
     default: break;
     }
@@ -169,6 +186,7 @@ void Synth::render(float* out, int frames) {
         jingleSeen_ = jingles;
         jinglePlaying_ = jingleKind_.load() == 0 ? 0 : 1;
         jingleTime_ = 0.0f;
+        jingleLp_[0] = jingleLp_[1] = jingleLp_[2] = 0.0f;
     }
 
     uint32_t beeps = beepCount_.load();

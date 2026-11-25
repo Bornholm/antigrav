@@ -55,6 +55,7 @@ class Synth {
     float jingleTime_ = 0.0f;
     float jingleEcho_[2][12000] = {}; // écho d'un quart de seconde
     int jingleEchoAt_ = 0;
+    float jingleLp_[3] = {}; // filtres de la nappe et du souffle
     float jingleSample(float dt);
 
     // Effets sonores : le jeu les dépose dans une file, le rendu les joue
@@ -65,7 +66,7 @@ class Synth {
     uint32_t sfxRead_ = 0;
     struct Voice {
         int kind = -1;
-        float time = 0.0f, volume = 0.0f, phase = 0.0f, low = 0.0f;
+        float time = 0.0f, volume = 0.0f, phase = 0.0f, low = 0.0f, band = 0.0f;
     };
     Voice voices_[8];
     float voiceSample(Voice& v, float dt);

@@ -53,7 +53,7 @@ Chaque course finit sur un score sur 10 000 et une note : S à partir de 9 000, 
 | Pilotage | 2 000 | Les chocs encaissés et le temps passé à frotter un muret, rapportés à la minute. |
 | Bonus | 1 000 | Les bonus ramassés. Huit par minute font le plein. |
 
-La part de place dépend de la difficulté : elle est multipliée par 0,7 en facile et par 0,85 en normale, si bien que la note S demande au moins la difficulté normale. Seul en piste, elle vaut la moitié.
+La part de place dépend de la difficulté : elle est multipliée par 0,5 en facile et par 0,7 en normale. Une course parfaite plafonne alors à 8 000 et 8 800 points : la note S ne s'obtient qu'en difficile. Seul en piste, elle vaut la moitié.
 
 En solo, le jeu garde le meilleur score de chaque morceau. Sa note s'affiche dans la liste des morceaux, et l'écran de fin dit si le record est battu.
 

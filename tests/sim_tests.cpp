@@ -678,7 +678,9 @@ void testScore() {
     perfect.pickups = 20;
     const game::Score best = game::computeScore(perfect, 1, 4, 2);
     CHECK(best.total == 10000 && best.grade == 'S');
+    // La note S est réservée au niveau difficile.
     CHECK(game::computeScore(perfect, 1, 4, 0).grade == 'A');
+    CHECK(game::computeScore(perfect, 1, 4, 1).grade == 'A');
     CHECK(game::computeScore(perfect, 2, 4, 2).total < best.total);
     CHECK(game::computeScore(perfect, 4, 4, 2).place == 0);
     game::ScoreTally rough = perfect;

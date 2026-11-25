@@ -39,11 +39,12 @@ inline char gradeOf(int total) {
 }
 
 // difficulty : niveau des IA, de 0 à 2. Battre des IA faciles rapporte moins,
-// ce qui réserve la note S au niveau normal et au-dessus.
+// ce qui réserve la note S au niveau difficile : en normale, une course
+// parfaite plafonne à 8 800.
 inline Score computeScore(const ScoreTally& t, int rank, int racers, int difficulty) {
     Score s;
     // Seul en piste, la place ne prouve rien : elle rapporte la moitié.
-    static const float kWeight[3] = {0.7f, 0.85f, 1.0f};
+    static const float kWeight[3] = {0.5f, 0.7f, 1.0f};
     const float place = racers > 1 ? kWeight[std::clamp(difficulty, 0, 2)] * static_cast<float>(racers - rank) /
                                          static_cast<float>(racers - 1)
                                    : 0.5f;

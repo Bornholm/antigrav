@@ -63,4 +63,4 @@ Les captures viennent du jeu lancé sans fenêtre, par exemple :
   --frames 4 --size 1920x1080 --no-audio --out 1.png
 ```
 
-La politique de confidentialité que demande la Play Console est [confidentialite.md](confidentialite.md).
+La politique de confidentialité que demande la Play Console est publiée sur https://lookingfora.name/soundwave/confidentialite/. Cette adresse est liée depuis la fiche, elle ne doit pas changer. Le texte de référence est [confidentialite.md](confidentialite.md) : après une modification, reporter le changement sur la page du blog.

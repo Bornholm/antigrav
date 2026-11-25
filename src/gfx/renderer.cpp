@@ -445,6 +445,7 @@ void Renderer::init(Gpu& gpuRef, VkFormat output) {
     shield = uploadMesh(*gpu, buildShield(), "shield");
     missile = uploadMesh(*gpu, buildMissile(), "missile");
     orb = uploadMesh(*gpu, buildOrb(), "orb");
+    for (int i = 0; i < 3; i++) flyerMeshes[i] = uploadMesh(*gpu, buildFlyer(i), "flyer");
 }
 
 void Renderer::loadTrack(const sim::Track& track, int themeId, int serial) {
@@ -487,6 +488,7 @@ void Renderer::shutdown() {
     }
     destroyMesh(*gpu, shield);
     destroyMesh(*gpu, orb);
+    for (Mesh& m : flyerMeshes) destroyMesh(*gpu, m);
     destroyMesh(*gpu, missile);
     for (int i = 0; i < static_cast<int>(Material::Count); i++) {
         vkDestroyPipeline(dev, scenePipelines[i], nullptr);
@@ -717,6 +719,20 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
         bindMesh(cmd, mesh);
         pushScene(cmd, sceneLayout, shipPush(params.ships[i]));
         vkCmdDrawIndexed(cmd, mesh.indexCount, 1, 0, 0, 0);
+    }
+    // Ce qui vole dans le décor. Loin de la piste, donc sans reflet.
+    if (!reflection) {
+        for (int i = 0; i < params.flyerCount; i++) {
+            const FlyerDraw& f = params.flyers[i];
+            const Mesh& mesh = flyerMeshes[std::clamp(f.kind, 0, 2)];
+            bindMesh(cmd, mesh);
+            ScenePush push;
+            push.model = f.model;
+            push.colorA = f.trim;
+            push.colorB = f.light;
+            pushScene(cmd, sceneLayout, push);
+            vkCmdDrawIndexed(cmd, mesh.indexCount, 1, 0, 0, 0);
+        }
     }
 
     // Le ciel passe après les objets opaques : le test de profondeur ne

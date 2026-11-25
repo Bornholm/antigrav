@@ -8,6 +8,7 @@ Chaque piste est générée à partir d'un morceau de musique. La course va de s
 - **Vrilles.** Dans un morceau qui cogne, la piste fait par moments un tour complet sur elle-même, sur huit temps.
 - **Hargne.** Un morceau saturé et dense, du metal par exemple, donne une piste plus rapide, des virages deux fois plus fréquents, des boîtes à bonus plus nombreuses, et une caméra qui encaisse chaque temps. Deux barrières ne se suivent jamais à moins de deux secondes. Une barrière ne suit jamais une boîte à bonus : après une boîte, son couloir reste libre une seconde et demie.
 - **Décor.** Les bâtiments s'étirent avec les bandes de fréquences du morceau, comme un égaliseur, et les néons battent sur les temps.
+- **Décor vivant.** Des véhicules circulent au-dessus de la ville sur trois altitudes, des créatures ailées volent en bandes dans le canyon, des drones dérivent autour de la station.
 
 ## Courir sur ses propres morceaux
 

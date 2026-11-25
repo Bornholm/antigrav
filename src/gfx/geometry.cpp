@@ -730,6 +730,61 @@ MeshData buildTrail(int variant) {
 }
 
 // Bulle du bouclier : ellipsoïde autour du vaisseau, dessiné en additif.
+// Repère : +X à droite, +Y en haut, -Z vers l'avant, comme les vaisseaux.
+// kind des faces : 0 coque, 1 liseré lumineux, 2 feu de position ou réacteur.
+MeshData buildFlyer(int kind) {
+    MeshData mesh;
+    const glm::vec3 core{0.0f, 0.0f, 0.0f};
+    const glm::vec4 dark{0.30f, 0.32f, 0.48f, 1.0f}, white{1.0f};
+    auto face = [&](std::initializer_list<glm::vec3> pts, float k, const glm::vec4& color) {
+        addFace(mesh, pts, k, color, core);
+    };
+    auto box = [&](glm::vec3 lo, glm::vec3 hi, float k, const glm::vec4& color) {
+        face({{lo.x, lo.y, lo.z}, {hi.x, lo.y, lo.z}, {hi.x, hi.y, lo.z}, {lo.x, hi.y, lo.z}}, k, color);
+        face({{lo.x, lo.y, hi.z}, {hi.x, lo.y, hi.z}, {hi.x, hi.y, hi.z}, {lo.x, hi.y, hi.z}}, k, color);
+        face({{lo.x, lo.y, lo.z}, {lo.x, lo.y, hi.z}, {lo.x, hi.y, hi.z}, {lo.x, hi.y, lo.z}}, k, color);
+        face({{hi.x, lo.y, lo.z}, {hi.x, lo.y, hi.z}, {hi.x, hi.y, hi.z}, {hi.x, hi.y, lo.z}}, k, color);
+        face({{lo.x, hi.y, lo.z}, {hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {lo.x, hi.y, hi.z}}, k, color);
+        face({{lo.x, lo.y, lo.z}, {hi.x, lo.y, lo.z}, {hi.x, lo.y, hi.z}, {lo.x, lo.y, hi.z}}, k, color);
+    };
+    if (kind == 1) {
+        // Créature : un corps effilé et deux grandes ailes relevées. Aplatir
+        // le maillage en hauteur les fait battre.
+        box({-0.5f, -0.25f, -3.0f}, {0.5f, 0.25f, 2.6f}, 0.0f, dark);
+        for (float side : {-1.0f, 1.0f}) {
+            const glm::vec3 root{side * 0.4f, 0.1f, -1.2f}, back{side * 0.4f, 0.1f, 1.6f};
+            const glm::vec3 tip{side * 7.5f, 2.6f, 0.4f}, mid{side * 4.0f, 1.0f, -1.8f};
+            face({root, mid, tip, back}, 0.0f, dark);
+            face({back, tip, mid, root}, 0.0f, dark);
+            // Bord d'attaque lumineux.
+            face({root, mid, mid + glm::vec3(0.0f, 0.12f, 0.35f), root + glm::vec3(0.0f, 0.12f, 0.35f)}, 1.0f, white);
+            face({mid, tip, tip + glm::vec3(0.0f, 0.12f, 0.3f), mid + glm::vec3(0.0f, 0.12f, 0.35f)}, 1.0f, white);
+        }
+        face({{-0.3f, 0.0f, 2.6f}, {0.3f, 0.0f, 2.6f}, {0.0f, 0.0f, 4.6f}}, 1.0f, white);
+    } else if (kind == 2) {
+        // Drone : un octaèdre ceinturé d'un anneau lumineux.
+        const glm::vec3 top{0.0f, 2.2f, 0.0f}, bottom{0.0f, -2.2f, 0.0f};
+        const glm::vec3 ring[4] = {{2.2f, 0.0f, 0.0f}, {0.0f, 0.0f, 2.2f}, {-2.2f, 0.0f, 0.0f}, {0.0f, 0.0f, -2.2f}};
+        for (int i = 0; i < 4; i++) {
+            face({top, ring[i], ring[(i + 1) % 4]}, 0.0f, dark);
+            face({bottom, ring[(i + 1) % 4], ring[i]}, 0.0f, dark);
+            const glm::vec3 a = ring[i] * 1.5f, b = ring[(i + 1) % 4] * 1.5f;
+            face({a + glm::vec3(0.0f, 0.15f, 0.0f), b + glm::vec3(0.0f, 0.15f, 0.0f), b - glm::vec3(0.0f, 0.15f, 0.0f),
+                  a - glm::vec3(0.0f, 0.15f, 0.0f)}, 1.0f, white);
+        }
+        box({-0.35f, -2.9f, -0.35f}, {0.35f, -2.3f, 0.35f}, 2.0f, white);
+    } else {
+        // Véhicule aérien : une caisse basse, un liseré de chaque côté, des feux arrière.
+        box({-1.6f, -0.5f, -4.5f}, {1.6f, 0.5f, 4.5f}, 0.0f, dark);
+        box({-1.2f, 0.5f, -2.2f}, {1.2f, 1.1f, 2.2f}, 0.0f, dark);
+        for (float side : {-1.0f, 1.0f})
+            box({side * 1.6f - 0.06f, -0.12f, -4.4f}, {side * 1.6f + 0.06f, 0.12f, 4.4f}, 1.0f, white);
+        box({-1.3f, -0.3f, 4.5f}, {1.3f, 0.3f, 4.62f}, 2.0f, white);
+        box({-1.0f, -0.2f, -4.62f}, {1.0f, 0.2f, -4.5f}, 1.0f, white);
+    }
+    return mesh;
+}
+
 MeshData buildOrb() {
     MeshData mesh;
     const int rings = 10, sectors = 18;

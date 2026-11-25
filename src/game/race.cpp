@@ -1,6 +1,7 @@
 #include "game/race.h"
 
 #include "game/music.h"
+#include "gfx/theme.h"
 #include "game/songs.h"
 #include "sim/generate.h"
 
@@ -175,9 +176,9 @@ void Race::react(const sim::World& before) {
             sound(Sfx::Hit);
             // Sur son propre vaisseau l'explosion reste contenue : la caméra
             // est dedans, elle ne doit pas noyer l'écran.
-            const float k = mine ? 0.45f : 1.0f;
-            burst({1.0f, 0.9f, 0.7f}, 2.0f, 18.0f * k, 0.5f, mine ? 3.0f : 7.0f);
-            burst({1.0f, 0.35f, 0.1f}, 4.0f, 30.0f * k, 0.8f, mine ? 1.2f : 2.5f);
+            const float k = mine ? 0.25f : 1.0f;
+            burst({1.0f, 0.9f, 0.7f}, 2.0f, 18.0f * k, 0.4f, mine ? 2.0f : 7.0f);
+            burst({1.0f, 0.35f, 0.1f}, 4.0f, 30.0f * k, 0.6f, mine ? 0.7f : 2.5f);
             screen({1.0f, 0.15f, 0.1f}, 0.32f);
             if (mine) hitShake = 1.0f;
         }
@@ -353,6 +354,75 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         } else {
             draw.flameScale = 0.9f;
             orb(at, 2.4f, {1.0f, 0.3f, 0.8f}, 5.0f);
+        }
+    }
+    // Décor vivant : une quarantaine d'objets volent autour de la piste, dans
+    // une fenêtre qui suit le joueur. Leur trajectoire ne dépend que de leur
+    // numéro et du temps, donc elle est la même pour tous les joueurs.
+    out.flyerCount = 0;
+    {
+        const gfx::Theme& look = gfx::themeFor(theme);
+        const float window = 3400.0f, behind = 300.0f;
+        auto hash = [](int i, int salt) {
+            uint32_t h = static_cast<uint32_t>(i) * 0x9E3779B1u ^ static_cast<uint32_t>(salt) * 0x85EBCA77u;
+            h ^= h >> 15;
+            h *= 0x2C1B3C6Du;
+            h ^= h >> 12;
+            return static_cast<float>(h & 0xFFFFu) / 65535.0f;
+        };
+        for (int i = 0; i < 40 && out.flyerCount < gfx::kMaxFlyers; i++) {
+            gfx::FlyerDraw& draw = out.flyers[out.flyerCount];
+            float lateral, height, speed, size, flap = 1.0f, spin = 0.0f;
+            const float side = i % 2 ? 1.0f : -1.0f;
+            if (look.scenery == gfx::Scenery::City) {
+                // Circulation aérienne : des files à trois altitudes, dans les deux sens.
+                draw.kind = 0;
+                const int lane = i % 6;
+                lateral = side * (34.0f + 26.0f * static_cast<float>(lane / 2) + 70.0f * hash(i, 1));
+                height = 16.0f + 26.0f * static_cast<float>(lane % 3) + 8.0f * hash(i, 2);
+                speed = (lane % 2 ? -1.0f : 1.0f) * (90.0f + 80.0f * hash(i, 3));
+                size = 3.2f + 2.4f * hash(i, 4);
+                draw.trim = glm::vec4(lane % 2 ? look.neonB : look.neonA, 8.0f);
+                draw.light = glm::vec4(lane % 2 ? glm::vec3(1.0f, 0.9f, 0.7f) : glm::vec3(1.0f, 0.15f, 0.1f), 9.0f);
+            } else if (look.scenery == gfx::Scenery::Canyon) {
+                // Créatures : par bandes de cinq, lentes, qui ondulent et battent des ailes.
+                draw.kind = 1;
+                const int flock = i / 5, place = i % 5;
+                lateral = (flock % 2 ? 1.0f : -1.0f) * (30.0f + 150.0f * hash(flock, 1)) + 34.0f * static_cast<float>(place - 2);
+                height = 28.0f + 80.0f * hash(flock, 2) + 9.0f * std::abs(static_cast<float>(place - 2)) +
+                         12.0f * std::sin(time * 0.5f + static_cast<float>(flock));
+                speed = 55.0f + 30.0f * hash(flock, 3);
+                size = 3.5f + 2.5f * hash(flock, 4);
+                flap = std::sin(time * (4.5f + 2.0f * hash(flock, 5)) + static_cast<float>(place) * 0.7f);
+                draw.trim = glm::vec4(look.neonA, 7.0f);
+                draw.light = glm::vec4(look.neonB, 4.0f);
+            } else {
+                // Drones : ils dérivent lentement et tournent sur eux-mêmes.
+                draw.kind = 2;
+                lateral = side * (32.0f + 170.0f * hash(i, 1));
+                height = -20.0f + 110.0f * hash(i, 2) + 8.0f * std::sin(time * 0.8f + static_cast<float>(i));
+                speed = 20.0f + 60.0f * hash(i, 3);
+                size = 3.0f + 4.0f * hash(i, 4);
+                spin = time * (0.6f + 1.4f * hash(i, 5));
+                const bool blink = std::fmod(time * (0.8f + hash(i, 6)) + hash(i, 7), 1.0f) < 0.5f;
+                draw.trim = glm::vec4(i % 3 ? look.neonA : look.neonB, 5.0f);
+                draw.light = glm::vec4(1.0f, 0.3f, 0.2f, blink ? 12.0f : 1.0f);
+            }
+            // Position le long de la piste, ramenée dans la fenêtre autour du joueur.
+            float along = hash(i, 9) * window + speed * time - playerDist + behind;
+            along = along - std::floor(along / window) * window;
+            const float dist = playerDist - behind + along;
+            const sim::TrackFrame f = track.at(dist);
+            // Repère à plat : dans une vrille, le décor ne tourne pas avec la piste.
+            glm::vec3 forward = glm::normalize(glm::vec3(f.tangent.x, 0.0f, f.tangent.z)) * (speed < 0.0f ? -1.0f : 1.0f);
+            const glm::vec3 up{0.0f, 1.0f, 0.0f};
+            const glm::vec3 right = glm::normalize(glm::cross(forward, up));
+            if (spin != 0.0f) forward = forward * std::cos(spin) + right * std::sin(spin);
+            const glm::vec3 across = glm::normalize(glm::cross(forward, up));
+            const glm::vec3 pos = f.pos + right * (speed < 0.0f ? -lateral : lateral) + up * height;
+            draw.model = glm::mat4(glm::vec4(across * size, 0.0f), glm::vec4(up * (size * flap), 0.0f),
+                                   glm::vec4(-forward * size, 0.0f), glm::vec4(pos, 1.0f));
+            out.flyerCount++;
         }
     }
     // Explosions, ondes et éclats.

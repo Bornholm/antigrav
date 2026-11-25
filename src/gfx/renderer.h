@@ -18,6 +18,7 @@ constexpr int kBloomLevels = 6;
 constexpr int kMaxShips = 8;
 constexpr int kMaxMissileDraws = 24;
 constexpr int kMaxFx = 48;
+constexpr int kMaxFlyers = 48;
 
 // Image dans laquelle la dernière passe écrit : une image de la swapchain ou
 // la cible hors écran du mode capture.
@@ -38,6 +39,14 @@ struct ShipDraw {
     glm::vec4 glow{0.0f};   // rgb lumière de rythme sur le dos, a intensité
     float shield = 0.0f;    // intensité de la bulle du bouclier, 0 pour aucune
     int variant = 0;        // modèle de vaisseau
+};
+
+// Objet volant du décor.
+struct FlyerDraw {
+    glm::mat4 model{1.0f};
+    glm::vec4 trim{1.0f};  // rgb couleur des liserés, a intensité
+    glm::vec4 light{1.0f}; // rgb couleur des feux, a intensité
+    int kind = 0;          // voir buildFlyer
 };
 
 // Orbe lumineux, dessiné en additif.
@@ -76,6 +85,9 @@ struct FrameParams {
     int missileCount = 0;
     MissileDraw missiles[kMaxMissileDraws];
     // Orbes lumineux : explosions, ondes de choc, halos des projectiles.
+    // Ce qui vole dans le décor : circulation aérienne, créatures, drones.
+    int flyerCount = 0;
+    FlyerDraw flyers[kMaxFlyers];
     int fxCount = 0;
     FxDraw fx[kMaxFx];
     // Interface de l'image, facultative.
@@ -178,7 +190,7 @@ struct Renderer {
     // Maillages du circuit chargé, puis ceux qui ne changent jamais.
     Mesh road, rails, gates, features, city;
     Mesh ships[sim::kShipCount], trails[sim::kShipCount];
-    Mesh shield, missile, orb;
+    Mesh shield, missile, orb, flyerMeshes[3];
     Theme theme = themeFor(0);
     int loadedTrack = -1;
     float trackLead = 0.0f; // piste construite avant la ligne de départ

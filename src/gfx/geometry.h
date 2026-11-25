@@ -30,6 +30,9 @@ MeshData buildShip(int variant);
 // Flammes de réacteur, placées sur les tuyères du même modèle.
 MeshData buildTrail(int variant);
 MeshData buildShield();
+// Ce qui vole dans le décor. 0 : véhicule aérien de la ville. 1 : créature
+// ailée du canyon. 2 : drone de la station.
+MeshData buildFlyer(int kind);
 // Sphère de rayon 1, pour les effets lumineux : explosions, ondes, halos.
 MeshData buildOrb();
 MeshData buildMissile();

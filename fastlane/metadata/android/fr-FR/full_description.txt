@@ -1,0 +1,16 @@
+Soundwave est un jeu de course où chaque piste naît d'un morceau de musique. Choisissez un titre, le vôtre ou l'un de ceux livrés avec le jeu, et la piste en sort : elle accélère quand le morceau s'emballe, grimpe avant un drop et plonge dessus, se resserre et vrille quand il cogne. Le décor bat avec les fréquences et la piste change de couleur avec l'intensité.
+
+La course dure le temps du morceau. Vous pilotez à plus de 1 000 km/h, vous ramassez des bonus pour attaquer ou vous protéger, et vous courez contre sept adversaires au plus.
+
+• Neuf morceaux livrés, répartis en trois coupes : Néon, Acier et Abysse, chacune avec ses décors
+• Vos propres fichiers MP3, Ogg Vorbis, FLAC ou WAV deviennent des pistes
+• Trois niveaux de difficulté, un score et une note de D à S à chaque arrivée
+• Multijoueur en Wi-Fi local, courses simples ou coupes, l'hôte envoie le morceau aux autres joueurs
+• Jouable au tactile ou à la manette
+• Trois niveaux de qualité graphique pour les téléphones modestes
+
+Soundwave n'affiche aucune publicité, ne propose aucun achat et ne collecte aucune donnée. Le jeu fonctionne sans connexion à Internet.
+
+C'est un logiciel libre, publié sous licence GNU GPL version 3. Le code source est sur https://github.com/Bornholm/soundwave
+
+Il faut Android 13 ou plus récent et un téléphone compatible Vulkan 1.1.

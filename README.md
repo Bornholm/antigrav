@@ -30,8 +30,9 @@ Les formats lus sont le MP3, l'Ogg Vorbis, le FLAC et le WAV.
 - [Compiler](docs/compiler.md) : Linux et Android
 - [Options de la ligne de commande](docs/options.md)
 - [Développer](docs/developper.md) : tests, analyse d'un morceau, captures, organisation du code
-- [Publier](docs/publier.md) : intégration continue, releases, clé de signature
+- [Publier](docs/publier.md) : intégration continue, releases, clé de signature, Play Store
+- [Politique de confidentialité](docs/confidentialite.md)
 
 ## Licence
 
-Le code est publié sous licence [GNU GPL version 3](LICENSE). La police Orbitron est sous licence [OFL](assets/fonts/OFL.md). Les trois morceaux livrés et le thème ont été générés avec le modèle Lyria de Google.
+Le code est publié sous licence [GNU GPL version 3](LICENSE). La police Orbitron est sous licence [OFL](assets/fonts/OFL.md). Les neuf morceaux livrés et le thème ont été générés avec le modèle Lyria de Google.

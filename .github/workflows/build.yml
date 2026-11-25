@@ -136,8 +136,9 @@ jobs:
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             export SOUNDWAVE_VERSION="${GITHUB_REF_NAME#v}"
-            gradle assembleRelease
+            gradle assembleRelease bundleRelease
             cp app/build/outputs/apk/release/app-release.apk ../soundwave.apk
+            cp app/build/outputs/bundle/release/app-release.aab ../soundwave.aab
           else
             gradle assembleDebug
             cp app/build/outputs/apk/debug/app-debug.apk ../soundwave.apk
@@ -147,6 +148,15 @@ jobs:
         with:
           name: soundwave-android
           path: soundwave.apk
+          if-no-files-found: error
+
+      # Le bundle est le format que demande le Play Store. Il ne va pas dans
+      # la release GitHub : il sert seulement à l'envoi dans la Play Console.
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type == 'tag'
+        with:
+          name: soundwave-android-bundle
+          path: soundwave.aab
           if-no-files-found: error
 
   # Sur un tag v*, publie les deux fichiers dans une release GitHub.

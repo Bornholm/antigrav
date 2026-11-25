@@ -1,0 +1,16 @@
+Soundwave is a racing game where every track is built from a piece of music. Pick a song, one of yours or one that ships with the game, and the track comes out of it: it speeds up when the song takes off, climbs before a drop and dives on it, narrows and twists when the beat hits hard. The scenery pulses with the frequencies and the track changes colour with the intensity.
+
+A race lasts as long as the song. You fly at over 1,000 km/h, pick up bonuses to attack or protect yourself, and race against up to seven opponents.
+
+• Nine built-in songs in three cups: Neon, Steel and Abyss, each with its own scenery
+• Your own MP3, Ogg Vorbis, FLAC or WAV files become tracks
+• Three difficulty levels, a score and a grade from D to S at every finish
+• Local Wi-Fi multiplayer, single races or cups, the host sends the song to the other players
+• Touch or gamepad controls
+• Three graphics quality levels for modest phones
+
+Soundwave shows no ads, sells nothing and collects no data. The game works without an Internet connection.
+
+It is free software, released under the GNU GPL version 3. The source code is at https://github.com/Bornholm/soundwave
+
+Requires Android 13 or later and a phone that supports Vulkan 1.1.

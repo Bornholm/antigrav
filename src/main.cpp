@@ -75,6 +75,8 @@ struct Options {
     bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
     int difficulty = 1;   // niveau des IA : 0 facile, 1 normal, 2 difficile
+    int autoCup = -1;     // essai réseau : l'hôte court cette coupe en entier, sans interface
+    bool autoPlay = false; // essai réseau : enchaîne seul les écrans de fin
     int quality = -1;     // -1 : celle des réglages ; 0 basse, 1 moyenne, 2 haute
     bool cap60 = false;   // force le plafond à 60 images par seconde
     bool adaptive = true; // résolution adaptative, en fenêtre
@@ -123,6 +125,8 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
         else if (!std::strcmp(a, "--quality")) o.quality = std::atoi(value());
+        else if (!std::strcmp(a, "--auto-cup")) o.autoCup = std::atoi(value());
+        else if (!std::strcmp(a, "--auto-play")) o.autoPlay = true;
         else if (!std::strcmp(a, "--difficulty")) o.difficulty = std::clamp(std::atoi(value()), 0, 2);
         else if (!std::strcmp(a, "--cap60")) o.cap60 = true;
         else if (!std::strcmp(a, "--no-adaptive")) o.adaptive = false;
@@ -277,17 +281,15 @@ int runHeadless(const Options& opt) {
             game::CupRun& run = app.cupRun;
             run.active = true;
             run.cup = track / sim::kCupRaces;
-            run.race = opt.screen == "podium" ? sim::kCupRaces - 1 : 0;
-            run.config = game::defaultConfig(track, true);
-            run.config.racerCount = 6;
-            const char* names[6] = {"Vous", "SynthFox", "KazeVR", "NovaBlade", "Vex", "Orbit"};
+            run.done = opt.screen == "podium" ? sim::kCupRaces : 1;
+            const char* names[6] = {app.playerName, "SynthFox", "KazeVR", "NovaBlade", "Vex", "Orbit"};
             const int total[6] = {24, 17, 27, 9, 12, 4}, last[6] = {10, 5, 7, 2, 4, 1};
             for (int i = 0; i < 6; i++) {
-                std::snprintf(run.config.racers[i].name, sizeof(run.config.racers[i].name), "%s", names[i]);
-                run.points[i] = total[i];
-                run.gained[i] = last[i];
+                run.award(names[i], total[i] - last[i]);
+                run.award(names[i], last[i]);
             }
             run.scoreSum = 3 * 8120;
+            run.scored = 3;
             run.newRecord = true;
             app.screen = game::Screen::CupTable;
         }
@@ -300,12 +302,14 @@ int runHeadless(const Options& opt) {
         else if (opt.screen == "salon") {
             // Port à part pour une simple capture, port normal pour un essai réseau.
             app.net.host(app.playerName, app.ship, opt.hostAuto > 0 ? net::kPort : 47950);
+            if (opt.autoCup >= 0) app.lobbyCup = std::clamp(opt.autoCup, 0, sim::kCupCount - 1);
             app.publishSong();
             app.screen = game::Screen::Lobby;
         }
         if (opt.screen == "multi") app.net.client(app.playerName, app.ship);
         app.autoHostPlayers = opt.hostAuto;
         app.autoJoin = opt.joinAuto;
+        app.autoPlay = opt.autoPlay || opt.autoCup >= 0;
         for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
             race.update(sim::kFixedDt, game::Controls{});
         race.orbitAngle = opt.startTime * 0.35f;
@@ -326,7 +330,7 @@ int runHeadless(const Options& opt) {
     int written = 0;
     Uint64 start = SDL_GetTicksNS();
 
-    for (int i = 0; i < opt.frames; i++) {
+    for (int i = 0; i < opt.frames && !app.quit; i++) {
         FrameData& frame = frames[i % kFramesInFlight];
         VkCommandBuffer cmd = beginFrame(gpu, frame);
 

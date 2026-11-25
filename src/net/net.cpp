@@ -14,7 +14,7 @@ namespace net {
 
 namespace {
 
-const uint32_t kMagic = 0x37474141u; // "AAG7"
+const uint32_t kMagic = 0x38474141u; // "AAG8" : le salon porte la coupe en cours
 constexpr double kTimeout = 5.0;      // secondes sans nouvelles avant de couper
 
 enum Type : uint8_t {
@@ -66,6 +66,12 @@ struct LobbyPacket {
     int8_t yourSlot;
     uint8_t racing;
     uint64_t songId;
+    int8_t cup;
+    uint8_t cupDone;
+    uint8_t cupCount;
+    char cupNames[sim::kMaxVehicles][20];
+    uint8_t cupPoints[sim::kMaxVehicles];
+    uint8_t cupGained[sim::kMaxVehicles];
 };
 struct StartPacket {
     Header h;
@@ -326,6 +332,14 @@ int Net::addPeer(uint32_t ip, uint16_t port, const char* name, int ship) {
         p.lastHeard = now;
         sim::RacerSetup& racer = lobby.racers[p.slot];
         copyName(racer.name, name);
+        // Deux joueurs du même nom seraient confondus au classement d'une
+        // coupe : le nouveau venu reçoit un numéro.
+        for (int suffix = 2; suffix < 10; suffix++) {
+            bool taken = false;
+            for (int i = 0; i < p.slot; i++) taken = taken || !std::strcmp(lobby.racers[i].name, racer.name);
+            if (!taken) break;
+            std::snprintf(racer.name, sizeof(racer.name), "%.17s %d", name, suffix);
+        }
         racer.ship = std::clamp(ship, 0, sim::kShipCount - 1);
         racer.profile = sim::kHuman;
         return p.slot;
@@ -340,6 +354,12 @@ void Net::hostSendLobby() {
     packet.config = packConfig(lobby);
     packet.racing = racing;
     packet.songId = songId;
+    packet.cup = static_cast<int8_t>(cup.cup);
+    packet.cupDone = static_cast<uint8_t>(cup.done);
+    packet.cupCount = static_cast<uint8_t>(cup.count);
+    std::memcpy(packet.cupNames, cup.names, sizeof(packet.cupNames));
+    std::memcpy(packet.cupPoints, cup.points, sizeof(packet.cupPoints));
+    std::memcpy(packet.cupGained, cup.gained, sizeof(packet.cupGained));
     for (const Peer& p : peers) {
         if (!p.active) continue;
         packet.yourSlot = static_cast<int8_t>(p.slot);
@@ -567,6 +587,14 @@ void Net::poll(double time, sim::Session* session) {
                 joined = true;
                 hostInLobby = l.racing == 0;
                 hostSongId = l.songId;
+                // Coupe : valeurs bornées, noms terminés.
+                cup.cup = std::clamp<int>(l.cup, -1, sim::kCupCount - 1);
+                cup.done = std::clamp<int>(l.cupDone, 0, sim::kCupRaces);
+                cup.count = std::clamp<int>(l.cupCount, 0, sim::kMaxVehicles);
+                std::memcpy(cup.names, l.cupNames, sizeof(cup.names));
+                for (auto& name : cup.names) name[sizeof(name) - 1] = '\0';
+                std::memcpy(cup.points, l.cupPoints, sizeof(cup.points));
+                std::memcpy(cup.gained, l.cupGained, sizeof(cup.gained));
             } else if (h.type == kStart && sized(sizeof(StartPacket))) {
                 StartPacket st;
                 std::memcpy(&st, buffer, sizeof(st));

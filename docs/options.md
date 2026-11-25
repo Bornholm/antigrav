@@ -27,4 +27,5 @@
 | `--out chemin.png` | écrire la dernière image ; avec `%04d` dans le chemin, toutes les images |
 | `--wav chemin.wav` | écrire le son de la course, mode sans fenêtre |
 | `--screen nom` | mode sans fenêtre : capturer un écran de menu, `main`, `options`, `solo`, `morceaux`, `coupes`, `tableau`, `podium`, `multi`, `adresse`, `pseudo` ou `salon` |
+| `--auto-cup N`, `--auto-play` | essai réseau d'une coupe entière : l'hôte court la coupe N, chaque instance enchaîne seule les écrans de fin |
 | `--host-auto N`, `--join-auto`, `--realtime` | essai réseau sans interface, voir [Développer](developper.md) |

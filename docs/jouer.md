@@ -56,6 +56,8 @@ Chaque arrivée rapporte des points selon la place : 10, 7, 5, 4, 3 puis 2. Le c
 
 Le ciel des coupes Acier et Abysse réagit aux graves du morceau : la bouche de four et les rais de lumière battent avec la basse.
 
+En multijoueur, l'hôte lance une coupe depuis la liste des morceaux du salon, avec le bouton COURIR LA COUPE. Le classement compte tous les joueurs et les IA. Il s'affiche chez chacun après chaque course, puis tout le monde revient au salon et l'hôte lance la suivante. L'hôte attribue les points au moment où il quitte l'écran de fin de course. Un joueur qui rejoint le salon en cours de coupe entre au classement à sa première course. Les records de coupe ne sont tenus qu'en solo.
+
 Les neuf morceaux se courent aussi un par un, en solo comme en multijoueur. Dans la liste des morceaux, le réglage COUPE feuillette les trois coupes.
 
 ## Score et note

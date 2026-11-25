@@ -248,6 +248,7 @@ void App::init(int startTrack) {
 
 void App::go(Screen next) {
     screen = next;
+    screenSince = now;
     confirmQuit = false;
     ui.reset();
 }
@@ -339,7 +340,7 @@ void App::startSolo() {
     startQuickRace(withOpponents(config, opponents), false);
 }
 
-// Coupe : le joueur et cinq IA de caractères variés, les mêmes sur les trois courses.
+// Coupe en solo : le joueur et cinq IA de caractères variés, les mêmes sur les trois courses.
 void App::startCup(int cup) {
     cupRun = CupRun{};
     cupRun.active = true;
@@ -352,24 +353,64 @@ void App::startCup(int cup) {
     config.racers[0].profile = kHuman;
     const int kept = personality;
     personality = 0;
-    cupRun.config = withOpponents(config, 5);
+    cupConfig = withOpponents(config, 5);
     personality = kept;
     startCupRace();
 }
 
 void App::startCupRace() {
     cupRun.counted = false;
-    cupRun.config.track = sim::cupTrack(cupRun.cup, cupRun.race);
-    songIndex = cupRun.config.track;
+    cupConfig.track = sim::cupTrack(cupRun.cup, cupRun.done);
+    songIndex = cupConfig.track;
     race.keepSong = false;
     race.useFeatures = false;
-    startQuickRace(cupRun.config, false);
+    startQuickRace(cupConfig, false);
+}
+
+void App::awardCup() {
+    if (!cupRun.active || cupRun.counted) return;
+    cupRun.counted = true;
+    for (int i = 0; i < race.world.count; i++)
+        cupRun.award(race.config.racers[i].name, sim::cupPoints(sim::rankOf(race.world, i)));
+    cupRun.done++;
+    // Records de la coupe, en solo seulement : le score moyen, et la place
+    // finale rangée à l'envers pour que le meilleur soit le plus grand.
+    if (cupRun.finished() && net.role == net::Role::Off && cupRun.scored > 0) {
+        const std::string key = "coupe:" + std::to_string(cupRun.cup);
+        cupRun.newRecord = records.submit(key, cupRun.scoreSum / cupRun.scored);
+        records.submit("coupe-place:" + std::to_string(cupRun.cup), 9 - cupRun.standingOf(playerName));
+    }
+}
+
+void App::publishCup() {
+    net::CupState& out = net.cup;
+    out = net::CupState{};
+    out.cup = lobbyCup;
+    if (lobbyCup < 0 || !cupRun.active) return;
+    out.done = cupRun.done;
+    out.count = cupRun.count;
+    for (int i = 0; i < cupRun.count; i++) {
+        std::snprintf(out.names[i], sizeof(out.names[i]), "%s", cupRun.entries[i].name);
+        out.points[i] = static_cast<uint8_t>(std::min(cupRun.entries[i].points, 255));
+        out.gained[i] = static_cast<uint8_t>(std::min(cupRun.entries[i].gained, 255));
+    }
 }
 
 void App::startHosted() {
     if (track == sim::kCustomTrack && !songs.loadedPath.empty()) {
         const int entry = songs.markPlayed(songs.loadedPath);
         if (entry >= 0) songIndex = sim::kTrackCount + entry;
+    }
+    // Coupe du salon : elle commence à la première course lancée.
+    if (lobbyCup >= 0) {
+        if (!cupRun.active || cupRun.cup != lobbyCup || cupRun.finished()) {
+            cupRun = CupRun{};
+            cupRun.active = true;
+            cupRun.cup = lobbyCup;
+        }
+        cupRun.counted = false;
+    } else {
+        cupRun.active = false;
     }
     RaceConfig config = net.lobby;
     config.track = track;
@@ -383,6 +424,8 @@ void App::startHosted() {
 
 void App::leaveNetwork() {
     net.close();
+    lobbyCup = -1;
+    cupRun.active = false;
     publishedSong = 0;
     appliedSong = 0;
     race.useFeatures = false;
@@ -441,6 +484,7 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     if (screen != Screen::Race && !inRace && race.finished() && !busy) startAttract();
 
     // Réseau : lit les paquets, puis réagit aux changements d'état.
+    if (net.role == net::Role::Host) publishCup();
     net.poll(now, inRace ? &race : nullptr);
     if (net.role == net::Role::Client) {
         receiveSong();
@@ -451,6 +495,8 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
             later([this] {
                 track = net.startConfig.track;
                 race.init(net.startConfig, net.mySlot);
+                // Coupe : le classement attendu après cette course.
+                if (net.cup.cup >= 0) clientCupSeen = net.cup.done + 1;
                 race.clientTick = clientTickThunk;
                 race.clientUser = &net;
                 race.autopilot = false;
@@ -470,8 +516,9 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
         }
         net.corrected = false;
         if (inRace && net.hostInLobby && net.joined) {
+            // L'hôte a quitté la course. En coupe, on passe par le classement.
             startAttract();
-            go(Screen::Lobby);
+            go(net.cup.cup >= 0 ? Screen::CupTable : Screen::Lobby);
         }
         if ((screen == Screen::Lobby || inRace) && net.hostIp != 0 && !net.connected() &&
             now - net.lastHeard > 5.0) {
@@ -493,6 +540,7 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
         go(Screen::Lobby);
     }
 
+    if (autoPlay && inRace && net.role != net::Role::Client) race.autopilot = true;
     race.update(dt, controls);
 
     if (net.role == net::Role::Host && inRace) {
@@ -526,21 +574,22 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 race.bestScore = records.get(key);
                 race.newRecord = records.submit(key, race.score.total);
             }
-            // Coupe : les points de la course, selon les places au moment où le joueur arrive.
-            if (cupRun.active && !cupRun.counted) {
-                cupRun.counted = true;
-                for (int i = 0; i < race.world.count; i++) {
-                    cupRun.gained[i] = sim::cupPoints(sim::rankOf(race.world, i));
-                    cupRun.points[i] += cupRun.gained[i];
+            // Coupe : le score du joueur entre dans sa note finale. Un client
+            // tient ce compte lui-même, le classement lui vient de l'hôte.
+            if (net.role == net::Role::Client) {
+                if (net.cup.cup >= 0) {
+                    if (!cupRun.active || cupRun.cup != net.cup.cup || net.cup.done == 0) cupRun = CupRun{};
+                    cupRun.active = true;
+                    cupRun.cup = net.cup.cup;
+                    cupRun.scoreSum += race.score.total;
+                    cupRun.scored++;
                 }
+            } else if (cupRun.active) {
                 cupRun.scoreSum += race.score.total;
-                if (cupRun.last()) {
-                    // Records de la coupe : le score moyen, et la place finale
-                    // rangée à l'envers pour que le meilleur soit le plus grand.
-                    const std::string key = "coupe:" + std::to_string(cupRun.cup);
-                    cupRun.newRecord = records.submit(key, cupRun.scoreSum / sim::kCupRaces);
-                    records.submit("coupe-place:" + std::to_string(cupRun.cup), 9 - cupRun.standing(0));
-                }
+                cupRun.scored++;
+                // En solo les points tombent à l'arrivée du joueur. L'hôte
+                // attend de quitter la course, pour laisser arriver les autres.
+                if (net.role == net::Role::Off) awardCup();
             }
         }
         auto abandon = [&] {
@@ -550,14 +599,21 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
             go(Screen::Main);
         };
         if (over) {
-            if (ui.button({800.0f, 606.0f}, {190.0f, 38.0f}, "CONTINUER", true, kYellow)) {
+            const bool autoLeave = autoPlay && race.world.raceTime > race.world.vehicles[race.localIndex].finishTime + 3.0f;
+            if (ui.button({800.0f, 606.0f}, {190.0f, 38.0f}, "CONTINUER", true, kYellow) || autoLeave) {
                 if (net.role == net::Role::Host) {
+                    const bool cup = cupRun.active;
+                    awardCup();
+                    publishCup();
                     net.hostBackToLobby();
-                    startAttract();
-                    go(Screen::Lobby);
+                    // La course suivante de la coupe est proposée tout de suite,
+                    // pour que les autres joueurs la reçoivent pendant le classement.
+                    if (cup && !cupRun.finished()) selectSongNow(sim::cupTrack(cupRun.cup, cupRun.done));
+                    else startAttract();
+                    go(cup ? Screen::CupTable : Screen::Lobby);
                 } else if (net.role == net::Role::Client) {
                     startAttract();
-                    go(Screen::Lobby);
+                    go(net.cup.cup >= 0 ? Screen::CupTable : Screen::Lobby);
                 } else if (cupRun.active) {
                     // Le classement de la coupe s'affiche par-dessus la course finie.
                     race.showHud = false;
@@ -733,7 +789,13 @@ void App::drawMenus(glm::vec2) {
     auto raceSettings = [&](float x, float y, bool hostControls) {
         int d = 0;
         if (hostControls) {
-            if (ui.link({x, y}, kColumn, "MORCEAU", clip(songLabel(songIndex), 20).c_str())) {
+            // En coupe, la ligne dit où on en est.
+            char cupLabel[48] = "";
+            if (net.role == net::Role::Host && lobbyCup >= 0)
+                std::snprintf(cupLabel, sizeof(cupLabel), "%s %d/%d", tr(sim::cupInfo(lobbyCup).name + 6),
+                              std::min(cupRun.active ? cupRun.done + 1 : 1, sim::kCupRaces), sim::kCupRaces);
+            if (ui.link({x, y}, kColumn, cupLabel[0] ? "COUPE" : "MORCEAU",
+                        cupLabel[0] ? cupLabel : clip(songLabel(songIndex), 20).c_str())) {
                 songReturn = screen;
                 if (songIndex < sim::kTrackCount) songsCup = songIndex / sim::kCupRaces;
                 go(Screen::Songs);
@@ -815,64 +877,115 @@ void App::drawMenus(glm::vec2) {
     }
 
     if (screen == Screen::CupTable) {
-        const sim::CupInfo& info = sim::cupInfo(cupRun.cup);
+        // Le classement vient de la coupe locale, ou de l'hôte pour un client.
+        const bool client = net.role == net::Role::Client, online = net.role != net::Role::Off;
+        if (client && net.cup.cup < 0) {
+            // L'hôte a clos la coupe.
+            go(Screen::Lobby);
+            return;
+        }
+        struct Row {
+            const char* name;
+            int points, gained;
+        };
+        Row rows[sim::kMaxVehicles];
+        int count = 0, done = 0, cup = 0;
+        if (client) {
+            cup = net.cup.cup;
+            done = net.cup.done;
+            count = net.cup.count;
+            for (int i = 0; i < count; i++) rows[i] = {net.cup.names[i], net.cup.points[i], net.cup.gained[i]};
+        } else {
+            cup = cupRun.cup;
+            done = cupRun.done;
+            count = cupRun.count;
+            for (int i = 0; i < count; i++) rows[i] = {cupRun.entries[i].name, cupRun.entries[i].points, cupRun.entries[i].gained};
+        }
+        // Le nom sous lequel ce joueur court : en réseau, l'hôte a pu le numéroter.
+        const char* myName = client && net.mySlot >= 0 && net.mySlot < net.lobby.racerCount
+                                 ? net.lobby.racers[net.mySlot].name
+                                 : playerName;
+        // Du premier au dernier ; à égalité, l'ordre d'inscription.
+        std::stable_sort(rows, rows + count, [](const Row& a, const Row& b) { return a.points > b.points; });
+        // Un client peut arriver ici avant le classement de l'hôte.
+        const bool waiting = client && done < clientCupSeen;
+        const bool final = done >= sim::kCupRaces && !waiting;
+        const sim::CupInfo& info = sim::cupInfo(cup);
         const vec4 tint{info.color[0], info.color[1], info.color[2], 1.0f};
-        const bool final = cupRun.last();
         ui.title({800.0f, 96.0f}, info.name, 56.0f);
         char line[96];
-        if (final) std::snprintf(line, sizeof(line), "%s", tr("CLASSEMENT FINAL"));
-        else std::snprintf(line, sizeof(line), tr("APRÈS LA COURSE %d / %d"), cupRun.race + 1, sim::kCupRaces);
+        if (waiting) std::snprintf(line, sizeof(line), "%s", tr("En attente du classement de l'hôte"));
+        else if (final) std::snprintf(line, sizeof(line), "%s", tr("CLASSEMENT FINAL"));
+        else std::snprintf(line, sizeof(line), tr("APRÈS LA COURSE %d / %d"), done, sim::kCupRaces);
         ui.text({800.0f, 142.0f}, line, 24.0f, tint, Align::Center, FontId::Bold);
-        // Les concurrents, du premier au dernier du classement général.
-        const int count = cupRun.config.racerCount;
+        const float step = count > 6 ? 52.0f : 62.0f;
         const float tableX = final ? 560.0f : 800.0f;
-        ui.panel({tableX, 196.0f + 31.0f * static_cast<float>(count)}, {330.0f, 31.0f * static_cast<float>(count) + 22.0f});
-        for (int rank = 1; rank <= count; rank++) {
-            int racer = 0;
-            for (int i = 0; i < count; i++)
-                if (cupRun.standing(i) == rank) racer = i;
-            const float y = 176.0f + 62.0f * static_cast<float>(rank);
-            const vec4 color = racer == 0 ? kYellow : vec4(1.0f);
-            std::snprintf(line, sizeof(line), "%d", rank);
+        const float half = step * 0.5f * static_cast<float>(std::max(count, 1));
+        ui.panel({tableX, 196.0f + half}, {330.0f, half + 22.0f});
+        int myRank = 0;
+        for (int r = 0; r < count; r++) {
+            const bool me = !std::strcmp(rows[r].name, myName);
+            if (me) myRank = r + 1;
+            const float y = 176.0f + step * static_cast<float>(r + 1);
+            const vec4 color = me ? kYellow : vec4(1.0f);
+            std::snprintf(line, sizeof(line), "%d", r + 1);
             ui.text({tableX - 290.0f, y}, line, 30.0f, color, Align::Left, FontId::Bold);
-            ui.text({tableX - 230.0f, y}, clip(cupRun.config.racers[racer].name, 14).c_str(), 28.0f, color, Align::Left);
-            std::snprintf(line, sizeof(line), "+%d", cupRun.gained[racer]);
+            ui.text({tableX - 230.0f, y}, clip(rows[r].name, 14).c_str(), 28.0f, color, Align::Left);
+            std::snprintf(line, sizeof(line), "+%d", rows[r].gained);
             ui.text({tableX + 170.0f, y}, line, 24.0f, kDim, Align::Right);
-            std::snprintf(line, sizeof(line), "%d", cupRun.points[racer]);
+            std::snprintf(line, sizeof(line), "%d", rows[r].points);
             ui.text({tableX + 290.0f, y}, line, 32.0f, color, Align::Right, FontId::Bold);
         }
         if (final) {
-            // Bilan : la place, et la note du score moyen sur les trois courses.
-            const int average = cupRun.scoreSum / sim::kCupRaces;
+            // Bilan : la place, et la note du score moyen des courses courues.
+            const int average = cupRun.scored > 0 ? cupRun.scoreSum / cupRun.scored : 0;
             const char grade[2] = {gradeOf(average), '\0'};
             ui.panel({1180.0f, 382.0f}, {230.0f, 186.0f});
-            std::snprintf(line, sizeof(line), tr("PLACE %d / %d"), cupRun.standing(0), count);
-            ui.text({1180.0f, 252.0f}, line, 30.0f, kYellow, Align::Center, FontId::Bold);
-            ui.text({1180.0f, 430.0f}, grade, 190.0f, gradeColor(gradeOf(average)), Align::Center, FontId::Bold);
-            std::snprintf(line, sizeof(line), tr("SCORE MOYEN %d"), average);
-            ui.text({1180.0f, 486.0f}, line, 24.0f, vec4(1.0f));
+            if (myRank > 0) {
+                std::snprintf(line, sizeof(line), tr("PLACE %d / %d"), myRank, count);
+                ui.text({1180.0f, 252.0f}, line, 30.0f, kYellow, Align::Center, FontId::Bold);
+            }
+            if (cupRun.scored > 0) {
+                ui.text({1180.0f, 430.0f}, grade, 190.0f, gradeColor(gradeOf(average)), Align::Center, FontId::Bold);
+                std::snprintf(line, sizeof(line), tr("SCORE MOYEN %d"), average);
+                ui.text({1180.0f, 486.0f}, line, 24.0f, vec4(1.0f));
+            }
             if (cupRun.newRecord) ui.text({1180.0f, 530.0f}, "NOUVEAU RECORD", 24.0f, kYellow, Align::Center, FontId::Bold);
         }
-        const float buttonY = 310.0f + 62.0f * static_cast<float>(count);
-        if (final) {
+        const float buttonY = 310.0f + 2.0f * half;
+        if (!final && !waiting) {
+            std::snprintf(line, sizeof(line), "%s : %s", tr("COURSE SUIVANTE"),
+                          tr(sim::trackInfo(sim::cupTrack(cup, std::min(done, sim::kCupRaces - 1))).name));
+            ui.text({800.0f, buttonY - 52.0f}, line, 22.0f, kDim);
+        }
+        if (online) {
+            // En réseau, tout le monde repasse par le salon : l'hôte y lance la suite.
+            const bool autoLeave = autoPlay && !waiting && now - screenSince > (client ? 2.5 : 6.0);
+            if (autoLeave) {
+                for (int r = 0; r < count; r++)
+                    logInfo("Coupe %d, après %d course(s) : %d. %s, %d points (+%d)", cup, done, r + 1, rows[r].name,
+                            rows[r].points, rows[r].gained);
+                if (final) quit = true;
+            }
+            if (ui.button({800.0f, buttonY}, {330.0f, 44.0f}, final ? "TERMINER" : "CONTINUER", true, kYellow) || ui.in.back || autoLeave) {
+                if (final && !client) {
+                    lobbyCup = -1;
+                    cupRun.active = false;
+                }
+                go(Screen::Lobby);
+            }
+        } else if (final) {
             if (ui.button({800.0f, buttonY}, {330.0f, 44.0f}, "TERMINER", true, kYellow) || ui.in.back) {
                 cupRun.active = false;
                 startAttract();
                 go(Screen::Cups);
             }
-        } else {
-            std::snprintf(line, sizeof(line), "%s : %s", tr("COURSE SUIVANTE"), tr(sim::trackInfo(sim::cupTrack(cupRun.cup, cupRun.race + 1)).name));
-            ui.text({800.0f, buttonY - 52.0f}, line, 22.0f, kDim);
-            if (ui.button({1010.0f, buttonY}, {190.0f, 44.0f}, "CONTINUER", !pending, kYellow)) {
-                later([this] {
-                    cupRun.race++;
-                    startCupRace();
-                });
-            } else if (ui.button({590.0f, buttonY}, {190.0f, 40.0f}, "ABANDONNER", true, kQuiet) || ui.in.back) {
-                cupRun.active = false;
-                startAttract();
-                go(Screen::Cups);
-            }
+        } else if (ui.button({1010.0f, buttonY}, {190.0f, 44.0f}, "CONTINUER", !pending, kYellow)) {
+            later([this] { startCupRace(); });
+        } else if (ui.button({590.0f, buttonY}, {190.0f, 40.0f}, "ABANDONNER", true, kQuiet) || ui.in.back) {
+            cupRun.active = false;
+            startAttract();
+            go(Screen::Cups);
         }
         return;
     }
@@ -892,6 +1005,9 @@ void App::drawMenus(glm::vec2) {
                 ui.text(at + vec2(half.x - 34.0f, 12.0f), grade, 34.0f, gradeColor(gradeOf(best)), Align::Center, FontId::Bold);
             }
             if (!chosen) return false;
+            // Choisir un morceau seul annule la coupe du salon.
+            lobbyCup = -1;
+            cupRun.active = false;
             if (!current) selectSong(index);
             go(songReturn);
             return true;
@@ -905,6 +1021,15 @@ void App::drawMenus(glm::vec2) {
             openSongDialog();
         if (ui.button({left, 354.0f + 92.0f * (sim::kCupRaces + 1) + 16.0f}, {330.0f, 36.0f}, "RETOUR", true, kQuiet) ||
             ui.in.back) {
+            go(songReturn);
+            return;
+        }
+        // Hôte : courir toute la coupe affichée plutôt qu'un seul morceau.
+        if (songReturn == Screen::Lobby && net.role == net::Role::Host &&
+            ui.button({right, 354.0f + 92.0f * (sim::kCupRaces + 1) + 16.0f}, {330.0f, 40.0f}, "COURIR LA COUPE", true, kYellow)) {
+            lobbyCup = songsCup;
+            cupRun.active = false;
+            selectSong(sim::cupTrack(songsCup, 0));
             go(songReturn);
             return;
         }
@@ -1079,6 +1204,13 @@ void App::drawMenus(glm::vec2) {
             ui.text({800.0f, 142.0f}, net.hostInLobby ? "En attente du lancement par l'hôte"
                                                       : "Course en cours, vous jouerez la suivante",
                     22.0f, kDim);
+        // Coupe en cours, pour les joueurs qui n'ont pas la ligne de l'hôte.
+        if (!hosting && net.joined && net.cup.cup >= 0) {
+            char cupLine[64];
+            std::snprintf(cupLine, sizeof(cupLine), "%s : %s %d / %d", tr(sim::cupInfo(net.cup.cup).name), tr("course"),
+                          std::min(net.cup.done + 1, sim::kCupRaces), sim::kCupRaces);
+            ui.text({800.0f, 174.0f}, cupLine, 22.0f, kYellow);
+        }
 
         // L'état du salon s'écrit sous la liste des joueurs.
         const char* status = "";

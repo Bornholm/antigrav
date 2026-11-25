@@ -24,6 +24,16 @@ struct FoundHost {
     double seen = 0.0;
 };
 
+// Coupe en cours dans un salon : l'hôte tient le classement et le diffuse.
+struct CupState {
+    int cup = -1;  // -1 : pas de coupe
+    int done = 0;  // courses déjà courues
+    int count = 0; // concurrents classés
+    char names[sim::kMaxVehicles][20] = {};
+    uint8_t points[sim::kMaxVehicles] = {};
+    uint8_t gained[sim::kMaxVehicles] = {}; // points de la dernière course
+};
+
 // Multijoueur en réseau local, sur UDP.
 //
 // L'hôte fait autorité : il simule la course et diffuse des instantanés. Chaque
@@ -53,6 +63,8 @@ struct Net {
     sim::RaceConfig lobby;
     bool racing = false;
     double lastLobbySend = 0.0;
+    // Coupe du salon. L'hôte la remplit, les clients la reçoivent avec le salon.
+    CupState cup;
     // Morceau de la course, envoyé aux clients par TCP sur le même numéro de
     // port. songId l'identifie ; 0 tant que rien n'est proposé.
     Share share;

@@ -17,6 +17,13 @@ Essai réseau entre deux instances sur la même machine, chacune filmée :
 ./build/soundwave --headless --screen multi --join-auto --frames 510 --fps 30 --realtime --out "out/c/f_%04d.png"
 ```
 
+Essai d'une coupe entière en réseau, sans interface. Les deux instances enchaînent seules les trois courses et écrivent le classement dans leur journal après chacune. Compter sept minutes, le temps des morceaux :
+
+```sh
+./build/soundwave --headless --screen salon --host-auto 2 --auto-cup 0 --track 0 --frames 15000 --fps 30 --realtime --no-audio &
+./build/soundwave --headless --screen multi --join-auto --auto-play --frames 15000 --fps 30 --realtime --no-audio
+```
+
 ## Analyse d'un morceau
 
 `build/analyze` lit un fichier MP3, Ogg Vorbis, FLAC ou WAV et affiche ce que le jeu en tire : tempo, temps, attaques, sections.

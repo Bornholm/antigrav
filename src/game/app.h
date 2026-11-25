@@ -11,32 +11,62 @@
 struct SDL_Window;
 
 #include <functional>
+#include <cstring>
+#include <cstdio>
 #include <string>
 
 namespace game {
 
 enum class Screen { Main, Options, Solo, Songs, Cups, CupTable, Multi, Address, Name, Lobby, Race };
 
-// Une coupe en cours : trois courses contre les mêmes adversaires, des points
-// selon la place, et le score du joueur cumulé pour la note finale.
+// Une coupe en cours : trois courses, des points selon la place, et le score
+// du joueur cumulé pour la note finale. Le classement est tenu par nom, ce qui
+// supporte qu'un joueur arrive ou parte entre deux courses en multijoueur.
 struct CupRun {
     bool active = false;
     int cup = 0;
-    int race = 0; // course en cours ou qui vient de finir, à partir de 0
-    RaceConfig config;
-    int points[sim::kMaxVehicles] = {};
-    int gained[sim::kMaxVehicles] = {}; // points de la dernière course
-    int scoreSum = 0;                   // somme des scores du joueur
-    bool counted = false;               // la course finie est déjà comptée
+    int done = 0; // courses déjà courues
+    struct Entry {
+        char name[20] = "";
+        int points = 0;
+        int gained = 0; // points de la dernière course
+    };
+    Entry entries[sim::kMaxVehicles];
+    int count = 0;
+    int scoreSum = 0;     // somme des scores du joueur
+    int scored = 0;       // courses comptées dans cette somme
+    bool counted = false; // la course finie est déjà comptée
     bool newRecord = false;
-    // Place du concurrent au classement général, 1 pour le premier.
-    int standing(int racer) const {
+
+    bool finished() const { return done >= sim::kCupRaces; }
+    // Donne des points à un concurrent, qu'on ajoute au classement s'il est nouveau.
+    void award(const char* name, int points) {
+        Entry* found = nullptr;
+        for (int i = 0; i < count; i++)
+            if (!std::strcmp(entries[i].name, name)) found = &entries[i];
+        if (!found && count < sim::kMaxVehicles) {
+            found = &entries[count++];
+            std::snprintf(found->name, sizeof(found->name), "%s", name);
+        }
+        if (!found) return;
+        found->gained = points;
+        found->points += points;
+    }
+    // Place d'une entrée au classement général, 1 pour la première.
+    int standing(int entry) const {
         int rank = 1;
-        for (int i = 0; i < config.racerCount; i++)
-            if (points[i] > points[racer] || (points[i] == points[racer] && i < racer)) rank++;
+        for (int i = 0; i < count; i++)
+            if (entries[i].points > entries[entry].points ||
+                (entries[i].points == entries[entry].points && i < entry))
+                rank++;
         return rank;
     }
-    bool last() const { return race >= sim::kCupRaces - 1; }
+    // Place d'un concurrent par son nom, 0 s'il n'est pas classé.
+    int standingOf(const char* name) const {
+        for (int i = 0; i < count; i++)
+            if (!std::strcmp(entries[i].name, name)) return standing(i);
+        return 0;
+    }
 };
 
 // Le jeu au-dessus d'une course : menus, réglages de partie, salon réseau.
@@ -53,6 +83,9 @@ struct App {
     Settings settings;
     Records records;
     CupRun cupRun;
+    RaceConfig cupConfig; // concurrents d'une coupe en solo
+    int lobbyCup = -1;    // hôte : coupe choisie pour le salon, -1 pour une course simple
+    int clientCupSeen = 0; // client : nombre de courses de coupe attendu au classement
     int cupChoice = 0;  // coupe choisie dans le menu des coupes
     int songsCup = 0;   // coupe affichée dans la liste des morceaux
     bool scoreSaved = false; // le score de la course en cours est déjà enregistré
@@ -86,6 +119,7 @@ struct App {
     const char* notice = ""; // message d'état affiché dans les menus
 
     double now = 0.0;
+    double screenSince = 0.0; // instant du dernier changement d'écran
     double lastDiscover = -10.0;
     uint32_t lastSnapshotTick = 0;
     // Travail en attente derrière l'écran de chargement. Hors fenêtre, pour
@@ -99,6 +133,9 @@ struct App {
     // nombre de joueurs est atteint, le client rejoint la première partie vue.
     int autoHostPlayers = 0;
     bool autoJoin = false;
+    // Essais sans interface : enchaîne seul les écrans de fin de course et de
+    // classement, et quitte à la fin d'une coupe.
+    bool autoPlay = false;
 
     void init(int startTrack);
     // Court sur un fichier audio donné, sans passer par le sélecteur.
@@ -131,6 +168,10 @@ struct App {
     void startSolo();
     void startCup(int cup);
     void startCupRace();
+    // Compte la course qui vient de finir dans la coupe : points selon les places.
+    void awardCup();
+    // Hôte : recopie la coupe dans l'état diffusé aux clients.
+    void publishCup();
     void startHosted();
     void leaveNetwork();
     RaceConfig withOpponents(RaceConfig base, int count) const;

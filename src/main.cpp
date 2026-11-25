@@ -271,6 +271,26 @@ int runHeadless(const Options& opt) {
         if (opt.screen == "solo") app.screen = game::Screen::Solo;
         else if (opt.screen == "options") app.screen = game::Screen::Options;
         else if (opt.screen == "morceaux") app.screen = game::Screen::Songs;
+        else if (opt.screen == "coupes") app.screen = game::Screen::Cups;
+        else if (opt.screen == "tableau" || opt.screen == "podium") {
+            // Classement de coupe d'exemple, pour les captures.
+            game::CupRun& run = app.cupRun;
+            run.active = true;
+            run.cup = track / sim::kCupRaces;
+            run.race = opt.screen == "podium" ? sim::kCupRaces - 1 : 0;
+            run.config = game::defaultConfig(track, true);
+            run.config.racerCount = 6;
+            const char* names[6] = {"Vous", "SynthFox", "KazeVR", "NovaBlade", "Vex", "Orbit"};
+            const int total[6] = {24, 17, 27, 9, 12, 4}, last[6] = {10, 5, 7, 2, 4, 1};
+            for (int i = 0; i < 6; i++) {
+                std::snprintf(run.config.racers[i].name, sizeof(run.config.racers[i].name), "%s", names[i]);
+                run.points[i] = total[i];
+                run.gained[i] = last[i];
+            }
+            run.scoreSum = 3 * 8120;
+            run.newRecord = true;
+            app.screen = game::Screen::CupTable;
+        }
         else if (opt.screen == "multi") app.screen = game::Screen::Multi;
         else if (opt.screen == "adresse") app.screen = game::Screen::Address;
         else if (opt.screen == "pseudo") {

@@ -2,7 +2,10 @@
 
 namespace sim {
 
-constexpr int kTrackCount = 3; // morceaux livrés avec le jeu
+constexpr int kCupCount = 3;  // coupes livrées avec le jeu
+constexpr int kCupRaces = 3;  // courses par coupe
+// Morceaux livrés avec le jeu : ceux de la première coupe, puis de la deuxième, etc.
+constexpr int kTrackCount = kCupCount * kCupRaces;
 // Emplacement du morceau choisi par le joueur parmi ses fichiers.
 constexpr int kCustomTrack = kTrackCount;
 constexpr int kSongSlots = kTrackCount + 1;
@@ -27,6 +30,18 @@ struct TrackInfo {
     float halfWidth;
 };
 const TrackInfo& trackInfo(int track);
+
+// Une coupe : trois courses sur un même style musical, avec son identité visuelle.
+struct CupInfo {
+    const char* name;
+    const char* style; // style musical, affiché sous le nom
+    float color[3];    // teinte de la coupe dans les menus
+};
+const CupInfo& cupInfo(int cup);
+// Morceau de la course `race` d'une coupe.
+inline int cupTrack(int cup, int race) { return cup * kCupRaces + race; }
+// Points de coupe pour une place à l'arrivée, 1 pour le premier.
+int cupPoints(int rank);
 // Nom et sous-titre du morceau du joueur. Les chaînes sont copiées.
 void setCustomTrackInfo(const char* name, const char* tagline);
 

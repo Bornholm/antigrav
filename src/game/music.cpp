@@ -19,6 +19,12 @@ extern const unsigned char soundwave_music_0[], soundwave_music_0_end[];
 extern const unsigned char soundwave_music_1[], soundwave_music_1_end[];
 extern const unsigned char soundwave_music_2[], soundwave_music_2_end[];
 extern const unsigned char soundwave_music_3[], soundwave_music_3_end[];
+extern const unsigned char soundwave_music_4[], soundwave_music_4_end[];
+extern const unsigned char soundwave_music_5[], soundwave_music_5_end[];
+extern const unsigned char soundwave_music_6[], soundwave_music_6_end[];
+extern const unsigned char soundwave_music_7[], soundwave_music_7_end[];
+extern const unsigned char soundwave_music_8[], soundwave_music_8_end[];
+extern const unsigned char soundwave_music_9[], soundwave_music_9_end[];
 }
 
 namespace game {
@@ -39,6 +45,12 @@ Blob blob(int piece) {
         {soundwave_music_1, soundwave_music_1_end},
         {soundwave_music_2, soundwave_music_2_end},
         {soundwave_music_3, soundwave_music_3_end},
+        {soundwave_music_4, soundwave_music_4_end},
+        {soundwave_music_5, soundwave_music_5_end},
+        {soundwave_music_6, soundwave_music_6_end},
+        {soundwave_music_7, soundwave_music_7_end},
+        {soundwave_music_8, soundwave_music_8_end},
+        {soundwave_music_9, soundwave_music_9_end},
     };
     return blobs[piece];
 }

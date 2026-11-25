@@ -12,7 +12,7 @@ Chaque piste est générée à partir d'un morceau de musique. La course va de s
 
 ## Courir sur ses propres morceaux
 
-Dans **Solo**, la ligne MORCEAU ouvre la liste des morceaux : à gauche les trois morceaux livrés, à droite vos cinq derniers morceaux joués, du plus récent au plus ancien. CHOISIR UN FICHIER ouvre le sélecteur de fichiers du système.
+Dans **Solo**, la ligne MORCEAU ouvre la liste des morceaux : à gauche les morceaux livrés, coupe par coupe, à droite vos cinq derniers morceaux joués, du plus récent au plus ancien. CHOISIR UN FICHIER ouvre le sélecteur de fichiers du système.
 
 - **Formats.** MP3, Ogg Vorbis, FLAC et WAV. L'AAC, le M4A et l'Opus ne sont pas lus.
 - **Durée.** 30 secondes au moins. Au-delà de 8 minutes, seules les 8 premières servent.
@@ -41,6 +41,22 @@ Chaque bonus a son effet lumineux et son bruit : halo sur les tirs, mines qui cl
 Un vaisseau touché perd une bonne part de sa vitesse et le contrôle pendant près d'une seconde. Les derniers reçoivent plus souvent des tirs et des turbos, les premiers des mines et des boucliers. Le tout dernier a une chance sur cinq de tirer une comète, de quoi rebattre les cartes.
 
 Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un élastique freine qui prend de l'avance sur elle et aspire qui traîne, donc le peloton reste groupé. La ligne ÉCART donne l'avance du vaisseau sur la musique.
+
+## Coupes
+
+Une coupe enchaîne trois courses sur un même style musical, contre cinq IA qui restent les mêmes d'une course à l'autre. Chaque coupe a son décor : ses couleurs, son ciel, sa brume.
+
+| Coupe | Style | Courses | Décor |
+|---|---|---|---|
+| Néon | Électro rétro | Néon City, Canyon Solaire, Station Orbitale | Nuit violette, crépuscule orange, vide spatial |
+| Acier | Metal industriel | Fonderie, Chaîne de montage, Haut fourneau | Une bouche de four sur l'horizon, des colonnes de fumée, des braises |
+| Abysse | Dubstep | La Fosse, Méduses, Léviathan | Les fonds marins : la surface qui miroite, des rais de lumière, du plancton |
+
+Chaque arrivée rapporte des points selon la place : 10, 7, 5, 4, 3 puis 2. Le classement général s'affiche entre les courses. À la fin, la coupe donne une place et une note, celle du score moyen des trois courses. Le menu des coupes garde la meilleure note et la meilleure place de chacune.
+
+Le ciel des coupes Acier et Abysse réagit aux graves du morceau : la bouche de four et les rais de lumière battent avec la basse.
+
+Les neuf morceaux se courent aussi un par un, en solo comme en multijoueur. Dans la liste des morceaux, le réglage COUPE feuillette les trois coupes.
 
 ## Score et note
 

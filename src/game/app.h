@@ -15,7 +15,29 @@ struct SDL_Window;
 
 namespace game {
 
-enum class Screen { Main, Options, Solo, Songs, Multi, Address, Name, Lobby, Race };
+enum class Screen { Main, Options, Solo, Songs, Cups, CupTable, Multi, Address, Name, Lobby, Race };
+
+// Une coupe en cours : trois courses contre les mêmes adversaires, des points
+// selon la place, et le score du joueur cumulé pour la note finale.
+struct CupRun {
+    bool active = false;
+    int cup = 0;
+    int race = 0; // course en cours ou qui vient de finir, à partir de 0
+    RaceConfig config;
+    int points[sim::kMaxVehicles] = {};
+    int gained[sim::kMaxVehicles] = {}; // points de la dernière course
+    int scoreSum = 0;                   // somme des scores du joueur
+    bool counted = false;               // la course finie est déjà comptée
+    bool newRecord = false;
+    // Place du concurrent au classement général, 1 pour le premier.
+    int standing(int racer) const {
+        int rank = 1;
+        for (int i = 0; i < config.racerCount; i++)
+            if (points[i] > points[racer] || (points[i] == points[racer] && i < racer)) rank++;
+        return rank;
+    }
+    bool last() const { return race >= sim::kCupRaces - 1; }
+};
 
 // Le jeu au-dessus d'une course : menus, réglages de partie, salon réseau.
 struct App {
@@ -30,6 +52,9 @@ struct App {
     SongLibrary songs;
     Settings settings;
     Records records;
+    CupRun cupRun;
+    int cupChoice = 0;  // coupe choisie dans le menu des coupes
+    int songsCup = 0;   // coupe affichée dans la liste des morceaux
     bool scoreSaved = false; // le score de la course en cours est déjà enregistré
     // Clé d'un morceau dans les records : par son indice dans la liste, ou
     // celui de la course en cours.
@@ -104,6 +129,8 @@ struct App {
     const char* songLabel(int index) const;
     int songChoices() const { return sim::kTrackCount + static_cast<int>(songs.entries.size()) + 1; }
     void startSolo();
+    void startCup(int cup);
+    void startCupRace();
     void startHosted();
     void leaveNetwork();
     RaceConfig withOpponents(RaceConfig base, int count) const;

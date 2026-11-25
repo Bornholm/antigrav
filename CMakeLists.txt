@@ -129,8 +129,12 @@ add_custom_target(shaders DEPENDS ${SHADER_OUTPUTS})
 set(MUSIC_DIR ${CMAKE_SOURCE_DIR}/assets/music)
 set(MUSIC_ASM ${CMAKE_BINARY_DIR}/generated/music.S)
 configure_file(cmake/music.S.in ${MUSIC_ASM} @ONLY)
-set_source_files_properties(${MUSIC_ASM} PROPERTIES OBJECT_DEPENDS
-  "${MUSIC_DIR}/theme.ogg;${MUSIC_DIR}/neon.ogg;${MUSIC_DIR}/canyon.ogg;${MUSIC_DIR}/station.ogg")
+# Le thème des menus, puis trois morceaux par coupe. Même ordre que music.S.in.
+set(MUSIC_FILES "")
+foreach(name theme neon canyon station fonderie chaine fourneau fosse meduse leviathan)
+  list(APPEND MUSIC_FILES "${MUSIC_DIR}/${name}.ogg")
+endforeach()
+set_source_files_properties(${MUSIC_ASM} PROPERTIES OBJECT_DEPENDS "${MUSIC_FILES}")
 
 # La simulation ne dépend ni de Vulkan ni de SDL : elle se compile et se teste
 # seule.

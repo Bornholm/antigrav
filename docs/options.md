@@ -3,7 +3,7 @@
 | Option | Effet |
 |---|---|
 | `--race` | démarre directement une course, sans menu |
-| `--track N`, `--ship N` | morceau de 0 à 2, vaisseau de 0 à 3 |
+| `--track N`, `--ship N` | morceau de 0 à 8, trois par coupe, vaisseau de 0 à 3 |
 | `--autopilot` | l'ordinateur pilote aussi le vaisseau du joueur |
 | `--lang fr`, `--lang en`, `--lang es` | langue de l'interface pour ce lancement |
 | `--touch`, `--swap` | affiche les boutons tactiles comme sur un téléphone ; inverse leur disposition |
@@ -26,5 +26,5 @@
 | `--time S` | démarrer à S secondes, mode sans fenêtre |
 | `--out chemin.png` | écrire la dernière image ; avec `%04d` dans le chemin, toutes les images |
 | `--wav chemin.wav` | écrire le son de la course, mode sans fenêtre |
-| `--screen nom` | mode sans fenêtre : capturer un écran de menu, `main`, `options`, `solo`, `morceaux`, `multi`, `adresse`, `pseudo` ou `salon` |
+| `--screen nom` | mode sans fenêtre : capturer un écran de menu, `main`, `options`, `solo`, `morceaux`, `coupes`, `tableau`, `podium`, `multi`, `adresse`, `pseudo` ou `salon` |
 | `--host-auto N`, `--join-auto`, `--realtime` | essai réseau sans interface, voir [Développer](developper.md) |

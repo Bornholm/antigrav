@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sim/content.h"
 #include "music/analysis.h"
 
 #include <atomic>
@@ -21,7 +22,7 @@ class Music {
   public:
     static constexpr int kTheme = 0;
     static constexpr int kFirstTrack = 1; // puis un morceau par circuit
-    static constexpr int kCount = 4;
+    static constexpr int kCount = 1 + sim::kTrackCount;
     // Morceau du joueur, décodé en mémoire. Vient après les morceaux livrés.
     static constexpr int kCustom = kCount;
 

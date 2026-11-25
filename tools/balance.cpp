@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
     ownClock = argc > 1 && std::string(argv[1]) == "--own";
     std::printf("Horloge %s\n", ownClock ? "par joueur" : "commune");
     // Les pistes mesurées sont celles des morceaux livrés avec le jeu.
-    static const char* const files[sim::kTrackCount] = {"neon.ogg", "canyon.ogg", "station.ogg"};
+    static const char* const files[sim::kTrackCount] = {"neon.ogg", "canyon.ogg", "station.ogg", "fonderie.ogg", "chaine.ogg", "fourneau.ogg", "fosse.ogg", "meduse.ogg", "leviathan.ogg"};
     for (int t = 0; t < sim::kTrackCount; t++) {
         music::Audio audio;
         std::string error;

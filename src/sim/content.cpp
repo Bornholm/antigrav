@@ -29,6 +29,12 @@ const TrackInfo& trackInfo(int track) {
         {"Néon City", "Outrun synthwave", 15.0f},
         {"Canyon Solaire", "Big beat, basse acide", 13.0f},
         {"Station Orbitale", "Drum and bass froide", 17.0f},
+        {"Fonderie", "Metal industriel martelé", 15.0f},
+        {"Chaîne de montage", "Metal industriel mitraillé", 14.0f},
+        {"Haut fourneau", "Metal industriel furieux", 16.0f},
+        {"La Fosse", "Dubstep lourd", 15.0f},
+        {"Méduses", "Dubstep mélodique", 16.0f},
+        {"Léviathan", "Drumstep brutal", 14.0f},
         {customName, customTagline, 15.0f},
     };
     return infos[track < 0 || track >= kSongSlots ? 0 : track];
@@ -37,6 +43,20 @@ const TrackInfo& trackInfo(int track) {
 void setCustomTrackInfo(const char* name, const char* tagline) {
     std::snprintf(customName, sizeof(customName), "%s", name);
     std::snprintf(customTagline, sizeof(customTagline), "%s", tagline);
+}
+
+const CupInfo& cupInfo(int cup) {
+    static const CupInfo cups[kCupCount] = {
+        {"Coupe Néon", "Électro rétro", {0.05f, 0.75f, 1.0f}},
+        {"Coupe Acier", "Metal industriel", {1.0f, 0.32f, 0.08f}},
+        {"Coupe Abysse", "Dubstep", {0.25f, 1.0f, 0.55f}},
+    };
+    return cups[cup < 0 || cup >= kCupCount ? 0 : cup];
+}
+
+int cupPoints(int rank) {
+    static const int points[] = {10, 7, 5, 4, 3, 2, 1, 0};
+    return points[rank < 1 ? 0 : rank > 8 ? 7 : rank - 1];
 }
 
 const AiProfile& aiProfile(int profile) {
@@ -57,6 +77,12 @@ music::Partition& songSlot(int id) {
         metronome(128.0f, 100.0f),
         metronome(136.0f, 100.0f),
         metronome(172.0f, 100.0f),
+        metronome(124.0f, 100.0f),
+        metronome(150.0f, 100.0f),
+        metronome(176.0f, 100.0f),
+        metronome(140.0f, 100.0f),
+        metronome(150.0f, 100.0f),
+        metronome(174.0f, 100.0f),
         metronome(120.0f, 100.0f),
     };
     return songs[id < 0 || id >= kSongSlots ? 0 : id];

@@ -8,6 +8,13 @@ float skyStars(vec3 d, float density) {
     return smoothstep(1.0 - density, 1.0, star) * smoothstep(0.6, 0.0, length(fract(q) - 0.5));
 }
 
+// Bruit lissé à une dimension, pour les fumées et les rais de lumière.
+float skyNoise(float x) {
+    float i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(hash11(i), hash11(i + 1.0), f);
+}
+
 vec3 skyColor(vec3 d) {
     vec3 zenith = g.skyZenith.rgb;
     vec3 mid = g.skyMid.rgb;
@@ -41,6 +48,47 @@ vec3 skyColor(vec3 d) {
         c = mix(c, sunColor * 2.4, disc);
         c += sunColor * 0.22 * exp(-max(ang - radius, 0.0) * 7.0) * smoothstep(-0.05, 0.1, d.y);
         c += vec3(1.0, 0.9, 0.8) * skyStars(d, 0.006) * smoothstep(0.35, 0.8, d.y) * 0.35;
+    } else if (style > 3.5) {
+        // Fonds marins : la surface miroite au zénith, des rais de lumière
+        // descendent, du plancton dérive. Le tout respire avec les graves.
+        float t = g.camPos.w;
+        float bass = g.bandsLow.x;
+        float azimuth = atan(d.x, -d.z);
+        float rays = skyNoise(azimuth * 5.0 + t * 0.07) * skyNoise(azimuth * 11.0 - t * 0.05 + 7.0);
+        rays = pow(rays, 1.5) * smoothstep(0.02, 0.75, d.y);
+        c += mix(CYAN, vec3(0.8, 1.0, 0.95), 0.35) * rays * (0.22 + 0.5 * bass);
+        // Surface : réseau de reflets qui ondule, vu de dessous.
+        vec2 sv = d.xz / max(d.y, 0.08) * 1.6;
+        float caustic = sin(sv.x * 3.0 + t * 0.9 + sin(sv.y * 2.3 + t * 0.6) * 1.7) *
+                        sin(sv.y * 3.4 - t * 0.7 + sin(sv.x * 1.9 - t * 0.5) * 1.5);
+        caustic = pow(max(caustic, 0.0), 3.0) * smoothstep(0.35, 0.95, d.y);
+        c += mix(MAGENTA, CYAN, 0.5 + 0.5 * sin(sv.x + sv.y)) * caustic * (0.25 + 0.6 * bass);
+        // Plancton : des points qui montent lentement.
+        vec3 drift = normalize(d + vec3(0.0, -fract(t * 0.004), 0.0) * 0.6);
+        c += CYAN * skyStars(drift, 0.02) * smoothstep(-0.05, 0.4, d.y) * 0.8;
+    } else if (style > 2.5) {
+        // Fournaise : une bouche de four rougeoie sur l'horizon derrière des
+        // barres de métal, la fumée monte en colonnes, des braises volent.
+        float t = g.camPos.w;
+        float bass = g.bandsLow.x;
+        // La bouche : un large rectangle derrière une grille de barreaux verticaux.
+        vec3 mouthDir = normalize(vec3(0.10, 0.0, -1.0));
+        vec3 side = normalize(cross(mouthDir, vec3(0.0, 1.0, 0.0)));
+        float behind = step(0.0, dot(d, mouthDir));
+        float lx = dot(d, side) / 0.42, ly = (d.y - 0.11) / 0.13;
+        float edge = max(abs(lx), abs(ly));
+        float grate = step(0.28, fract(lx * 5.5 + 0.14));
+        float mouth = smoothstep(1.0, 0.97, edge) * grate * behind;
+        vec3 hot = mix(haze * 1.6, vec3(1.0, 0.75, 0.35), smoothstep(1.0, -0.8, ly));
+        c = mix(c, hot * (0.9 + 1.3 * bass), mouth);
+        c += haze * (0.10 + 0.22 * bass) * exp(-max(edge - 1.0, 0.0) * 2.2) * smoothstep(-0.05, 0.1, d.y) * behind;
+        // Colonnes de fumée : elles mangent la lueur de l'horizon par endroits.
+        float azimuth = atan(d.x, -d.z);
+        float smoke = skyNoise(azimuth * 6.0 + d.y * 3.0 - t * 0.03) * skyNoise(azimuth * 14.0 - d.y * 9.0 + t * 0.05);
+        c *= 1.0 - 0.75 * smoothstep(0.18, 0.55, smoke) * smoothstep(0.0, 0.12, d.y) * smoothstep(0.75, 0.2, d.y);
+        // Braises : des points chauds qui montent.
+        vec3 rise = normalize(d - vec3(0.0, fract(t * 0.02), 0.0) * 0.5);
+        c += vec3(1.0, 0.55, 0.15) * skyStars(rise, 0.012) * smoothstep(0.0, 0.1, d.y) * smoothstep(0.7, 0.15, d.y) * 1.4;
     } else {
         // Planète géante dont on ne voit que le limbe, et champ d'étoiles dense.
         vec3 planetDir = normalize(vec3(-0.75, -0.30, -1.0));

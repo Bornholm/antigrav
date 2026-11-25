@@ -339,6 +339,33 @@ void App::startSolo() {
     startQuickRace(withOpponents(config, opponents), false);
 }
 
+// Coupe : le joueur et cinq IA de caractères variés, les mêmes sur les trois courses.
+void App::startCup(int cup) {
+    cupRun = CupRun{};
+    cupRun.active = true;
+    cupRun.cup = std::clamp(cup, 0, sim::kCupCount - 1);
+    RaceConfig config;
+    config.gridStart = true;
+    config.racerCount = 1;
+    std::snprintf(config.racers[0].name, sizeof(config.racers[0].name), "%s", playerName);
+    config.racers[0].ship = ship;
+    config.racers[0].profile = kHuman;
+    const int kept = personality;
+    personality = 0;
+    cupRun.config = withOpponents(config, 5);
+    personality = kept;
+    startCupRace();
+}
+
+void App::startCupRace() {
+    cupRun.counted = false;
+    cupRun.config.track = sim::cupTrack(cupRun.cup, cupRun.race);
+    songIndex = cupRun.config.track;
+    race.keepSong = false;
+    race.useFeatures = false;
+    startQuickRace(cupRun.config, false);
+}
+
 void App::startHosted() {
     if (track == sim::kCustomTrack && !songs.loadedPath.empty()) {
         const int entry = songs.markPlayed(songs.loadedPath);
@@ -499,8 +526,25 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 race.bestScore = records.get(key);
                 race.newRecord = records.submit(key, race.score.total);
             }
+            // Coupe : les points de la course, selon les places au moment où le joueur arrive.
+            if (cupRun.active && !cupRun.counted) {
+                cupRun.counted = true;
+                for (int i = 0; i < race.world.count; i++) {
+                    cupRun.gained[i] = sim::cupPoints(sim::rankOf(race.world, i));
+                    cupRun.points[i] += cupRun.gained[i];
+                }
+                cupRun.scoreSum += race.score.total;
+                if (cupRun.last()) {
+                    // Records de la coupe : le score moyen, et la place finale
+                    // rangée à l'envers pour que le meilleur soit le plus grand.
+                    const std::string key = "coupe:" + std::to_string(cupRun.cup);
+                    cupRun.newRecord = records.submit(key, cupRun.scoreSum / sim::kCupRaces);
+                    records.submit("coupe-place:" + std::to_string(cupRun.cup), 9 - cupRun.standing(0));
+                }
+            }
         }
         auto abandon = [&] {
+            cupRun.active = false;
             if (net.role != net::Role::Off) leaveNetwork();
             else startAttract();
             go(Screen::Main);
@@ -514,6 +558,10 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 } else if (net.role == net::Role::Client) {
                     startAttract();
                     go(Screen::Lobby);
+                } else if (cupRun.active) {
+                    // Le classement de la coupe s'affiche par-dessus la course finie.
+                    race.showHud = false;
+                    go(Screen::CupTable);
                 } else {
                     startAttract();
                     go(Screen::Solo);
@@ -609,15 +657,19 @@ void App::drawMenus(glm::vec2) {
         ui.veil(0.30f);
         ui.title({800.0f, 240.0f}, "SOUNDWAVE", 150.0f);
         ui.text({800.0f, 318.0f}, "COURSE MUSICALE", 26.0f, kCyan);
-        if (ui.button({800.0f, 440.0f}, {280.0f, 48.0f}, "SOLO")) go(Screen::Solo);
-        if (ui.button({800.0f, 556.0f}, {280.0f, 48.0f}, "MULTIJOUEUR", true, kMagenta)) {
+        if (ui.button({800.0f, 420.0f}, {280.0f, 44.0f}, "SOLO")) go(Screen::Solo);
+        if (ui.button({800.0f, 522.0f}, {280.0f, 44.0f}, "COUPES", true, kYellow)) {
+            notice = "";
+            go(Screen::Cups);
+        }
+        if (ui.button({800.0f, 624.0f}, {280.0f, 44.0f}, "MULTIJOUEUR", true, kMagenta)) {
             notice = "";
             net.client(playerName, ship);
             lastDiscover = -10.0;
             go(Screen::Multi);
         }
-        if (ui.button({655.0f, 672.0f}, {135.0f, 40.0f}, "OPTIONS", true, kQuiet)) go(Screen::Options);
-        if (ui.button({945.0f, 672.0f}, {135.0f, 40.0f}, "QUITTER", true, kQuiet)) quit = true;
+        if (ui.button({655.0f, 726.0f}, {135.0f, 38.0f}, "OPTIONS", true, kQuiet)) go(Screen::Options);
+        if (ui.button({945.0f, 726.0f}, {135.0f, 38.0f}, "QUITTER", true, kQuiet)) quit = true;
         if (ui.in.back) quit = true;
         return;
     }
@@ -683,6 +735,7 @@ void App::drawMenus(glm::vec2) {
         if (hostControls) {
             if (ui.link({x, y}, kColumn, "MORCEAU", clip(songLabel(songIndex), 20).c_str())) {
                 songReturn = screen;
+                if (songIndex < sim::kTrackCount) songsCup = songIndex / sim::kCupRaces;
                 go(Screen::Songs);
             }
             y += kRow;
@@ -709,6 +762,121 @@ void App::drawMenus(glm::vec2) {
         return y + kRow;
     };
 
+    if (screen == Screen::Cups) {
+        ui.title({800.0f, 104.0f}, "COUPES", 60.0f);
+        ui.text({800.0f, 148.0f}, "Trois courses, des points à chaque arrivée", 22.0f, kDim);
+        static const char* const kDifficulties[] = {"Facile", "Normale", "Difficile"};
+        for (int c = 0; c < sim::kCupCount; c++) {
+            const sim::CupInfo& info = sim::cupInfo(c);
+            const vec4 tint{info.color[0], info.color[1], info.color[2], 1.0f};
+            const vec2 at{400.0f + 400.0f * static_cast<float>(c), 380.0f};
+            const bool chosen = c == cupChoice;
+            if (ui.button(at, {180.0f, 186.0f}, "", true, chosen ? kYellow : tint) && !chosen) {
+                // Le décor derrière le menu passe à celui de la coupe.
+                cupChoice = c;
+                selectSong(sim::cupTrack(c, 0));
+                return;
+            }
+            ui.text(at + vec2(0.0f, -128.0f), info.name, 32.0f, tint, Align::Center, FontId::Bold);
+            ui.text(at + vec2(0.0f, -94.0f), info.style, 20.0f, kDim);
+            for (int r = 0; r < sim::kCupRaces; r++)
+                ui.text(at + vec2(0.0f, -42.0f + 32.0f * static_cast<float>(r)),
+                        sim::trackInfo(sim::cupTrack(c, r)).name, 22.0f, vec4(1.0f));
+            // Record de la coupe : la note du score moyen et la meilleure place.
+            const int best = records.get("coupe:" + std::to_string(c));
+            if (best > 0) {
+                const char grade[2] = {gradeOf(best), '\0'};
+                ui.text(at + vec2(-70.0f, 150.0f), grade, 70.0f, gradeColor(gradeOf(best)), Align::Center, FontId::Bold);
+                char line[48];
+                std::snprintf(line, sizeof(line), tr("Place %d"), 9 - records.get("coupe-place:" + std::to_string(c)));
+                ui.text(at + vec2(50.0f, 124.0f), line, 22.0f, kYellow);
+                std::snprintf(line, sizeof(line), "%d", best);
+                ui.text(at + vec2(50.0f, 152.0f), line, 20.0f, kDim);
+            } else {
+                ui.text(at + vec2(0.0f, 140.0f), "Pas encore courue", 19.0f, kDim);
+            }
+        }
+        int d = 0;
+        if ((d = ui.selector({480.0f, 640.0f}, 310.0f, "VAISSEAU", sim::shipStats(ship).name)) != 0) {
+            ship = (ship + d + sim::kShipCount) % sim::kShipCount;
+            startAttract();
+        }
+        if ((d = ui.selector({1120.0f, 640.0f}, 310.0f, "DIFFICULTÉ", kDifficulties[std::clamp(settings.difficulty, 0, 2)])) != 0) {
+            settings.difficulty = (settings.difficulty + d + 3) % 3;
+            settings.save();
+        }
+        if (ui.button({480.0f, 750.0f}, {310.0f, 40.0f}, "RETOUR", true, kQuiet) || ui.in.back) {
+            go(Screen::Main);
+            return;
+        }
+        if (ui.button({1120.0f, 750.0f}, {310.0f, 44.0f}, "LANCER LA COUPE", !pending, kYellow))
+            later([this] { startCup(cupChoice); });
+        return;
+    }
+
+    if (screen == Screen::CupTable) {
+        const sim::CupInfo& info = sim::cupInfo(cupRun.cup);
+        const vec4 tint{info.color[0], info.color[1], info.color[2], 1.0f};
+        const bool final = cupRun.last();
+        ui.title({800.0f, 96.0f}, info.name, 56.0f);
+        char line[96];
+        if (final) std::snprintf(line, sizeof(line), "%s", tr("CLASSEMENT FINAL"));
+        else std::snprintf(line, sizeof(line), tr("APRÈS LA COURSE %d / %d"), cupRun.race + 1, sim::kCupRaces);
+        ui.text({800.0f, 142.0f}, line, 24.0f, tint, Align::Center, FontId::Bold);
+        // Les concurrents, du premier au dernier du classement général.
+        const int count = cupRun.config.racerCount;
+        const float tableX = final ? 560.0f : 800.0f;
+        ui.panel({tableX, 196.0f + 31.0f * static_cast<float>(count)}, {330.0f, 31.0f * static_cast<float>(count) + 22.0f});
+        for (int rank = 1; rank <= count; rank++) {
+            int racer = 0;
+            for (int i = 0; i < count; i++)
+                if (cupRun.standing(i) == rank) racer = i;
+            const float y = 176.0f + 62.0f * static_cast<float>(rank);
+            const vec4 color = racer == 0 ? kYellow : vec4(1.0f);
+            std::snprintf(line, sizeof(line), "%d", rank);
+            ui.text({tableX - 290.0f, y}, line, 30.0f, color, Align::Left, FontId::Bold);
+            ui.text({tableX - 230.0f, y}, clip(cupRun.config.racers[racer].name, 14).c_str(), 28.0f, color, Align::Left);
+            std::snprintf(line, sizeof(line), "+%d", cupRun.gained[racer]);
+            ui.text({tableX + 170.0f, y}, line, 24.0f, kDim, Align::Right);
+            std::snprintf(line, sizeof(line), "%d", cupRun.points[racer]);
+            ui.text({tableX + 290.0f, y}, line, 32.0f, color, Align::Right, FontId::Bold);
+        }
+        if (final) {
+            // Bilan : la place, et la note du score moyen sur les trois courses.
+            const int average = cupRun.scoreSum / sim::kCupRaces;
+            const char grade[2] = {gradeOf(average), '\0'};
+            ui.panel({1180.0f, 382.0f}, {230.0f, 186.0f});
+            std::snprintf(line, sizeof(line), tr("PLACE %d / %d"), cupRun.standing(0), count);
+            ui.text({1180.0f, 252.0f}, line, 30.0f, kYellow, Align::Center, FontId::Bold);
+            ui.text({1180.0f, 430.0f}, grade, 190.0f, gradeColor(gradeOf(average)), Align::Center, FontId::Bold);
+            std::snprintf(line, sizeof(line), tr("SCORE MOYEN %d"), average);
+            ui.text({1180.0f, 486.0f}, line, 24.0f, vec4(1.0f));
+            if (cupRun.newRecord) ui.text({1180.0f, 530.0f}, "NOUVEAU RECORD", 24.0f, kYellow, Align::Center, FontId::Bold);
+        }
+        const float buttonY = 310.0f + 62.0f * static_cast<float>(count);
+        if (final) {
+            if (ui.button({800.0f, buttonY}, {330.0f, 44.0f}, "TERMINER", true, kYellow) || ui.in.back) {
+                cupRun.active = false;
+                startAttract();
+                go(Screen::Cups);
+            }
+        } else {
+            std::snprintf(line, sizeof(line), "%s : %s", tr("COURSE SUIVANTE"), tr(sim::trackInfo(sim::cupTrack(cupRun.cup, cupRun.race + 1)).name));
+            ui.text({800.0f, buttonY - 52.0f}, line, 22.0f, kDim);
+            if (ui.button({1010.0f, buttonY}, {190.0f, 44.0f}, "CONTINUER", !pending, kYellow)) {
+                later([this] {
+                    cupRun.race++;
+                    startCupRace();
+                });
+            } else if (ui.button({590.0f, buttonY}, {190.0f, 40.0f}, "ABANDONNER", true, kQuiet) || ui.in.back) {
+                cupRun.active = false;
+                startAttract();
+                go(Screen::Cups);
+            }
+        }
+        return;
+    }
+
     if (screen == Screen::Songs) {
         ui.title({800.0f, 110.0f}, "CHOISIR UN MORCEAU", 56.0f);
         const float left = 440.0f, right = 1160.0f;
@@ -728,11 +896,14 @@ void App::drawMenus(glm::vec2) {
             go(songReturn);
             return true;
         };
-        for (int i = 0; i < sim::kTrackCount; i++)
-            if (entry(i, {left, 262.0f + 92.0f * static_cast<float>(i)})) return;
-        if (ui.button({left, 262.0f + 92.0f * sim::kTrackCount + 14.0f}, half, "CHOISIR UN FICHIER", true, kMagenta))
+        // Les morceaux livrés se feuillettent coupe par coupe.
+        if (int d = ui.selector({left, 262.0f}, 330.0f, "COUPE", sim::cupInfo(songsCup).name + 6); d != 0) // + 6 : sans le mot « Coupe »
+            songsCup = (songsCup + d + sim::kCupCount) % sim::kCupCount;
+        for (int i = 0; i < sim::kCupRaces; i++)
+            if (entry(sim::cupTrack(songsCup, i), {left, 354.0f + 92.0f * static_cast<float>(i)})) return;
+        if (ui.button({left, 354.0f + 92.0f * sim::kCupRaces + 10.0f}, half, "CHOISIR UN FICHIER", true, kMagenta))
             openSongDialog();
-        if (ui.button({left, 262.0f + 92.0f * (sim::kTrackCount + 1) + 28.0f}, {330.0f, 36.0f}, "RETOUR", true, kQuiet) ||
+        if (ui.button({left, 354.0f + 92.0f * (sim::kCupRaces + 1) + 16.0f}, {330.0f, 36.0f}, "RETOUR", true, kQuiet) ||
             ui.in.back) {
             go(songReturn);
             return;

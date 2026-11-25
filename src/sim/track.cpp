@@ -47,6 +47,37 @@ float smoothDrive(const music::Partition& p, float time, float half) {
 // morceau hargneux va plus vite qu'un morceau doux de même énergie.
 float paceFor(float energy, float drive) { return 270.0f + 120.0f * energy + 30.0f * drive; }
 
+// Grands moments du morceau : là où l'énergie bondit en quelques secondes.
+// Chacun est ramené sur le premier temps de mesure le plus proche.
+struct Drop {
+    float time;
+    float strength; // 0 à 1
+};
+std::vector<Drop> findDrops(const music::Partition& p, const std::vector<music::Beat>& beats, float duration) {
+    std::vector<Drop> drops;
+    std::vector<float> rise;
+    const float step = 0.2f;
+    for (float t = 0.0f; t < duration; t += step)
+        rise.push_back(t < 4.0f || t > duration - 6.0f ? 0.0f : smoothEnergy(p, t + 1.5f, 1.0f) - smoothEnergy(p, t - 1.5f, 1.0f));
+    const int window = static_cast<int>(5.0f / step);
+    for (int i = 0; i < static_cast<int>(rise.size()); i++) {
+        if (rise[static_cast<size_t>(i)] < 0.26f) continue;
+        bool peak = true;
+        for (int k = std::max(0, i - window); k <= std::min(static_cast<int>(rise.size()) - 1, i + window) && peak; k++)
+            peak = rise[static_cast<size_t>(k)] < rise[static_cast<size_t>(i)] || k == i || (rise[static_cast<size_t>(k)] == rise[static_cast<size_t>(i)] && k > i);
+        if (!peak) continue;
+        float time = static_cast<float>(i) * step;
+        float best = 0.9f;
+        for (const music::Beat& b : beats)
+            if (b.bar == 0 && std::abs(b.time - time) < best) {
+                best = std::abs(b.time - time);
+                time = b.time;
+            }
+        drops.push_back({time, std::clamp(rise[static_cast<size_t>(i)] / 0.6f, 0.4f, 1.0f)});
+    }
+    return drops;
+}
+
 struct Phrase {
     float start, end;
     float amplitude; // courbure maximale, signée
@@ -279,29 +310,49 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     // d'une ligne droite et suivi d'une autre.
     struct Sample {
         glm::vec3 pos;
-        float time, pace, dist;
+        float time, pace, dist, heat;
     };
     std::vector<Sample> dense;
     auto paceAt = [&](float time) { return paceFor(smoothEnergy(p, time, 1.0f), smoothDrive(p, time, 1.0f)); };
     const float startPace = paceAt(0.0f);
     // La piste part vers -z : la ligne droite de départ est donc en z positif.
     for (float d = -kLead; d < 0.0f; d += kStep)
-        dense.push_back({{0.0f, 0.0f, -d}, d / startPace, startPace, d});
+        dense.push_back({{0.0f, 0.0f, -d}, d / startPace, startPace, d, 0.0f});
 
     const float dt = 0.01f;
     glm::vec3 pos{0.0f};
     float heading = 0.0f, height = 0.0f, slope = 0.0f, dist = 0.0f, pace = startPace;
     size_t phrase = 0;
-    float slowEnergy = 0.0f, fastPace = startPace;
+    float fastPace = startPace, heat = 0.0f, target = 0.0f;
+    // Hauteur visée à un instant. La piste plonge dans les passages intenses
+    // et remonte dans les calmes. Avant chaque grand moment elle grimpe
+    // encore, pour basculer au sommet pile dessus : on voit le drop arriver.
+    const std::vector<Drop> drops = findDrops(p, beats, duration);
+    auto heightAt = [&](float time) {
+        // L'énergie est lue sur les cinq secondes passées, jamais en avance :
+        // sinon la piste commencerait à plonger avant le grand moment.
+        float h = -560.0f * (smoothEnergy(p, time - 2.5f, 2.5f) - meanEnergy);
+        for (const Drop& d : drops) {
+            const float climb = 7.0f;
+            if (time < d.time - climb || time >= d.time) continue;
+            const float u = (time - (d.time - climb)) / climb;
+            h += 190.0f * d.strength * u;
+        }
+        return h;
+    };
     for (int i = 0; static_cast<float>(i) * dt < duration; i++) {
         const float time = static_cast<float>(i) * dt;
         // L'énergie ne bouge qu'au dixième de seconde : inutile de la relire plus.
         if (i % 10 == 0) {
             fastPace = paceAt(time);
-            slowEnergy = smoothEnergy(p, time, 2.5f);
+            // Visée un peu en avance : la piste met une seconde à suivre.
+            target = heightAt(time + 0.9f);
+            const float energy = smoothEnergy(p, time, 1.0f);
+            const float x = std::clamp((energy - 0.3f) / 0.55f, 0.0f, 1.0f);
+            heat = x * x * (3.0f - 2.0f * x) * (0.75f + 0.25f * smoothDrive(p, time, 1.0f));
         }
         pace += (fastPace - pace) * 0.02f;
-        dense.push_back({pos, time, pace, dist});
+        dense.push_back({pos, time, pace, dist, heat});
 
         while (phrase + 1 < phrases.size() && time >= phrases[phrase].end) phrase++;
         const Phrase& ph = phrases[phrase];
@@ -309,10 +360,9 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         const float s = std::sin(kPi * std::clamp((u - 0.2f) / 0.6f, 0.0f, 1.0f));
         const float moved = pace * dt;
         heading += ph.amplitude * s * s * moved;
-        // La piste plonge dans les passages intenses et remonte dans les
-        // passages calmes.
-        const float target = -560.0f * (slowEnergy - meanEnergy);
-        const float wanted = std::clamp((target - height) / 320.0f, -0.22f, 0.22f);
+        // Les descentes sont bien plus raides que les montées : c'est dans
+        // les passages intenses que la piste doit impressionner.
+        const float wanted = std::clamp((target - height) / 280.0f, -0.32f, 0.13f);
         slope += (wanted - slope) * std::min(1.0f, moved / 150.0f);
         const glm::vec3 dir = glm::normalize(glm::vec3(std::sin(heading), slope, -std::cos(heading)));
         pos += dir * moved;
@@ -322,7 +372,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     const float length = dist;
     const float endTime = duration;
     for (float d = 0.0f; d <= kTail; d += kStep) {
-        dense.push_back({pos, endTime + d / pace, pace, length + d});
+        dense.push_back({pos, endTime + d / pace, pace, length + d, heat * std::max(0.0f, 1.0f - d / 400.0f)});
         slope *= 0.9f;
         pos += glm::normalize(glm::vec3(std::sin(heading), slope, -std::cos(heading))) * kStep;
     }
@@ -333,6 +383,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     track.length = length;
     track.duration = duration;
     track.tempoKnown = tempoKnown;
+    for (const Drop& d : drops) track.drops.push_back(d.time);
     const float total = kLead + length + kTail;
     const int count = static_cast<int>(total / kStep);
     track.step = kStep;
@@ -348,6 +399,7 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         track.frames[i].pos = glm::mix(a.pos, b.pos, t);
         track.frames[i].time = glm::mix(a.time, b.time, t);
         track.frames[i].pace = glm::mix(a.pace, b.pace, t);
+        track.frames[i].heat = glm::mix(a.heat, b.heat, t);
     }
     finishFrames(track);
     placeFeatures(track, p, beats, seed);
@@ -420,6 +472,7 @@ TrackFrame Track::at(float distance) const {
     out.curvature = glm::mix(a.curvature, b.curvature, t);
     out.pace = glm::mix(a.pace, b.pace, t);
     out.time = glm::mix(a.time, b.time, t);
+    out.heat = glm::mix(a.heat, b.heat, t);
     out.right = glm::normalize(glm::cross(out.tangent, out.up));
     out.up = glm::cross(out.right, out.tangent);
     return out;

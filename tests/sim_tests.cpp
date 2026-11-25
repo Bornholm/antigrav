@@ -57,7 +57,9 @@ void testTrackGeometry() {
             CHECK(f.pace >= 260.0f && f.pace <= 395.0f);
             // Aucun virage plus serré que 120 m de rayon, aucune pente raide.
             CHECK(std::abs(f.curvature) < 1.0f / 120.0f);
-            CHECK(std::abs(f.tangent.y) < 0.25f);
+            // Les descentes sont plus raides que les montées.
+            CHECK(f.tangent.y > -0.34f && f.tangent.y < 0.16f);
+            CHECK(f.heat >= 0.0f && f.heat <= 1.0f);
         }
 
         // Deux portions de piste ne se touchent jamais.
@@ -106,6 +108,18 @@ void testTrackEnds() {
         }
         CHECK(highCount > 10 && lowCount > 10);
         CHECK(high / highCount < low / lowCount - 150.0);
+    }
+
+    // Grands moments : la piste grimpe avant chacun, bascule dessus et plonge.
+    CHECK(track.drops.size() >= 2);
+    for (float drop : track.drops) {
+        const float before = track.at(track.distAt(drop - 6.0f)).pos.y;
+        const float top = track.at(track.distAt(drop - 0.3f)).pos.y;
+        const float after = track.at(track.distAt(drop + 5.0f)).pos.y;
+        CHECK(top > before + 40.0f);
+        CHECK(after < top - 150.0f);
+        // Et la piste passe du froid au chaud.
+        CHECK(track.at(track.distAt(drop + 3.0f)).heat > track.at(track.distAt(drop - 4.0f)).heat + 0.3f);
     }
 
     // Le même morceau donne toujours la même piste.

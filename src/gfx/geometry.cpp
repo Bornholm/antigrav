@@ -17,6 +17,10 @@ struct Rng {
     float range(float lo, float hi) { return lo + (hi - lo) * next(); }
 };
 
+// Couleur vers laquelle tirent les néons de la piste quand le morceau chauffe.
+// La même valeur est dans shaders/road.frag.
+const glm::vec3 kHot{1.0f, 0.32f, 0.06f};
+
 // Bande longitudinale de la piste entre deux points de la section, donnés en
 // décalage latéral et hauteur.
 void addStrip(MeshData& mesh, const sim::Track& track, float lat0, float h0, float lat1,
@@ -33,6 +37,10 @@ void addStrip(MeshData& mesh, const sim::Track& track, float lat0, float h0, flo
         a.kind = kind;
         a.uv = {0.0f, dist};
         a.color = color;
+        // Bandes lumineuses : elles virent au chaud avec l'intensité du morceau.
+        if (kind < 0.5f) {
+            a.color = glm::vec4(glm::mix(glm::vec3(color), kHot, 0.8f * f.heat), color.a * (1.0f + 0.5f * f.heat));
+        }
         b = a;
         b.pos = f.pos + f.right * lat1;
         b.height = h1;
@@ -86,7 +94,7 @@ MeshData buildRoad(const sim::Track& track) {
             v.pos = f.pos + f.right * lat;
             v.normal = f.up;
             v.uv = {lat, dist};
-            v.color = {hw, track.length, 0.0f, 0.0f};
+            v.color = {hw, track.length, f.heat, 0.0f};
             mesh.add(v);
         }
     }

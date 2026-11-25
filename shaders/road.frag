@@ -9,10 +9,19 @@ layout(set = 1, binding = 0) uniform sampler2D reflectionTex;
 layout(location = 0) in vec3 worldPos;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 uv; // x décalage latéral en mètres, y distance en mètres
-layout(location = 3) in vec4 color; // x demi-largeur de la piste, y longueur du circuit
+layout(location = 3) in vec4 color; // x demi-largeur de la piste, y longueur de la piste, z chaleur du morceau ici
 layout(location = 4) flat in float kind;
 
 layout(location = 0) out vec4 outColor;
+
+// Les marquages virent au chaud avec l'intensité du morceau : on lit l'état
+// de la musique dans la couleur de la piste, et on voit venir un passage fort.
+float heat = 0.0;
+vec3 heated(vec3 c) { return mix(c, vec3(1.0, 0.32, 0.06), 0.8 * heat) * (1.0 + 0.5 * heat); }
+#undef CYAN
+#undef MAGENTA
+#define CYAN heated(g.neonA.rgb)
+#define MAGENTA heated(g.neonB.rgb)
 
 float lineMask(float x, float center, float halfWidth) {
     float d = abs(x - center) - halfWidth;
@@ -21,6 +30,7 @@ float lineMask(float x, float center, float halfWidth) {
 }
 
 void main() {
+    heat = color.z;
     float halfWidth = color.x;
     float x = uv.x;
     float ax = abs(x);

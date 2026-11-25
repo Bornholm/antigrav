@@ -18,6 +18,9 @@ struct TrackFrame {
     // auquel il y passe.
     float pace = 340.0f;
     float time = 0.0f;
+    // Chaleur du morceau ici, de 0 à 1 : calme et froid, intense et chaud. Le
+    // rendu en tire la couleur de la piste.
+    float heat = 0.0f;
 };
 
 // Au-delà de cet écart entre deux temps, soit sous 100 battements par minute,
@@ -58,6 +61,9 @@ struct Track {
     // accord. Ce sont les temps, plus les demi-temps quand le tempo est lent,
     // pour qu'on puisse toujours taper à une cadence confortable.
     std::vector<float> pulses;
+    // Grands moments du morceau : instants où l'intensité bondit, les « drops ».
+    // La piste grimpe avant chacun et bascule dessus.
+    std::vector<float> drops;
     // Le morceau a un tempo net. Sinon la grille n'est qu'un repli régulier,
     // et la cadence du joueur n'a pas à s'y conformer.
     bool tempoKnown = false;

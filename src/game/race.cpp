@@ -355,8 +355,9 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
             orb(at, 2.4f, {1.0f, 0.3f, 0.8f}, 5.0f);
         }
     }
-    // Décor vivant : une quarantaine d'objets volent autour de la piste, dans
-    // une fenêtre qui suit le joueur. Leur trajectoire ne dépend que de leur
+    // Décor vivant : des objets volent autour de la piste, dans une fenêtre
+    // qui suit le joueur. Une quarantaine en ville et autour de la station,
+    // trois bandes de quatre créatures dans le canyon. Leur trajectoire ne dépend que de leur
     // numéro et du temps, donc elle est la même pour tous les joueurs.
     out.flyerCount = 0;
     {
@@ -369,9 +370,11 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
             h ^= h >> 12;
             return static_cast<float>(h & 0xFFFFu) / 65535.0f;
         };
-        for (int i = 0; i < 40 && out.flyerCount < gfx::kMaxFlyers; i++) {
+        const int count = look.scenery == gfx::Scenery::Canyon ? 12 : 40;
+        for (int i = 0; i < count && out.flyerCount < gfx::kMaxFlyers; i++) {
             gfx::FlyerDraw& draw = out.flyers[out.flyerCount];
             float lateral, height, speed, size, flap = 1.0f, spin = 0.0f;
+            float start = hash(i, 9) * window;
             const float side = i % 2 ? 1.0f : -1.0f;
             if (look.scenery == gfx::Scenery::City) {
                 // Circulation aérienne : des files à trois altitudes, dans les deux sens.
@@ -384,15 +387,19 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
                 draw.trim = glm::vec4(lane % 2 ? look.neonB : look.neonA, 8.0f);
                 draw.light = glm::vec4(lane % 2 ? glm::vec3(1.0f, 0.9f, 0.7f) : glm::vec3(1.0f, 0.15f, 0.1f), 9.0f);
             } else if (look.scenery == gfx::Scenery::Canyon) {
-                // Créatures : par bandes de cinq, lentes, qui ondulent et battent des ailes.
+                // Créatures : trois bandes de quatre, en chevron, lentes, qui
+                // ondulent et battent des ailes. Les bandes sont réparties le
+                // long de la fenêtre pour qu'on en croise une de temps en temps.
                 draw.kind = 1;
-                const int flock = i / 5, place = i % 5;
-                lateral = (flock % 2 ? 1.0f : -1.0f) * (30.0f + 150.0f * hash(flock, 1)) + 34.0f * static_cast<float>(place - 2);
-                height = 28.0f + 80.0f * hash(flock, 2) + 9.0f * std::abs(static_cast<float>(place - 2)) +
+                const int flock = i / 4;
+                const float place = static_cast<float>(i % 4) - 1.5f;
+                lateral = (flock % 2 ? 1.0f : -1.0f) * (50.0f + 130.0f * hash(flock, 1)) + 22.0f * place;
+                height = 34.0f + 70.0f * hash(flock, 2) + 5.0f * std::abs(place) +
                          12.0f * std::sin(time * 0.5f + static_cast<float>(flock));
+                start = (static_cast<float>(flock) + hash(flock, 9) * 0.6f) / 3.0f * window - 16.0f * std::abs(place);
                 speed = 55.0f + 30.0f * hash(flock, 3);
                 size = 3.5f + 2.5f * hash(flock, 4);
-                flap = std::sin(time * (4.5f + 2.0f * hash(flock, 5)) + static_cast<float>(place) * 0.7f);
+                flap = std::sin(time * (4.5f + 2.0f * hash(flock, 5)) + place * 0.7f);
                 draw.trim = glm::vec4(look.neonA, 7.0f);
                 draw.light = glm::vec4(look.neonB, 4.0f);
             } else {
@@ -408,7 +415,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
                 draw.light = glm::vec4(1.0f, 0.3f, 0.2f, blink ? 12.0f : 1.0f);
             }
             // Position le long de la piste, ramenée dans la fenêtre autour du joueur.
-            float along = hash(i, 9) * window + speed * time - playerDist + behind;
+            float along = start + speed * time - playerDist + behind;
             along = along - std::floor(along / window) * window;
             const float dist = playerDist - behind + along;
             const sim::TrackFrame f = track.at(dist);

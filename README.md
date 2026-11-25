@@ -14,7 +14,7 @@ Pour Android et Linux. Le moteur est écrit pour ce jeu, en C++20 sur Vulkan 1.1
 
 ## Installer
 
-Chaque [release](https://github.com/Bornholm/antigrav/releases) contient un APK pour Android 13 ou plus récent, en ARM 64 bits, et une archive `.tar.gz` pour Linux x86_64. Il faut un GPU compatible Vulkan 1.1.
+Chaque [release](https://github.com/Bornholm/soundwave/releases) contient un APK pour Android 13 ou plus récent, en ARM 64 bits, et une archive `.tar.gz` pour Linux x86_64. Il faut un GPU compatible Vulkan 1.1.
 
 Sur Linux, extraire l'archive et lancer `./soundwave`. Pour courir directement sur un fichier :
 

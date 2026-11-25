@@ -154,18 +154,18 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
     {
         // Bouton du bonus : il porte le nom de ce qu'on tient, et s'éteint
         // quand on n'a rien.
-        static const char* const kItemNames[] = {"", "TIR", "MINE", "ONDE", "TURBO", "BOUCLIER"};
+        static const char* const kItemNames[] = {"", "TIR", "MINE", "ONDE", "TURBO", "BOUCLIER", "COMÈTE"};
         static const vec4 kItemColors[] = {
             kWhite, vec4(1.0f, 0.35f, 0.75f, 1.0f), vec4(1.0f, 0.30f, 0.20f, 1.0f),
-            vec4(0.55f, 0.45f, 1.0f, 1.0f), kYellow, kCyan,
+            vec4(0.55f, 0.45f, 1.0f, 1.0f), kYellow, kCyan, vec4(1.0f, 0.55f, 0.15f, 1.0f),
         };
         const bool down = shapeOf(Button::Use, c, r);
-        const int item = std::clamp(s.item, 0, 5);
+        const int item = std::clamp(s.item, 0, 6);
         const vec4 tint = item ? kItemColors[item] : alpha(kWhite, 0.35f);
         hud.circle(c, r, down && item ? alpha(tint, 0.35f) : vec4(0.06f, 0.05f, 0.09f, 0.5f), tint, item ? (down ? 7.0f : 5.0f) : 2.5f);
         if (item) {
             hud.circle(c, r * 0.78f, vec4(0.0f), alpha(tint, 0.45f), 2.0f);
-            hud.text(FontId::Bold, tr(kItemNames[item]), c + vec2(0.0f, 12.0f), item == 5 ? 26.0f : 34.0f, kWhite, Align::Center, 0.2f,
+            hud.text(FontId::Bold, tr(kItemNames[item]), c + vec2(0.0f, 12.0f), item >= 5 ? 26.0f : 34.0f, kWhite, Align::Center, 0.2f,
                      alpha(tint, 0.6f));
         }
     }

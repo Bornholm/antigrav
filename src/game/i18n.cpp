@@ -105,6 +105,7 @@ const Entry kEntries[] = {
     {"ONDE", "PULSE", "ONDA"},
     {"TURBO", "TURBO", "TURBO"},
     {"BOUCLIER", "SHIELD", "ESCUDO"},
+    {"COMÈTE", "COMET", "COMETA"},
     {"TIR EN APPROCHE", "INCOMING SHOT", "DISPARO ENTRANTE"},
     {"TIR EN APPROCHE !", "INCOMING SHOT!", "¡DISPARO ENTRANTE!"},
     {"GO !", "GO!", "¡YA!"},

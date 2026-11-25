@@ -28,6 +28,7 @@ enum class Item : uint8_t {
     Pulse,  // onde de choc sur les vaisseaux tout proches
     Turbo,  // pointe de vitesse
     Shield, // encaisse le prochain choc, barrière comprise
+    Comet,  // réservée au dernier : elle remonte la piste et frappe tous ceux qu'elle dépasse
     Count
 };
 constexpr float kStunDuration = 0.9f;  // secondes sans contrôle après un choc
@@ -38,6 +39,9 @@ constexpr float kShieldTime = 9.0f;    // secondes, ou jusqu'au premier choc
 constexpr float kMineLife = 30.0f;     // secondes
 constexpr float kPulseRange = 75.0f;   // portée de l'onde le long de la piste, en mètres
 constexpr float kPulseWidth = 16.0f;   // et en travers
+constexpr float kCometSpeed = 300.0f;  // vitesse de la comète en plus de celle du lanceur, en m/s
+constexpr float kCometLife = 14.0f;    // secondes
+constexpr float kCometChance = 0.22f;  // part des boîtes du dernier qui donnent une comète
 
 // Éléments de piste, voir sim::Feature.
 constexpr float kBarrierLoss = 0.55f;    // part de vitesse perdue contre une barrière
@@ -77,15 +81,22 @@ struct Vehicle {
     bool boxHit = false;     // vient de passer sur une boîte à bonus, à servir au prochain pas
 };
 
-// Tir à tête chercheuse ou mine, eux aussi en coordonnées de piste.
+enum class MissileKind : uint8_t {
+    Shot = 0, // suit le vaisseau de devant et s'éteint en le touchant
+    Mine,     // immobile, elle attend qu'on lui roule dessus
+    Comet     // remonte toute la piste et frappe chacun au passage
+};
+
+// Tir, mine ou comète, eux aussi en coordonnées de piste.
 struct Missile {
     bool active = false;
-    bool mine = false; // immobile, elle attend qu'on lui roule dessus
+    MissileKind kind = MissileKind::Shot;
     int owner = 0;
     float dist = 0.0f;
     float lateral = 0.0f;
     float speed = 0.0f;
     float life = 0.0f; // secondes avant de s'éteindre
+    uint8_t struck = 0; // comète : vaisseaux déjà frappés, un bit chacun
 };
 
 struct World {

@@ -14,7 +14,7 @@ namespace net {
 
 namespace {
 
-const uint32_t kMagic = 0x35474141u; // "AAG5"
+const uint32_t kMagic = 0x36474141u; // "AAG6"
 constexpr double kTimeout = 5.0;      // secondes sans nouvelles avant de couper
 
 enum Type : uint8_t {
@@ -87,8 +87,9 @@ struct WireVehicle {
     uint8_t flags; // bit 0 turbo, 1 frottement, 2 arrivé, 3 bouton tenu, 4 boîte franchie
 };
 struct WireMissile {
-    uint8_t active; // bit 0 actif, bit 1 mine
+    uint8_t active; // bit 0 actif, bits 1 et 2 nature, voir sim::MissileKind
     uint8_t owner;
+    uint8_t struck;
     float dist, lateral, speed, life;
 };
 struct SnapshotPacket {
@@ -393,8 +394,8 @@ void Net::hostSendSnapshot(const sim::Session& session) {
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {
         const sim::Missile& m = w.missiles[i];
-        packet.missiles[i] = {static_cast<uint8_t>((m.active ? 1 : 0) | (m.mine ? 2 : 0)), static_cast<uint8_t>(m.owner),
-                              m.dist, m.lateral, m.speed, m.life};
+        packet.missiles[i] = {static_cast<uint8_t>((m.active ? 1 : 0) | (static_cast<int>(m.kind) << 1)), static_cast<uint8_t>(m.owner),
+                              m.struck, m.dist, m.lateral, m.speed, m.life};
     }
     for (const Peer& p : peers) {
         if (!p.active) continue;
@@ -436,12 +437,13 @@ void Net::reconcile(sim::Session& session, const void* data) {
     for (int i = 0; i < sim::kMaxMissiles; i++) {
         const WireMissile& m = s.missiles[i];
         w.missiles[i].active = m.active & 1;
-        w.missiles[i].mine = m.active & 2;
+        w.missiles[i].kind = static_cast<sim::MissileKind>(std::min((m.active >> 1) & 3, 2));
         w.missiles[i].owner = std::min<int>(m.owner, sim::kMaxVehicles - 1);
         w.missiles[i].dist = m.dist;
         w.missiles[i].lateral = m.lateral;
         w.missiles[i].speed = m.speed;
         w.missiles[i].life = m.life;
+        w.missiles[i].struck = m.struck;
     }
 
     // Rejoue les commandes locales que l'hôte n'avait pas encore reçues.

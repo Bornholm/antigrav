@@ -136,11 +136,15 @@ Item rollItem(const World& world, int index) {
         2.0f,               // onde
         1.0f + 3.0f * back, // turbo
         3.0f - 2.0f * back, // bouclier
+        0.0f,               // comète : tirée à part
     };
+    // Le dernier a une chance de recevoir la comète, qui rebat les cartes.
+    if (world.count >= 3 && rankOf(world, index) == world.count && chance(index, world.tick, 78u) < kCometChance)
+        return Item::Comet;
     float total = 0.0f;
     for (float w : weights) total += w;
     float pick = chance(index, world.tick, 77u) * total;
-    for (int i = 1; i < static_cast<int>(Item::Count); i++) {
+    for (int i = 1; i < static_cast<int>(Item::Comet); i++) {
         pick -= weights[i];
         if (pick <= 0.0f) return static_cast<Item>(i);
     }
@@ -162,23 +166,25 @@ void useItems(World& world, int index, const Input& in) {
     const Item item = v.item;
     v.item = Item::None;
 
-    auto spawn = [&](bool mine) {
+    auto spawn = [&](MissileKind kind) {
         for (Missile& m : world.missiles) {
             if (m.active) continue;
             m = Missile{};
             m.active = true;
-            m.mine = mine;
+            m.kind = kind;
             m.owner = index;
+            const bool mine = kind == MissileKind::Mine;
             m.dist = mine ? v.dist - 9.0f : v.dist + 7.0f;
             m.lateral = v.lateral;
-            m.speed = mine ? 0.0f : v.speed + 170.0f;
-            m.life = mine ? kMineLife : 4.5f;
+            m.speed = mine ? 0.0f : v.speed + (kind == MissileKind::Comet ? kCometSpeed : 170.0f);
+            m.life = mine ? kMineLife : kind == MissileKind::Comet ? kCometLife : 4.5f;
             return;
         }
     };
     switch (item) {
-    case Item::Shot: spawn(false); break;
-    case Item::Mine: spawn(true); break;
+    case Item::Shot: spawn(MissileKind::Shot); break;
+    case Item::Mine: spawn(MissileKind::Mine); break;
+    case Item::Comet: spawn(MissileKind::Comet); break;
     case Item::Pulse:
         for (int i = 0; i < world.count; i++) {
             Vehicle& other = world.vehicles[i];
@@ -198,10 +204,11 @@ void stepMissiles(World& world, const Track& track, float dt) {
     for (Missile& m : world.missiles) {
         if (!m.active) continue;
         m.life -= dt;
-        if (!m.mine) {
+        const float before = m.dist;
+        if (m.kind != MissileKind::Mine) {
             // Cible : le vaisseau le plus proche devant, autre que le tireur.
             const Vehicle* target = nullptr;
-            float best = 900.0f;
+            float best = m.kind == MissileKind::Comet ? 1e9f : 900.0f;
             for (int i = 0; i < world.count; i++) {
                 if (i == m.owner) continue;
                 float ahead = world.vehicles[i].dist - m.dist;
@@ -210,20 +217,24 @@ void stepMissiles(World& world, const Track& track, float dt) {
                     target = &world.vehicles[i];
                 }
             }
+            // La comète vire deux fois plus sec qu'un tir : on ne l'esquive guère.
+            const float turn = m.kind == MissileKind::Comet ? 70.0f : 34.0f;
             if (target) {
                 float delta = target->lateral - m.lateral;
-                m.lateral += std::clamp(delta, -34.0f * dt, 34.0f * dt);
+                m.lateral += std::clamp(delta, -turn * dt, turn * dt);
+            } else if (m.kind == MissileKind::Comet) {
+                m.life = 0.0f; // plus personne devant : elle a fini sa remontée
             }
             m.lateral = std::clamp(m.lateral, -limit, limit);
-            float before = m.dist;
             m.dist += m.speed * dt;
-            // Une barrière arrête un tir : on peut s'abriter derrière.
-            for (const Feature& f : track.features) {
-                if (f.type != FeatureType::Barrier) continue;
-                if (track.ahead(before, f.dist) < m.dist - before &&
-                    std::abs(m.lateral - f.lateral) < f.halfWidth)
-                    m.life = 0.0f;
-            }
+            // Une barrière arrête un tir : on peut s'abriter derrière. Pas la comète.
+            if (m.kind == MissileKind::Shot)
+                for (const Feature& f : track.features) {
+                    if (f.type != FeatureType::Barrier) continue;
+                    if (track.ahead(before, f.dist) < m.dist - before &&
+                        std::abs(m.lateral - f.lateral) < f.halfWidth)
+                        m.life = 0.0f;
+                }
         }
         if (m.life <= 0.0f) {
             m.active = false;
@@ -233,6 +244,16 @@ void stepMissiles(World& world, const Track& track, float dt) {
         for (int i = 0; i < world.count; i++) {
             if (i == m.owner) continue; // celui qui l'a lancé ne craint rien
             Vehicle& v = world.vehicles[i];
+            if (m.kind == MissileKind::Comet) {
+                // Elle va plus vite qu'un pas ne couvre : on teste le dépassement.
+                if (v.dist <= before - 6.5f || v.dist > m.dist + 6.5f) continue;
+                if (std::abs(v.lateral - m.lateral) > 5.5f) continue;
+                // Chacun n'est frappé qu'une fois, bouclier ou non.
+                if (m.struck & (1u << i)) continue;
+                m.struck = static_cast<uint8_t>(m.struck | (1u << i));
+                hit(v, kHitLoss, kStunDuration);
+                continue;
+            }
             if (std::abs(v.dist - m.dist) > 6.5f || std::abs(v.lateral - m.lateral) > 3.8f)
                 continue;
             m.active = false;
@@ -399,6 +420,7 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
             const Vehicle& other = world.vehicles[i];
             const float along = other.dist - v.dist, across = std::abs(other.lateral - v.lateral);
             if (v.item == Item::Shot) wanted = along > 20.0f && along < 500.0f;
+            if (v.item == Item::Comet) wanted = along > 20.0f;
             if (v.item == Item::Mine) wanted = along < -10.0f && along > -160.0f && across < 9.0f;
             if (v.item == Item::Pulse) wanted = std::abs(along) < kPulseRange * 0.7f && across < kPulseWidth * 0.8f;
         }
@@ -406,7 +428,7 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
         if (v.item == Item::Shield) {
             // Levé quand un tir arrive, ou devant une barrière qu'il ne pourra pas éviter.
             for (const Missile& m : world.missiles)
-                wanted = wanted || (m.active && !m.mine && m.owner != index && v.dist - m.dist > 0.0f && v.dist - m.dist < 220.0f);
+                wanted = wanted || (m.active && m.kind != MissileKind::Mine && m.owner != index && v.dist - m.dist > 0.0f && v.dist - m.dist < 220.0f);
             wanted = wanted || (dodging && nearest < v.speed * 0.25f);
         }
         if (whim && chance(index, slot, 6u) < 0.3f) wanted = true;

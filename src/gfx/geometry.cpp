@@ -171,19 +171,26 @@ MeshData buildFeatures(const sim::Track& track) {
         const float l0 = f.lateral - f.halfWidth, l1 = f.lateral + f.halfWidth;
 
         if (f.type == sim::FeatureType::ItemBox) {
-            // Boîte à bonus : un losange lumineux dressé au-dessus d'un socle
-            // au sol, bien différent d'une plaque d'accélération.
+            // Boîte à bonus : un grand losange lumineux dressé sur un socle,
+            // surmonté d'un faisceau qu'on repère de loin. Rien à voir avec
+            // une plaque d'accélération.
             const float mid = 0.5f * (d0 + d1);
-            flat(mid - 5.0f, mid + 5.0f, l0, l1, 0.05f, glm::vec4(kPad, 0.10f));
-            flat(mid - 5.0f, mid + 5.0f, l0, l0 + 0.25f, 0.07f, glm::vec4(kPad, 3.5f));
-            flat(mid - 5.0f, mid + 5.0f, l1 - 0.25f, l1, 0.07f, glm::vec4(kPad, 3.5f));
-            const float c = f.lateral, low = 0.6f, high = 4.2f, half = 1.9f, middle = 0.5f * (low + high);
-            // Contour épais, puis cœur plus clair, visibles des deux côtés.
-            for (float face : {mid, mid + 0.4f}) {
-                quad({face, c - half, middle}, {face, c, low}, {face, c + half, middle}, {face, c, high}, glm::vec4(kPad, 5.0f));
-                quad({face + 0.05f, c - half * 0.5f, middle}, {face + 0.05f, c, low + 0.9f}, {face + 0.05f, c + half * 0.5f, middle},
-                     {face + 0.05f, c, high - 0.9f}, glm::vec4(1.0f, 1.0f, 0.9f, 9.0f));
+            const float c = f.lateral, low = 0.5f, high = 8.5f, half = 3.4f, middle = 0.5f * (low + high);
+            // Socle : un carré plein au sol, bordé d'un trait vif.
+            flat(mid - 7.0f, mid + 7.0f, c - half, c + half, 0.05f, glm::vec4(kPad, 0.9f));
+            for (float edge : {c - half, c + half - 0.4f}) flat(mid - 7.0f, mid + 7.0f, edge, edge + 0.4f, 0.07f, glm::vec4(kPad, 7.0f));
+            flat(mid - 7.0f, mid - 6.6f, c - half, c + half, 0.07f, glm::vec4(kPad, 7.0f));
+            flat(mid + 6.6f, mid + 7.0f, c - half, c + half, 0.07f, glm::vec4(kPad, 7.0f));
+            // Losange : contour épais, cœur presque blanc, sur deux faces.
+            for (float face : {mid, mid + 0.5f}) {
+                quad({face, c - half, middle}, {face, c, low}, {face, c + half, middle}, {face, c, high}, glm::vec4(kPad, 8.0f));
+                quad({face + 0.06f, c - half * 0.62f, middle}, {face + 0.06f, c, low + 1.5f}, {face + 0.06f, c + half * 0.62f, middle},
+                     {face + 0.06f, c, high - 1.5f}, glm::vec4(1.0f, 1.0f, 0.85f, 14.0f));
             }
+            // Faisceau vertical, en croix pour se voir sous tous les angles.
+            const float top = 60.0f;
+            quad({mid, c - 0.8f, high}, {mid, c + 0.8f, high}, {mid, c + 0.25f, top}, {mid, c - 0.25f, top}, glm::vec4(kPad, 6.0f));
+            quad({mid - 0.8f, c, high}, {mid + 0.8f, c, high}, {mid + 0.25f, c, top}, {mid - 0.25f, c, top}, glm::vec4(kPad, 6.0f));
         } else {
             // Barrière : bloc sombre, bandes lumineuses face au pilote.
             const float top = 3.4f;

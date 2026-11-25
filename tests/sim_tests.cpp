@@ -357,6 +357,52 @@ void testItems() {
         r = play(sim::Item::Shield, 500.0f, static_cast<int>(60 * (sim::kShieldTime + 1.0f)));
         CHECK(r.world.vehicles[0].shieldTime == 0.0f);
     }
+    // Comète : elle remonte la piste et frappe chacun au passage, sans
+    // s'arrêter au premier, puis s'éteint une fois le meneur dépassé.
+    {
+        sim::World world;
+        world.ownClock = true;
+        world.count = 4;
+        for (int i = 0; i < 4; i++) {
+            world.vehicles[i].dist = 300.0f + 150.0f * static_cast<float>(i);
+            world.vehicles[i].lateral = i % 2 ? 6.0f : -6.0f;
+            world.vehicles[i].speed = sim::kCruiseSpeed;
+        }
+        world.vehicles[0].item = sim::Item::Comet;
+        world.vehicles[2].shieldTime = 5.0f;
+        bool stunned[4] = {};
+        for (int s = 0; s < 60 * 6; s++) {
+            sim::Input inputs[4];
+            inputs[0].use = s == 0;
+            sim::step(world, track, inputs);
+            for (int i = 0; i < 4; i++) stunned[i] = stunned[i] || world.vehicles[i].stunTime > 0.0f;
+        }
+        CHECK(!stunned[0]);                // son lanceur ne craint rien
+        CHECK(stunned[1] && stunned[3]);   // les autres y passent tous
+        CHECK(!stunned[2] && world.vehicles[2].shieldTime == 0.0f); // sauf sous bouclier
+        CHECK(activeMissiles(world) == 0);
+    }
+    // Elle n'est donnée qu'au dernier.
+    {
+        int comets[3] = {};
+        for (uint32_t tick = 1; tick < 4000; tick++) {
+            sim::World world;
+            world.ownClock = true;
+            world.count = 3;
+            world.tick = tick;
+            for (int i = 0; i < 3; i++) {
+                world.vehicles[i].dist = 300.0f + 200.0f * static_cast<float>(i);
+                world.vehicles[i].speed = sim::kCruiseSpeed;
+                world.vehicles[i].boxHit = true;
+            }
+            sim::Input inputs[3];
+            sim::step(world, track, inputs);
+            for (int i = 0; i < 3; i++) comets[i] += world.vehicles[i].item == sim::Item::Comet;
+        }
+        CHECK(comets[0] > 500 && comets[0] < 1300); // environ une boîte sur cinq
+        CHECK(comets[1] == 0 && comets[2] == 0);
+    }
+
     // Sans bonus, le bouton ne fait rien.
     CHECK(activeMissiles(play(sim::Item::None, 80.0f, 30).world) == 0);
 }
@@ -426,7 +472,7 @@ void testFeatures() {
         world.vehicles[0].lateral = world.vehicles[1].lateral = 8.0f;
         track.features = {{sim::FeatureType::Barrier, 200.0f, 3.0f, 0.0f, 4.0f}};
         // Le tireur passe à côté de la barrière, le missile vise à travers.
-        world.missiles[0] = {true, false, 0, 150.0f, 0.0f, 500.0f, 3.0f};
+        world.missiles[0] = {true, sim::MissileKind::Shot, 0, 150.0f, 0.0f, 500.0f, 3.0f, 0};
         world.vehicles[1].lateral = 0.0f;
         world.vehicles[1].dist = 215.0f;
         sim::Input inputs[2];

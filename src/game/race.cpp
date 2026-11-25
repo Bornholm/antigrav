@@ -203,9 +203,11 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         float lateral = same ? mixf(before.lateral, m.lateral, alpha) : m.lateral;
         sim::TrackFrame f = track.at(dist);
         gfx::MissileDraw& draw = out.missiles[out.missileCount++];
-        draw.model = glm::mat4(glm::vec4(f.right, 0.0f), glm::vec4(f.up, 0.0f),
-                               glm::vec4(-f.tangent, 0.0f),
-                               glm::vec4(f.pos + f.right * lateral + f.up * 0.9f, 1.0f));
+        // La comète est bien plus grosse qu'un tir, une mine un peu plus trapue.
+        const float size = m.kind == sim::MissileKind::Comet ? 3.5f : m.kind == sim::MissileKind::Mine ? 1.6f : 1.0f;
+        draw.model = glm::mat4(glm::vec4(f.right * size, 0.0f), glm::vec4(f.up * size, 0.0f),
+                               glm::vec4(-f.tangent * size, 0.0f),
+                               glm::vec4(f.pos + f.right * lateral + f.up * (0.9f * size), 1.0f));
         draw.planePoint = f.pos;
         draw.planeNormal = f.up;
     }
@@ -301,7 +303,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     // Un tir arrive : il est derrière, proche, et personne ne le sépare du joueur.
     state.incoming = false;
     for (const sim::Missile& m : world.missiles) {
-        if (!m.active || m.mine || m.owner == localIndex) continue;
+        if (!m.active || m.kind == sim::MissileKind::Mine || m.owner == localIndex) continue;
         const float behind = player.dist - m.dist;
         if (behind <= 0.0f || behind > 450.0f) continue;
         bool covered = false;

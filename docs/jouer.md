@@ -22,7 +22,7 @@ Dans **Solo**, le sélecteur MORCEAU propose les trois morceaux livrés, puis vo
 
 ## Bonus
 
-Des boîtes à bonus, des losanges jaunes dressés sur la piste, donnent un bonus à qui passe dessus les mains vides. On n'en porte qu'un à la fois. Le bouton de droite affiche son nom et le déclenche.
+Des boîtes à bonus, de grands losanges jaunes surmontés d'un faisceau, donnent un bonus à qui passe dessus les mains vides. On n'en porte qu'un à la fois. Le bouton de droite affiche son nom et le déclenche.
 
 | Bonus | Effet |
 |---|---|
@@ -31,8 +31,9 @@ Des boîtes à bonus, des losanges jaunes dressés sur la piste, donnent un bonu
 | Onde | Frappe tous les vaisseaux proches, devant comme derrière. |
 | Turbo | Une pointe de vitesse de deux secondes et demie. |
 | Bouclier | Encaisse le prochain choc, barrière comprise, puis s'éteint. Dure neuf secondes. |
+| Comète | Réservée au dernier. Elle remonte toute la piste et frappe chaque vaisseau qu'elle dépasse, jusqu'au meneur. Seul un bouclier l'arrête. |
 
-Un vaisseau touché perd une bonne part de sa vitesse et le contrôle pendant près d'une seconde. Les derniers reçoivent plus souvent des tirs et des turbos, les premiers des mines et des boucliers.
+Un vaisseau touché perd une bonne part de sa vitesse et le contrôle pendant près d'une seconde. Les derniers reçoivent plus souvent des tirs et des turbos, les premiers des mines et des boucliers. Le tout dernier a une chance sur cinq de tirer une comète, de quoi rebattre les cartes.
 
 Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un élastique freine qui prend de l'avance sur elle et aspire qui traîne, donc le peloton reste groupé. La ligne ÉCART donne l'avance du vaisseau sur la musique.
 

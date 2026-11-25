@@ -91,6 +91,7 @@ struct App {
     void later(std::function<void()> work);
     // Client : reçoit et installe le morceau de l'hôte.
     void receiveSong();
+    void installHostSong();
     void openSongDialog();
     void pollSongDialog();
     const char* songLabel(int index) const;

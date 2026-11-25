@@ -46,5 +46,5 @@ void main() {
         c += color.rgb * crown * 3.0;
         c += color.rgb * step(uv.x, 0.9) * 1.6 * step(0.5, hash11(kind * 7.0));
     }
-    outColor = vec4(applyFog(c, worldPos), 1.0);
+    outColor = vec4(safe(applyFog(c, worldPos)), 1.0);
 }

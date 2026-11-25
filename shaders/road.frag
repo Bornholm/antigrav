@@ -46,7 +46,7 @@ void main() {
         float rim = 1.0 - smoothstep(0.0, 1.6, halfWidth - ax);
         vec3 under = vec3(0.004, 0.005, 0.010) + CYAN * rim * 1.5 +
                      MAGENTA * step(0.92, fract(uv.y / 40.0)) * 0.6;
-        outColor = vec4(applyFog(under, worldPos), 1.0);
+        outColor = vec4(safe(applyFog(under, worldPos)), 1.0);
         return;
     }
     float nv = clamp(dot(n, v), 0.0, 1.0);
@@ -110,5 +110,5 @@ void main() {
     // Halo des bandes de bord sur l'asphalte.
     c += CYAN * exp(-max(halfWidth - 0.55 - ax, 0.0) * 1.1) * 0.10;
 
-    outColor = vec4(applyFog(c, worldPos), 1.0);
+    outColor = vec4(safe(applyFog(c, worldPos)), 1.0);
 }

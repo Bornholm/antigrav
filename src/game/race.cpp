@@ -117,10 +117,12 @@ void Race::react(const sim::World& before) {
             Fx e;
             e.follow = i;
             e.color = color;
+            // Sur son propre vaisseau la caméra est dans l'orbe : il reste
+            // discret, le voile de couleur fait le retour.
             e.from = from;
-            e.to = to;
+            e.to = mine ? std::min(to, 8.0f) : to;
             e.life = life;
-            e.gain = gain;
+            e.gain = mine ? gain * 0.3f : gain;
             spawnFx(e);
         };
         auto screen = [&](const glm::vec3& color, float amount) {
@@ -133,7 +135,7 @@ void Race::react(const sim::World& before) {
         if (was.item == sim::Item::None && now.item != sim::Item::None) {
             sound(Sfx::Pickup);
             burst({1.0f, 0.85f, 0.3f}, 2.0f, 9.0f, 0.35f, 2.2f);
-            screen({1.0f, 0.85f, 0.3f}, 0.18f);
+            screen({1.0f, 0.85f, 0.3f}, 0.10f);
         }
         // Bonus déclenché.
         if (was.item != sim::Item::None && now.item == sim::Item::None) {
@@ -174,11 +176,8 @@ void Race::react(const sim::World& before) {
         // Choc : explosion sur le vaisseau, et l'écran du joueur en tremble.
         if (was.stunTime <= 0.0f && now.stunTime > 0.0f) {
             sound(Sfx::Hit);
-            // Sur son propre vaisseau l'explosion reste contenue : la caméra
-            // est dedans, elle ne doit pas noyer l'écran.
-            const float k = mine ? 0.25f : 1.0f;
-            burst({1.0f, 0.9f, 0.7f}, 2.0f, 18.0f * k, 0.4f, mine ? 2.0f : 7.0f);
-            burst({1.0f, 0.35f, 0.1f}, 4.0f, 30.0f * k, 0.6f, mine ? 0.7f : 2.5f);
+            burst({1.0f, 0.9f, 0.7f}, 2.0f, 18.0f, 0.4f, 7.0f);
+            burst({1.0f, 0.35f, 0.1f}, 4.0f, 30.0f, 0.6f, 2.5f);
             screen({1.0f, 0.15f, 0.1f}, 0.32f);
             if (mine) hitShake = 1.0f;
         }
@@ -250,7 +249,7 @@ void Race::updatePresentation(float dt) {
 
     for (Fx& e : fx)
         if (e.age < e.life) e.age += dt;
-    flash *= std::exp(-dt * 5.0f);
+    flash *= std::exp(-dt * 8.0f);
     hitShake *= std::exp(-dt * 4.0f);
 
     float decay = std::exp(-dt * 10.0f);

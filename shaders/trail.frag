@@ -18,21 +18,24 @@ void main() {
         // Orbe d'effet : cœur diffus, contour vif. colorB porte teinte et intensité.
         vec3 n = normalize(normal);
         vec3 v = normalize(g.camPos.xyz - worldPos);
-        float facing = abs(dot(n, v));
+        // Borné : hors de [0, 1], pow renvoie un NaN que le bloom étale.
+        float facing = clamp(abs(dot(n, v)), 0.0, 1.0);
         float rim = pow(1.0 - facing, 2.0);
-        vec3 c = pc.colorB.rgb * pc.colorB.a * (0.22 * facing + 1.3 * rim);
-        outColor = vec4(c * visible, 1.0);
+        // Un orbe tout proche de la caméra s'efface, pour ne pas blanchir l'écran.
+        float near = smoothstep(4.0, 45.0, length(worldPos - g.camPos.xyz));
+        vec3 c = pc.colorB.rgb * pc.colorB.a * (0.10 * facing + 1.0 * rim) * near;
+        outColor = vec4(safe(c * visible), 1.0);
         return;
     }
     if (kind > 0.5) {
         // Bulle de bouclier : brillante sur son contour, avec une trame qui défile.
         vec3 n = normalize(normal);
         vec3 v = normalize(g.camPos.xyz - worldPos);
-        float rim = pow(1.0 - abs(dot(n, v)), 2.2);
+        float rim = pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 2.2);
         float grid = max(smoothstep(0.42, 0.5, abs(fract(uv.x * 20.0) - 0.5)),
                          smoothstep(0.42, 0.5, abs(fract(uv.y * 10.0 + g.camPos.w * 0.6) - 0.5)));
         vec3 c = pc.colorB.rgb * (rim * 2.2 + grid * 0.35 + 0.05) * pc.colorB.a;
-        outColor = vec4(c * visible, 1.0);
+        outColor = vec4(safe(c * visible), 1.0);
         return;
     }
 
@@ -44,5 +47,5 @@ void main() {
     float core = pow(across, 3.0) * pow(along, 2.2);
     vec3 c = mix(pc.colorB.rgb, vec3(1.0), pow(across, 10.0) * along * 0.6) * core * pc.colorB.a *
              flicker * 0.30;
-    outColor = vec4(c * visible, 1.0);
+    outColor = vec4(safe(c * visible), 1.0);
 }

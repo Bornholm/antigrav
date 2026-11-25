@@ -41,5 +41,5 @@ void main() {
         float back = 0.25 + 0.75 * max(n.y, 0.0);
         c += pc.colorC.rgb * pc.colorC.a * back;
     }
-    outColor = vec4(applyFog(c, worldPos), 1.0);
+    outColor = vec4(safe(applyFog(c, worldPos)), 1.0);
 }

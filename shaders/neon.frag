@@ -21,5 +21,5 @@ void main() {
         float seam = smoothstep(0.485, 0.5, abs(fract(uv.y / 8.0) - 0.5));
         c = vec3(0.004, 0.005, 0.010) + color.rgb * (0.03 * uv.x * uv.x + seam * 0.5);
     }
-    outColor = vec4(applyFog(c, worldPos), 1.0);
+    outColor = vec4(safe(applyFog(c, worldPos)), 1.0);
 }

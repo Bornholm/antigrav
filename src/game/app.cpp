@@ -176,8 +176,20 @@ void App::receiveSong() {
     if (net.role != net::Role::Client || !net.joined || net.hostSongId == 0) return;
     if (net.hostSongId == appliedSong) return;
     // Pendant une course, on ne touche pas au morceau en cours.
-    if (inRace) return;
+    if (inRace || pending) return;
     if (net.share.take(net.hostSongId)) {
+        // Le décodage du morceau reçu se fait derrière l'écran de chargement.
+        later([this] { installHostSong(); });
+        return;
+    }
+    if (!net.share.fetching() || net.share.wantedId != net.hostSongId)
+        net.share.fetch(net.hostIp, ntohs(net.hostPort), net.hostSongId);
+    std::snprintf(songStatus, sizeof(songStatus), tr("Réception du morceau : %d %%"),
+                  static_cast<int>(net.share.progress() * 100.0f));
+}
+
+void App::installHostSong() {
+    {
         if (packageId(net.share.received) == net.hostSongId &&
             songs.applyPackage(net.share.received, music, hostSong)) {
             appliedSong = net.hostSongId;
@@ -195,12 +207,7 @@ void App::receiveSong() {
             notice = songs.error.empty() ? "Morceau reçu abîmé" : songs.error.c_str();
         }
         net.share.received.clear();
-        return;
     }
-    if (!net.share.fetching() || net.share.wantedId != net.hostSongId)
-        net.share.fetch(net.hostIp, ntohs(net.hostPort), net.hostSongId);
-    std::snprintf(songStatus, sizeof(songStatus), tr("Réception du morceau : %d %%"),
-                  static_cast<int>(net.share.progress() * 100.0f));
 }
 
 bool App::useSongFile(const std::string& path) {
@@ -383,18 +390,21 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     if (net.role == net::Role::Client) {
         receiveSong();
         // Le départ attend que le morceau de l'hôte soit installé.
-        if (net.startPending && (net.hostSongId == 0 || net.hostSongId == appliedSong)) {
+        if (net.startPending && (net.hostSongId == 0 || net.hostSongId == appliedSong) && !pending) {
             net.startPending = false;
-            track = net.startConfig.track;
-            race.init(net.startConfig, net.mySlot);
-            race.clientTick = clientTickThunk;
-            race.clientUser = &net;
-            race.autopilot = false;
-            race.orbit = false;
-            race.showHud = true;
-            race.synth = synth;
-            inRace = true;
-            go(Screen::Race);
+            // La piste se construit derrière l'écran de chargement.
+            later([this] {
+                track = net.startConfig.track;
+                race.init(net.startConfig, net.mySlot);
+                race.clientTick = clientTickThunk;
+                race.clientUser = &net;
+                race.autopilot = false;
+                race.orbit = false;
+                race.showHud = true;
+                race.synth = synth;
+                inRace = true;
+                go(Screen::Race);
+            });
         }
         if (inRace && net.corrected) {
             // L'écart de recalage est résorbé à l'affichage plutôt que montré d'un coup.
@@ -838,8 +848,8 @@ void App::drawMenus(glm::vec2) {
             // On ne part que lorsque tout le monde a reçu le morceau.
             const int peers = net.peerCount(), ready = net.peersReady();
             const bool everyone = publishedSong != 0 && ready == peers;
-            if (ui.button({470.0f, y + 10.0f}, {kColumn, 46.0f}, "LANCER LA COURSE", everyone, kYellow)) {
-                startHosted();
+            if (ui.button({470.0f, y + 10.0f}, {kColumn, 46.0f}, "LANCER LA COURSE", everyone && !pending, kYellow)) {
+                later([this] { startHosted(); });
                 return;
             }
             if (notice[0]) {

@@ -41,6 +41,13 @@ float hash21(vec2 p) {
     return fract((p3.x + p3.y) * p3.z);
 }
 
+// Garde-fou des sorties de la scène : une valeur non finie ou démesurée
+// donnerait des pixels noirs après le tone mapping, que le bloom étale.
+vec3 safe(vec3 c) {
+    if (any(isnan(c)) || any(isinf(c))) return vec3(0.0);
+    return clamp(c, vec3(0.0), vec3(256.0));
+}
+
 vec3 applyFog(vec3 color, vec3 worldPos) {
     float dist = length(worldPos - g.camPos.xyz);
     float visible = exp(-dist * g.fog.a);

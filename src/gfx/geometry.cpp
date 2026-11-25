@@ -730,6 +730,30 @@ MeshData buildTrail(int variant) {
 }
 
 // Bulle du bouclier : ellipsoïde autour du vaisseau, dessiné en additif.
+MeshData buildOrb() {
+    MeshData mesh;
+    const int rings = 10, sectors = 18;
+    for (int r = 0; r <= rings; r++) {
+        float phi = 3.14159265f * static_cast<float>(r) / rings;
+        for (int s = 0; s <= sectors; s++) {
+            float theta = 6.2831853f * static_cast<float>(s) / sectors;
+            Vertex v;
+            v.pos = {std::sin(phi) * std::cos(theta), std::cos(phi), std::sin(phi) * std::sin(theta)};
+            v.normal = v.pos;
+            v.kind = 2.0f;
+            v.uv = {static_cast<float>(s) / sectors, static_cast<float>(r) / rings};
+            mesh.add(v);
+        }
+    }
+    for (int r = 0; r < rings; r++)
+        for (int s = 0; s < sectors; s++) {
+            uint32_t a = static_cast<uint32_t>(r * (sectors + 1) + s);
+            uint32_t b = a + static_cast<uint32_t>(sectors) + 1;
+            mesh.quad(a, a + 1, b + 1, b);
+        }
+    return mesh;
+}
+
 MeshData buildShield() {
     MeshData mesh;
     const glm::vec3 center{0.0f, 0.55f, -0.3f};

@@ -5,6 +5,9 @@
 
 namespace game {
 
+// Effets sonores des bonus et des chocs, tous synthétisés.
+enum class Sfx : uint8_t { Pickup, Shot, Mine, Pulse, Turbo, ShieldUp, ShieldBreak, Comet, Hit, Jump, Count };
+
 // Synthétiseur du son de course : moteur, vent, boost, frottement et bips du
 // départ. Tout est calculé, aucun fichier audio n'est chargé.
 //
@@ -18,6 +21,8 @@ class Synth {
     // kind 0 : bip du compte à rebours. kind 1 : signal du départ.
     void beep(int kind);
     void setVolume(float volume) { volume_.store(volume); }
+    // Joue un effet sonore, à un volume de 0 à 1.
+    void play(Sfx sfx, float volume = 1.0f);
 
     // Écrit `frames` échantillons stéréo entrelacés, en flottants de -1 à 1.
     void render(float* out, int frames);
@@ -41,6 +46,19 @@ class Synth {
     uint32_t noise_ = 0x1234567u;
     uint32_t beepSeen_ = 0;
     float beepPhase_ = 0.0f, beepTime_ = 1e9f, beepFreq_ = 0.0f, beepLength_ = 0.0f;
+
+    // Effets sonores : le jeu les dépose dans une file, le rendu les joue
+    // sur quelques voix.
+    static constexpr int kQueue = 16;
+    std::atomic<uint32_t> sfxWrite_{0};
+    std::atomic<uint16_t> sfxQueue_[kQueue] = {};
+    uint32_t sfxRead_ = 0;
+    struct Voice {
+        int kind = -1;
+        float time = 0.0f, volume = 0.0f, phase = 0.0f, low = 0.0f;
+    };
+    Voice voices_[8];
+    float voiceSample(Voice& v, float dt);
 
     float nextNoise();
 };

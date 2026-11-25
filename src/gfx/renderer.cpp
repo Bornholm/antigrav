@@ -444,6 +444,7 @@ void Renderer::init(Gpu& gpuRef, VkFormat output) {
     }
     shield = uploadMesh(*gpu, buildShield(), "shield");
     missile = uploadMesh(*gpu, buildMissile(), "missile");
+    orb = uploadMesh(*gpu, buildOrb(), "orb");
 }
 
 void Renderer::loadTrack(const sim::Track& track, int themeId, int serial) {
@@ -485,6 +486,7 @@ void Renderer::shutdown() {
         destroyMesh(*gpu, trails[i]);
     }
     destroyMesh(*gpu, shield);
+    destroyMesh(*gpu, orb);
     destroyMesh(*gpu, missile);
     for (int i = 0; i < static_cast<int>(Material::Count); i++) {
         vkDestroyPipeline(dev, scenePipelines[i], nullptr);
@@ -733,11 +735,12 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
     const Mesh& trail = trails[0];
     bindMesh(cmd, trail);
     for (int i = 0; i < params.missileCount; i++) {
+        if (params.missiles[i].flameScale <= 0.0f) continue;
         ScenePush push;
         push.model = missileModel(params.missiles[i]) *
                      glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.12f, 0.55f)) *
-                     glm::scale(glm::mat4(1.0f), glm::vec3(0.35f));
-        push.colorB = glm::vec4(1.0f, 0.2f, 0.8f, 14.0f);
+                     glm::scale(glm::mat4(1.0f), glm::vec3(0.35f, 0.35f, params.missiles[i].flameScale));
+        push.colorB = params.missiles[i].flame;
         pushScene(cmd, sceneLayout, push);
         vkCmdDrawIndexed(cmd, trail.indexCount, 1, 0, 0, 0);
     }
@@ -749,6 +752,17 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
         push.colorB = glm::vec4(0.1f, 0.8f, 1.0f, params.ships[i].shield);
         pushScene(cmd, sceneLayout, push);
         vkCmdDrawIndexed(cmd, shield.indexCount, 1, 0, 0, 0);
+    }
+    // Orbes d'effets. Pas de reflet : ils sont brefs et déjà très lumineux.
+    if (!reflection && params.fxCount > 0) {
+        bindMesh(cmd, orb);
+        for (int i = 0; i < params.fxCount; i++) {
+            ScenePush push;
+            push.model = params.fx[i].model;
+            push.colorB = params.fx[i].color;
+            pushScene(cmd, sceneLayout, push);
+            vkCmdDrawIndexed(cmd, orb.indexCount, 1, 0, 0, 0);
+        }
     }
 }
 

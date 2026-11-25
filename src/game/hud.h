@@ -42,6 +42,7 @@ struct HudState {
     // Ligne de mesures affichée en bas de l'écran, vide pour la masquer.
     const char* statsLine = "";
     glm::vec3 shipPos{0.0f}; // vaisseau du joueur, pour y accrocher les alertes
+    glm::vec4 flash{0.0f};   // voile de couleur sur tout l'écran : rgb teinte, a force
     int item = 0;            // bonus porté, voir sim::Item ; 0 pour aucun
     bool incoming = false;   // un tir arrive sur le joueur
     bool shielded = false;

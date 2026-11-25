@@ -22,6 +22,69 @@ void Synth::beep(int kind) {
     beepCount_.fetch_add(1);
 }
 
+void Synth::play(Sfx sfx, float volume) {
+    const uint32_t slot = sfxWrite_.load();
+    const uint16_t level = static_cast<uint16_t>(std::clamp(volume, 0.0f, 1.0f) * 255.0f);
+    sfxQueue_[slot % kQueue].store(static_cast<uint16_t>(static_cast<uint16_t>(sfx) << 8 | level));
+    sfxWrite_.store(slot + 1);
+}
+
+// Un échantillon d'une voix d'effet. Renvoie 0 et libère la voix à la fin.
+float Synth::voiceSample(Voice& v, float dt) {
+    static const float kLength[static_cast<int>(Sfx::Count)] = {0.24f, 0.30f, 0.22f, 0.75f, 0.85f, 0.50f, 0.32f, 1.40f, 0.50f, 0.50f};
+    const float length = kLength[v.kind], t = v.time, u = t / length;
+    if (u >= 1.0f) {
+        v.kind = -1;
+        return 0.0f;
+    }
+    auto tone = [&](float freq) {
+        v.phase += freq * dt;
+        if (v.phase >= 1.0f) v.phase -= std::floor(v.phase);
+        return std::sin(v.phase * kTau);
+    };
+    const float n = nextNoise();
+    float out = 0.0f;
+    switch (static_cast<Sfx>(v.kind)) {
+    case Sfx::Pickup: // trois notes qui montent
+        out = tone(t < 0.07f ? 880.0f : t < 0.14f ? 1175.0f : 1568.0f) * (1.0f - u) * 0.55f;
+        break;
+    case Sfx::Shot: // rayon : sifflement qui tombe
+        out = tone(2200.0f * std::exp(-t * 9.0f) + 180.0f) * (1.0f - u) * (1.0f - u) * 0.6f + n * 0.25f * std::exp(-t * 30.0f);
+        break;
+    case Sfx::Mine: // choc sourd
+        out = tone(150.0f * std::exp(-t * 8.0f) + 50.0f) * (1.0f - u) * 0.8f;
+        break;
+    case Sfx::Pulse: // onde : basse profonde et souffle qui s'étouffe
+        v.low += (n - v.low) * (0.25f * (1.0f - u) + 0.01f);
+        out = tone(58.0f) * (1.0f - u) * 0.9f + v.low * (1.0f - u) * 1.2f;
+        break;
+    case Sfx::Turbo: // souffle qui monte puis retombe
+        v.low += (n - v.low) * 0.12f;
+        out = (n - v.low) * std::sin(3.14159265f * u) * 0.35f + tone(200.0f + 500.0f * u) * std::sin(3.14159265f * u) * 0.25f;
+        break;
+    case Sfx::ShieldUp: // accord qui scintille
+        out = (tone(660.0f) + std::sin(v.phase * kTau * 1.5f) * 0.7f + std::sin(v.phase * kTau * 2.0f) * 0.4f) *
+              (0.6f + 0.4f * std::sin(t * kTau * 18.0f)) * std::min(1.0f, t * 30.0f) * (1.0f - u) * 0.28f;
+        break;
+    case Sfx::ShieldBreak: // verre qui cède
+        out = n * std::exp(-t * 14.0f) * 0.6f + tone(1800.0f) * std::exp(-t * 20.0f) * 0.4f;
+        break;
+    case Sfx::Comet: // grondement qui enfle
+        v.low += (n - v.low) * 0.05f;
+        out = (tone(90.0f + 170.0f * u) * (0.6f + 0.4f * std::sin(t * kTau * 11.0f)) * 0.7f + v.low * 1.4f) * std::sin(3.14159265f * u);
+        break;
+    case Sfx::Hit: // impact : fracas et note qui s'effondre
+        out = n * std::exp(-t * 9.0f) * 0.75f + tone(220.0f * std::exp(-t * 6.0f)) * std::exp(-t * 7.0f) * 0.6f;
+        break;
+    case Sfx::Jump: // envol
+        out = tone(300.0f + 600.0f * u) * (1.0f - u) * 0.4f;
+        break;
+    default: break;
+    }
+    v.time += dt;
+    return out * v.volume;
+}
+
 float Synth::nextNoise() {
     noise_ = noise_ * 1664525u + 1013904223u;
     return static_cast<float>(noise_ >> 8) / 8388608.0f - 1.0f;
@@ -33,6 +96,21 @@ void Synth::render(float* out, int frames) {
     const float boostTarget = boost_.load();
     const float scrapeTarget = scrape_.load();
     const float volume = volume_.load();
+    // Nouveaux effets : chacun prend une voix libre, ou la plus ancienne.
+    for (const uint32_t write = sfxWrite_.load(); sfxRead_ != write; sfxRead_++) {
+        const uint16_t packed = sfxQueue_[sfxRead_ % kQueue].load();
+        Voice* voice = &voices_[0];
+        for (Voice& v : voices_) {
+            if (v.kind < 0) {
+                voice = &v;
+                break;
+            }
+            if (v.time > voice->time) voice = &v;
+        }
+        *voice = Voice{};
+        voice->kind = std::min<int>(packed >> 8, static_cast<int>(Sfx::Count) - 1);
+        voice->volume = static_cast<float>(packed & 0xFF) / 255.0f;
+    }
 
     uint32_t beeps = beepCount_.load();
     if (beeps != beepSeen_) {
@@ -108,6 +186,10 @@ void Synth::render(float* out, int frames) {
             beepTime_ += dt;
         }
 
+        float effects = 0.0f;
+        for (Voice& v : voices_)
+            if (v.kind >= 0) effects += voiceSample(v, dt);
+
         for (int c = 0; c < 2; c++) {
             float n = nextNoise();
 
@@ -129,7 +211,7 @@ void Synth::render(float* out, int frames) {
             float scrape = (scrapeLow_[c] - scrapeBand_[c]) * 0.40f * scrapeSmooth_;
 
             float body = engine[c] * 0.62f + crushHold_[c] * 0.38f;
-            float sample = (body * engineGain + wind + rush) * 0.5f + scrape + beep;
+            float sample = (body * engineGain + wind + rush) * 0.5f + scrape + beep + effects * 0.6f;
             // Écrêtage doux : la somme ne sature jamais brutalement.
             out[i * 2 + c] = std::tanh(sample * 1.4f) * volume;
         }

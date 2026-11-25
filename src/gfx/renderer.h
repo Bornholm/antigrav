@@ -16,7 +16,8 @@ namespace gfx {
 constexpr int kFramesInFlight = 2;
 constexpr int kBloomLevels = 6;
 constexpr int kMaxShips = 8;
-constexpr int kMaxMissileDraws = 16;
+constexpr int kMaxMissileDraws = 24;
+constexpr int kMaxFx = 48;
 
 // Image dans laquelle la dernière passe écrit : une image de la swapchain ou
 // la cible hors écran du mode capture.
@@ -39,8 +40,16 @@ struct ShipDraw {
     int variant = 0;        // modèle de vaisseau
 };
 
+// Orbe lumineux, dessiné en additif.
+struct FxDraw {
+    glm::mat4 model{1.0f}; // sphère de rayon 1 à placer et dimensionner
+    glm::vec4 color{1.0f}; // rgb teinte, a intensité
+};
+
 struct MissileDraw {
     glm::mat4 model{1.0f};
+    glm::vec4 flame{1.0f, 0.2f, 0.8f, 14.0f}; // rgb teinte de la flamme, a intensité
+    float flameScale = 0.35f;                  // longueur de la flamme ; 0 pour aucune
     glm::vec3 planePoint{0.0f};
     glm::vec3 planeNormal{0.0f, 1.0f, 0.0f};
 };
@@ -66,6 +75,9 @@ struct FrameParams {
     ShipDraw ships[kMaxShips];
     int missileCount = 0;
     MissileDraw missiles[kMaxMissileDraws];
+    // Orbes lumineux : explosions, ondes de choc, halos des projectiles.
+    int fxCount = 0;
+    FxDraw fx[kMaxFx];
     // Interface de l'image, facultative.
     const HudBatch* hud = nullptr;
 };
@@ -166,7 +178,7 @@ struct Renderer {
     // Maillages du circuit chargé, puis ceux qui ne changent jamais.
     Mesh road, rails, gates, features, city;
     Mesh ships[sim::kShipCount], trails[sim::kShipCount];
-    Mesh shield, missile;
+    Mesh shield, missile, orb;
     Theme theme = themeFor(0);
     int loadedTrack = -1;
     float trackLead = 0.0f; // piste construite avant la ligne de départ

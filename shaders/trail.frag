@@ -2,7 +2,7 @@
 #include "common.glsl"
 
 // Effets dessinés en additif. kind 0 : flamme de réacteur, uv.x en travers,
-// uv.y de la tuyère vers la queue. kind 1 : bulle de bouclier.
+// uv.y de la tuyère vers la queue. kind 1 : bulle de bouclier. kind 2 : orbe d'effet.
 layout(location = 0) in vec3 worldPos;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 uv;
@@ -14,6 +14,16 @@ layout(location = 0) out vec4 outColor;
 void main() {
     float visible = exp(-length(worldPos - g.camPos.xyz) * g.fog.a);
 
+    if (kind > 1.5) {
+        // Orbe d'effet : cœur diffus, contour vif. colorB porte teinte et intensité.
+        vec3 n = normalize(normal);
+        vec3 v = normalize(g.camPos.xyz - worldPos);
+        float facing = abs(dot(n, v));
+        float rim = pow(1.0 - facing, 2.0);
+        vec3 c = pc.colorB.rgb * pc.colorB.a * (0.22 * facing + 1.3 * rim);
+        outColor = vec4(c * visible, 1.0);
+        return;
+    }
     if (kind > 0.5) {
         // Bulle de bouclier : brillante sur son contour, avec une trame qui défile.
         vec3 n = normalize(normal);

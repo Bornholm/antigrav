@@ -269,6 +269,14 @@ void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewPr
 void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
     char buf[48];
 
+    // Voile de couleur : un bonus ramassé, un choc encaissé.
+    if (s.flash.a > 0.01f) {
+        const vec2 size = hud.screen / hud.scale;
+        hud.anchor = Anchor::Left;
+        hud.vAnchor = gfx::VAnchor::Top;
+        hud.quad({0.0f, 0.0f}, {size.x, 0.0f}, {size.x, size.y}, {0.0f, size.y}, vec4(s.flash.r, s.flash.g, s.flash.b, s.flash.a));
+    }
+
     // Chrono sous le compteur de tours.
     hud.anchor = Anchor::Left;
     hud.vAnchor = gfx::VAnchor::Top;

@@ -4,6 +4,8 @@
 #include "game/songs.h"
 #include "sim/generate.h"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -82,6 +84,113 @@ void Race::init(const RaceConfig& cfg, int local) {
     minimap.clear();
 }
 
+void Race::spawnFx(const Fx& effect) {
+    // La place libre, ou à défaut celle de l'effet le plus avancé.
+    Fx* slot = &fx[0];
+    for (Fx& f : fx) {
+        if (f.age >= f.life) {
+            slot = &f;
+            break;
+        }
+        if (f.age / std::max(0.01f, f.life) > slot->age / std::max(0.01f, slot->life)) slot = &f;
+    }
+    *slot = effect;
+    slot->age = 0.0f;
+}
+
+void Race::react(const sim::World& before) {
+    const glm::vec3 kShot{1.0f, 0.25f, 0.75f}, kMine{1.0f, 0.22f, 0.12f}, kPulse{0.55f, 0.40f, 1.0f};
+    const glm::vec3 kTurbo{1.0f, 0.75f, 0.2f}, kShield{0.2f, 0.85f, 1.0f}, kComet{1.0f, 0.5f, 0.1f};
+    const sim::Vehicle& me = world.vehicles[localIndex];
+    for (int i = 0; i < world.count; i++) {
+        const sim::Vehicle& was = before.vehicles[i];
+        const sim::Vehicle& now = world.vehicles[i];
+        const bool mine = i == localIndex;
+        // Les autres s'entendent de près seulement, et moins fort.
+        const float near = std::abs(now.dist - me.dist);
+        const float volume = mine ? 1.0f : near < 250.0f ? 0.5f * (1.0f - near / 250.0f) : 0.0f;
+        auto sound = [&](Sfx sfx) {
+            if (synth && volume > 0.02f) synth->play(sfx, volume);
+        };
+        auto burst = [&](const glm::vec3& color, float from, float to, float life, float gain) {
+            Fx e;
+            e.follow = i;
+            e.color = color;
+            e.from = from;
+            e.to = to;
+            e.life = life;
+            e.gain = gain;
+            spawnFx(e);
+        };
+        auto screen = [&](const glm::vec3& color, float amount) {
+            if (!mine) return;
+            flashColor = color;
+            flash = std::max(flash, amount);
+        };
+
+        // Bonus ramassé.
+        if (was.item == sim::Item::None && now.item != sim::Item::None) {
+            sound(Sfx::Pickup);
+            burst({1.0f, 0.85f, 0.3f}, 2.0f, 9.0f, 0.35f, 2.2f);
+            screen({1.0f, 0.85f, 0.3f}, 0.18f);
+        }
+        // Bonus déclenché.
+        if (was.item != sim::Item::None && now.item == sim::Item::None) {
+            switch (was.item) {
+            case sim::Item::Shot:
+                sound(Sfx::Shot);
+                burst(kShot, 1.5f, 8.0f, 0.25f, 4.0f);
+                break;
+            case sim::Item::Mine:
+                sound(Sfx::Mine);
+                burst(kMine, 1.0f, 6.0f, 0.3f, 3.0f);
+                break;
+            case sim::Item::Pulse:
+                sound(Sfx::Pulse);
+                // Deux ondes : un front vif, puis un halo plus large.
+                burst(kPulse, 4.0f, sim::kPulseRange, 0.55f, 5.0f);
+                burst(kPulse, 2.0f, sim::kPulseRange * 0.6f, 0.8f, 2.0f);
+                screen(kPulse, 0.30f);
+                break;
+            case sim::Item::Turbo:
+                sound(Sfx::Turbo);
+                burst(kTurbo, 3.0f, 16.0f, 0.4f, 4.0f);
+                screen(kTurbo, 0.22f);
+                break;
+            case sim::Item::Shield:
+                sound(Sfx::ShieldUp);
+                burst(kShield, 9.0f, 5.0f, 0.45f, 3.0f);
+                screen(kShield, 0.20f);
+                break;
+            case sim::Item::Comet:
+                sound(Sfx::Comet);
+                burst(kComet, 4.0f, 30.0f, 0.6f, 6.0f);
+                screen(kComet, 0.35f);
+                break;
+            default: break;
+            }
+        }
+        // Choc : explosion sur le vaisseau, et l'écran du joueur en tremble.
+        if (was.stunTime <= 0.0f && now.stunTime > 0.0f) {
+            sound(Sfx::Hit);
+            // Sur son propre vaisseau l'explosion reste contenue : la caméra
+            // est dedans, elle ne doit pas noyer l'écran.
+            const float k = mine ? 0.45f : 1.0f;
+            burst({1.0f, 0.9f, 0.7f}, 2.0f, 18.0f * k, 0.5f, mine ? 3.0f : 7.0f);
+            burst({1.0f, 0.35f, 0.1f}, 4.0f, 30.0f * k, 0.8f, mine ? 1.2f : 2.5f);
+            screen({1.0f, 0.15f, 0.1f}, 0.32f);
+            if (mine) hitShake = 1.0f;
+        }
+        // Bouclier qui cède sous un choc, et non parce qu'il a fait son temps.
+        if (was.shieldTime > 0.2f && now.shieldTime <= 0.0f) {
+            sound(Sfx::ShieldBreak);
+            burst(kShield, 6.0f, 22.0f, 0.4f, 5.0f);
+            screen(kShield, 0.30f);
+        }
+        if (was.airTime <= 0.0f && now.airTime > 0.0f) sound(Sfx::Jump);
+    }
+}
+
 void Race::update(float dt, const Controls& input) {
     controls = input;
     sim::Input local;
@@ -95,6 +204,7 @@ void Race::update(float dt, const Controls& input) {
         if (clientTick) clientTick(clientUser, *this, local);
         else tick(local);
         accumulator -= sim::kFixedDt;
+        react(previous);
         if (pinToSync && world.countdown <= 0.0f) {
             // Démonstration : le vaisseau reste sur le point de synchronisation,
             // pour vérifier que la piste tombe sur la musique.
@@ -134,8 +244,13 @@ void Race::updatePresentation(float dt) {
     float speedRatio = std::clamp((player.speed - 250.0f) / (sim::kBoostSpeed - 250.0f), 0.0f, 1.2f);
     float fovTarget = 1.02f + 0.20f * speedRatio + (player.boosting ? 0.06f : 0.0f);
     camFov += (fovTarget - camFov) * (1.0f - std::exp(-dt * 3.0f));
-    float shakeTarget = player.scraping ? 1.0f : (player.boosting ? 0.25f : 0.0f);
+    float shakeTarget = std::max(player.scraping ? 1.0f : (player.boosting ? 0.45f : 0.0f), 2.2f * hitShake);
     camShake += (shakeTarget - camShake) * (1.0f - std::exp(-dt * 10.0f));
+
+    for (Fx& e : fx)
+        if (e.age < e.life) e.age += dt;
+    flash *= std::exp(-dt * 5.0f);
+    hitShake *= std::exp(-dt * 4.0f);
 
     float decay = std::exp(-dt * 10.0f);
     for (int i = 0; i < world.count; i++) {
@@ -153,6 +268,14 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
 
     HudState state;
     float playerDist = 0.0f;
+    glm::vec3 shipPos[sim::kMaxVehicles];
+    out.fxCount = 0;
+    auto orb = [&](const glm::vec3& at, float radius, const glm::vec3& color, float gain) {
+        if (out.fxCount >= gfx::kMaxFx || radius <= 0.0f || gain <= 0.0f) return;
+        gfx::FxDraw& draw = out.fx[out.fxCount++];
+        draw.model = glm::scale(glm::translate(glm::mat4(1.0f), at), glm::vec3(radius));
+        draw.color = glm::vec4(color, gain);
+    };
     for (int i = 0; i < world.count; i++) {
         const sim::Vehicle& a = previous.vehicles[i];
         const sim::Vehicle& b = world.vehicles[i];
@@ -171,6 +294,9 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         const float air = mixf(sim::airHeight(a), sim::airHeight(b), alpha);
         glm::vec3 pos = f.pos + f.right * lateral + f.up * (kHover + bob + air);
         if (i == localIndex) state.shipPos = pos + f.up * 0.6f;
+        shipPos[i] = pos + f.up * 0.8f;
+        // Turbo : un halo chaud enveloppe le vaisseau.
+        if (b.boosting) orb(shipPos[i] - f.tangent * 3.0f, 5.5f + 0.8f * std::sin(time * 30.0f), {1.0f, 0.7f, 0.2f}, 2.2f);
 
         gfx::ShipDraw& ship = out.ships[out.shipCount++];
         // Le maillage regarde vers -Z, donc son axe +Z pointe vers l'arrière.
@@ -181,7 +307,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         ship.planeNormal = f.up;
         ship.variant = b.ship;
         ship.trim = glm::vec4(kSlotColors[i].trim, 6.0f);
-        ship.engine = glm::vec4(kSlotColors[i].engine, b.boosting ? 16.0f : 9.0f);
+        ship.engine = glm::vec4(b.boosting ? glm::vec3(1.0f, 0.7f, 0.25f) : kSlotColors[i].engine, b.boosting ? 30.0f : 9.0f);
         // La bulle s'éteint en douceur sur sa dernière demi-seconde.
         ship.shield = std::min(1.0f, b.shieldTime * 2.0f);
 
@@ -212,6 +338,30 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
                                glm::vec4(f.pos + f.right * lateral + f.up * (0.9f * size), 1.0f));
         draw.planePoint = f.pos;
         draw.planeNormal = f.up;
+        // Chaque projectile a son halo, pour qu'on le voie venir de loin.
+        const glm::vec3 at = f.pos + f.right * lateral + f.up * (0.9f * size);
+        if (m.kind == sim::MissileKind::Comet) {
+            draw.flame = glm::vec4(1.0f, 0.5f, 0.1f, 30.0f);
+            draw.flameScale = 2.6f;
+            orb(at, 7.0f + 1.0f * std::sin(time * 24.0f), {1.0f, 0.55f, 0.12f}, 6.0f);
+            orb(at - f.tangent * 14.0f, 13.0f, {1.0f, 0.3f, 0.05f}, 1.6f);
+        } else if (m.kind == sim::MissileKind::Mine) {
+            draw.flameScale = 0.0f;
+            // Elle clignote, de plus en plus vite à mesure qu'elle s'épuise.
+            const float blink = 0.5f + 0.5f * std::sin(time * (6.0f + 20.0f * std::max(0.0f, 1.0f - m.life / 6.0f)));
+            orb(at, 2.6f + 1.2f * blink, {1.0f, 0.2f, 0.1f}, 2.0f + 4.0f * blink);
+        } else {
+            draw.flameScale = 0.9f;
+            orb(at, 2.4f, {1.0f, 0.3f, 0.8f}, 5.0f);
+        }
+    }
+    // Explosions, ondes et éclats.
+    for (const Fx& e : fx) {
+        if (e.age >= e.life) continue;
+        const float u = e.age / e.life, ease = 1.0f - (1.0f - u) * (1.0f - u);
+        const glm::vec3 at = e.follow >= 0 && e.follow < world.count ? shipPos[e.follow]
+                                                                  : track.point(e.dist, e.lateral, e.height);
+        orb(at, e.from + (e.to - e.from) * ease, e.color, e.gain * (1.0f - u) * (1.0f - u));
     }
 
     const sim::Vehicle& player = world.vehicles[localIndex];
@@ -308,6 +458,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     for (int b = 0; b < static_cast<int>(Button::Count); b++) state.pressed[b] = controls.pressed[b];
     state.statsLine = statsLine;
     state.item = static_cast<int>(player.item);
+    state.flash = glm::vec4(flashColor, flash);
     state.shielded = player.shieldTime > 0.0f;
     // Un tir arrive : il est derrière, proche, et personne ne le sépare du joueur.
     state.incoming = false;

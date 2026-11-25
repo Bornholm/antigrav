@@ -35,6 +35,8 @@ Des boîtes à bonus, de grands losanges jaunes surmontés d'un faisceau, donnen
 | Bouclier | Encaisse le prochain choc, barrière comprise, puis s'éteint. Dure neuf secondes. |
 | Comète | Réservée au dernier. Elle remonte toute la piste et frappe chaque vaisseau qu'elle dépasse, jusqu'au meneur. Seul un bouclier l'arrête. |
 
+Chaque bonus a son effet lumineux et son bruit : halo sur les tirs, mines qui clignotent, onde de choc qui enfle, explosion sur un vaisseau touché. Un voile de couleur passe sur l'écran quand on ramasse un bonus ou qu'on encaisse un choc.
+
 Un vaisseau touché perd une bonne part de sa vitesse et le contrôle pendant près d'une seconde. Les derniers reçoivent plus souvent des tirs et des turbos, les premiers des mines et des boucliers. Le tout dernier a une chance sur cinq de tirer une comète, de quoi rebattre les cartes.
 
 Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un élastique freine qui prend de l'avance sur elle et aspire qui traîne, donc le peloton reste groupé. La ligne ÉCART donne l'avance du vaisseau sur la musique.

@@ -30,6 +30,8 @@ MeshData buildShip(int variant);
 // Flammes de réacteur, placées sur les tuyères du même modèle.
 MeshData buildTrail(int variant);
 MeshData buildShield();
+// Sphère de rayon 1, pour les effets lumineux : explosions, ondes, halos.
+MeshData buildOrb();
 MeshData buildMissile();
 
 } // namespace gfx

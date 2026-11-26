@@ -185,6 +185,7 @@ const Entry kEntries[] = {
     {"CONTINUER", "CONTINUE", "CONTINUAR"},
     {"QUITTER LA COURSE ?", "QUIT THE RACE?", "¿SALIR DE LA CARRERA?"},
     {"REPRENDRE", "RESUME", "SEGUIR"},
+    {"PAUSE", "PAUSED", "PAUSA"},
     // Morceaux du joueur
     {"Fichier illisible", "Cannot read the file", "No se puede leer el archivo"},
     {"Fichier trop gros : 80 Mo au plus", "File too large: 80 MB at most", "Archivo demasiado grande: 80 MB como máximo"},

@@ -228,6 +228,9 @@ void App::init(int startTrack) {
     records.load();
     setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
     setButtonsSwapped(settings.swapButtons);
+    // Vaisseau de la dernière partie, sauf s'il est imposé au lancement.
+    if (ship < 0) ship = settings.ship;
+    ship = std::clamp(ship, 0, sim::kShipCount - 1);
     for (int i = 0; i < 3; i++)
         if (settings.keys[i] > 0) setKeyBinding(static_cast<Button>(i), settings.keys[i]);
     if (settings.name[0]) {
@@ -246,6 +249,10 @@ void App::init(int startTrack) {
     } else {
         startAttract();
     }
+}
+
+bool App::paused() const {
+    return screen == Screen::Race && inRace && confirmQuit && net.role == net::Role::Off && !race.finished();
 }
 
 void App::go(Screen next) {
@@ -464,7 +471,7 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
             // course n'a pas de pause : la musique tourne dès le départ. Il
             // ne faut surtout pas la dire arrêtée quand une image passe sans
             // pas de simulation, ce qui arrive une image sur deux à 120 Hz.
-            const bool moving = race.world.countdown <= 0.0f;
+            const bool moving = race.world.countdown <= 0.0f && !paused();
             const double songTime = moving ? sim::songTime(race.world, race.track, player) + race.accumulator : -1.0;
             // Vitesse du morceau : 1 avec l'horloge commune, celle du vaisseau
             // rapportée à celle de la musique avec l'horloge par joueur.
@@ -543,7 +550,12 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     }
 
     if (autoPlay && inRace && net.role != net::Role::Client) race.autopilot = true;
-    race.update(dt, controls);
+    // En pause, la course est figée : ni simulation, ni bruit de moteur.
+    if (paused()) {
+        if (synth) synth->setEngine(0.0f, false, false);
+    } else {
+        race.update(dt, controls);
+    }
 
     if (net.role == net::Role::Host && inRace) {
         // Un instantané tous les deux pas, soit trente par seconde.
@@ -628,9 +640,10 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 abandon();
             }
         } else if (confirmQuit) {
-            // La course continue derrière : en réseau, on ne peut pas la figer.
+            // En solo la course est en pause. En réseau elle continue
+            // derrière : on ne peut pas la figer pour les autres.
             ui.panel({800.0f, 440.0f}, {340.0f, 130.0f});
-            ui.text({800.0f, 392.0f}, "QUITTER LA COURSE ?", 34.0f, vec4(1.0f));
+            ui.text({800.0f, 392.0f}, paused() ? "PAUSE" : "QUITTER LA COURSE ?", 34.0f, vec4(1.0f));
             if (ui.button({650.0f, 490.0f}, {130.0f, 38.0f}, "REPRENDRE") || input.back) {
                 confirmQuit = false;
                 ui.reset();
@@ -857,6 +870,8 @@ void App::drawMenus(glm::vec2) {
         }
         if ((d = ui.selector({x, y}, kColumn, "VAISSEAU", sim::shipStats(ship).name)) != 0) {
             ship = (ship + d + sim::kShipCount) % sim::kShipCount;
+            settings.ship = ship;
+            settings.save();
             if (net.role != net::Role::Off) net.setShip(ship);
             startAttract();
         }
@@ -914,6 +929,8 @@ void App::drawMenus(glm::vec2) {
         int d = 0;
         if ((d = ui.selector({480.0f, 640.0f}, 310.0f, "VAISSEAU", sim::shipStats(ship).name)) != 0) {
             ship = (ship + d + sim::kShipCount) % sim::kShipCount;
+            settings.ship = ship;
+            settings.save();
             startAttract();
         }
         if ((d = ui.selector({1120.0f, 640.0f}, 310.0f, "DIFFICULTÉ", kDifficulties[std::clamp(settings.difficulty, 0, 2)])) != 0) {

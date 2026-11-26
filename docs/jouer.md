@@ -112,4 +112,6 @@ Les lettres A, D et W désignent une position sur le clavier, celle d'un clavier
 
 En haut de l'écran, la barre montre où en est chaque vaisseau dans le morceau. Le cadre de droite montre les virages à venir.
 
-La souris agit comme un doigt. Pendant une course, le bouton MENU, Échap ou le geste retour d'Android proposent de quitter la course.
+La souris agit comme un doigt. Pendant une course, le bouton MENU, Échap ou le geste retour d'Android proposent de quitter la course. En solo, ce menu met la course en pause : les vaisseaux et la musique s'arrêtent, et REPRENDRE les relance au même instant. En multijoueur la course continue derrière le menu, puisqu'elle ne peut pas s'arrêter pour les autres joueurs.
+
+Le jeu retient le dernier vaisseau choisi et le repropose au lancement suivant.

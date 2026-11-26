@@ -74,6 +74,7 @@ struct Options {
     std::string importSong; // fichier audio à copier dans la bibliothèque du joueur
     bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
+    bool pause = false; // mode sans fenêtre : ouvre le menu de course, qui met le solo en pause
     int difficulty = 1;   // niveau des IA : 0 facile, 1 normal, 2 difficile
     int autoCup = -1;     // essai réseau : l'hôte court cette coupe en entier, sans interface
     bool autoPlay = false; // essai réseau : enchaîne seul les écrans de fin
@@ -83,7 +84,7 @@ struct Options {
     int track = 0;
     bool race = false;   // démarre directement en course, sans menu
     std::string screen;  // mode sans fenêtre : écran de menu à capturer
-    int ship = 0;
+    int ship = -1; // -1 : le vaisseau gardé dans les réglages
     int hostAuto = 0;    // essais réseau sans interface, voir App
     bool joinAuto = false;
     bool realtime = false; // mode sans fenêtre : cadence réelle, nécessaire au réseau
@@ -121,6 +122,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--lang")) o.lang = value();
         else if (!std::strcmp(a, "--touch")) game::forceTouchInterface();
         else if (!std::strcmp(a, "--swap")) o.swap = true;
+        else if (!std::strcmp(a, "--pause")) o.pause = true;
         else if (!std::strcmp(a, "--loading")) o.loading = true;
         else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
@@ -243,7 +245,7 @@ int runHeadless(const Options& opt) {
     game::Music wavMusic; // musique du fichier son, mixée au même pas que l'image
     std::vector<float> wavSamples;
     game::App app;
-    app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
+    app.ship = std::min(opt.ship, sim::kShipCount - 1);
     if (!opt.wav.empty() && opt.music && wavMusic.init()) app.music = &wavMusic;
     app.deferLoads = opt.loading;
     app.init(opt.track);
@@ -271,6 +273,8 @@ int runHeadless(const Options& opt) {
         // Avance jusqu'à l'instant demandé avant la première image.
         for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
             race.update(sim::kFixedDt, game::Controls{});
+        // Menu de course ouvert, pour vérifier la pause.
+        if (opt.pause) app.confirmQuit = true;
     } else {
         if (opt.screen == "solo") app.screen = game::Screen::Solo;
         else if (opt.screen == "options") app.screen = game::Screen::Options;
@@ -457,7 +461,7 @@ int runWindowed(const Options& opt) {
         app.synth = &audio.synth;
         if (opt.music) app.music = &audio.music;
     }
-    app.ship = std::clamp(opt.ship, 0, sim::kShipCount - 1);
+    app.ship = std::min(opt.ship, sim::kShipCount - 1);
     app.window = window;
     // En fenêtre, les chargements passent derrière un écran de chargement.
     app.deferLoads = opt.song.empty() && opt.importSong.empty() && !opt.race && !opt.autopilot;

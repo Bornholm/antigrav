@@ -129,6 +129,8 @@ struct App {
     int pendingFrames = 0;
     bool deferLoads = false;
     bool confirmQuit = false; // demande de confirmation avant d'abandonner une course
+    // Vrai quand le menu de course fige la partie : en solo seulement.
+    bool paused() const;
     bool inRace = false; // une vraie course est en cours, pas la démonstration
     // Automatismes pour les essais sans interface : l'hôte lance dès que ce
     // nombre de joueurs est atteint, le client rejoint la première partie vue.

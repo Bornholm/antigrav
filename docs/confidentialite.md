@@ -14,6 +14,10 @@ Une partie à plusieurs passe par le réseau Wi-Fi local, directement entre les 
 
 C'est la raison des deux autorisations demandées : l'accès au réseau, et la réception des annonces de partie diffusées sur le Wi-Fi.
 
+## Recherche de mise à jour, version Windows
+
+Au démarrage, la version Windows demande à GitHub le numéro de la dernière version publiée, par une requête à `api.github.com`. Elle n'envoie rien d'autre que cette demande : ni pseudo, ni réglage, ni identifiant. Comme pour toute connexion, GitHub voit l'adresse IP de l'ordinateur, selon sa propre [politique de confidentialité](https://docs.github.com/fr/site-policy/privacy-policies/github-general-privacy-statement). Le réglage MISES À JOUR de l'écran Options coupe cette recherche. Les versions Android et Linux ne la font pas.
+
 ## Vos fichiers de musique
 
 Un morceau que vous ajoutez est lu et analysé sur l'appareil. Le jeu ne l'envoie nulle part, sauf aux autres joueurs d'une partie en Wi-Fi local quand vous êtes l'hôte et que vous le choisissez.
@@ -37,6 +41,10 @@ The game saves your settings, your best scores, your nickname and the songs you 
 A multiplayer game runs over the local Wi-Fi network, directly between the players' devices, with no server. The devices in the game exchange each player's nickname, the race data and the song picked by the host. Nothing leaves the local network.
 
 This is why the game asks for two permissions: network access, and receiving the game announcements broadcast over Wi-Fi.
+
+## Update check, Windows version
+
+At startup, the Windows version asks GitHub for the number of the latest release, with one request to `api.github.com`. It sends nothing but that request: no nickname, no setting, no identifier. As with any connection, GitHub sees the computer's IP address, under its own [privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). The UPDATES setting in the Options screen turns this check off. The Android and Linux versions do not make it.
 
 ## Your music files
 

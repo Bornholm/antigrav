@@ -228,6 +228,9 @@ void App::init(int startTrack) {
     records.load();
     setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
     setButtonsSwapped(settings.swapButtons);
+#if defined(_WIN32) && defined(SOUNDWAVE_VERSION)
+    if (settings.checkUpdates && !autoPlay) updates.start(SOUNDWAVE_VERSION);
+#endif
     // Vaisseau de la dernière partie, sauf s'il est imposé au lancement.
     if (ship < 0) ship = settings.ship;
     ship = std::clamp(ship, 0, sim::kShipCount - 1);
@@ -756,6 +759,12 @@ void App::drawMenus(glm::vec2) {
         if (ui.button({655.0f, 726.0f}, {135.0f, 38.0f}, "OPTIONS", true, kQuiet)) go(Screen::Options);
         if (ui.button({945.0f, 726.0f}, {135.0f, 38.0f}, "QUITTER", true, kQuiet)) quit = true;
         if (ui.in.back) quit = true;
+        // Nouvelle version trouvée au démarrage : un lien vers sa page.
+        if (const std::string latest = updates.available(); !latest.empty()) {
+            std::snprintf(buf, sizeof(buf), tr("NOUVELLE VERSION %s"), latest.c_str());
+            if (ui.button({800.0f, 812.0f}, {230.0f, 30.0f}, buf, true, kYellow))
+                SDL_OpenURL(core::UpdateCheck::kReleasesUrl);
+        }
 #ifdef SOUNDWAVE_VERSION
         ui.text({1540.0f, 862.0f}, SOUNDWAVE_VERSION, 16.0f, vec4(1.0f, 1.0f, 1.0f, 0.45f), gfx::Align::Right);
 #endif
@@ -823,6 +832,14 @@ void App::drawMenus(glm::vec2) {
             settings.save();
         }
         y += kRow;
+#ifdef _WIN32
+        // Recherche de nouvelle version au démarrage, auprès de GitHub.
+        if (ui.selector({800.0f, y}, 400.0f, "MISES À JOUR", settings.checkUpdates ? "Vérifier" : "Ne pas vérifier") != 0) {
+            settings.checkUpdates = !settings.checkUpdates;
+            settings.save();
+        }
+        y += kRow;
+#endif
         // Touches du clavier, pour qui ne joue pas au doigt.
         if (!touchInterface()) {
             char keys[64];

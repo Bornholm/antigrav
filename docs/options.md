@@ -4,6 +4,7 @@
 |---|---|
 | `--race` | démarre directement une course, sans menu |
 | `--track N`, `--ship N` | morceau de 0 à 8, trois par coupe, vaisseau de 0 à 3. Sans `--ship`, le jeu reprend le dernier vaisseau choisi |
+| `--check-update` | interroge GitHub sur la dernière version publiée, l'affiche et quitte. Windows seulement |
 | `--pause` | avec `--headless`, ouvre le menu de course, qui met la course en pause |
 | `--autopilot` | l'ordinateur pilote aussi le vaisseau du joueur |
 | `--lang fr`, `--lang en`, `--lang es` | langue de l'interface pour ce lancement |

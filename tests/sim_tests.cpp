@@ -1,5 +1,6 @@
 // Tests de la simulation. Aucun cadre de test : un échec affiche la ligne et
 // fait sortir le programme avec un code non nul.
+#include "core/update.h"
 #include "game/score.h"
 #include "game/synth.h"
 #include "gfx/adaptive.h"
@@ -743,6 +744,22 @@ void testQualityGovernor() {
     CHECK(m.level == 0 && !m.cap60);
 }
 
+// Comparaison de versions pour la recherche de mise à jour.
+void testVersions() {
+    CHECK(core::newerVersion("v0.8.1", "v0.8.0"));
+    CHECK(core::newerVersion("v0.10.0", "v0.9.9"));
+    CHECK(core::newerVersion("v1.0.0", "v0.12.3"));
+    CHECK(!core::newerVersion("v0.8.0", "v0.8.0"));
+    CHECK(!core::newerVersion("v0.7.9", "v0.8.0"));
+    // Version de développement ou texte inattendu : jamais de message.
+    CHECK(!core::newerVersion("v0.9.0", "v0.8.0-3-gabc1234"));
+    CHECK(!core::newerVersion("v0.9.0", "v0.8.0-dirty"));
+    CHECK(!core::newerVersion("nightly", "v0.8.0"));
+    CHECK(!core::newerVersion("v0.9", "v0.8.0"));
+    CHECK(core::tagFromRelease("{\"url\":\"x\",\"tag_name\": \"v0.8.1\",\"name\":\"v0.8.1\"}") == "v0.8.1");
+    CHECK(core::tagFromRelease("{\"message\":\"Not Found\"}").empty());
+}
+
 void testAdaptiveScale() {
     const float budget = 1000.0f / 60.0f;
     auto run = [&](gfx::AdaptiveScale& a, float frameMs, float gpuMs, float seconds) {
@@ -811,6 +828,7 @@ void testScore() {
 int main() {
     testScore();
     testAdaptiveScale();
+    testVersions();
     testQualityGovernor();
     testTrackGeometry();
     testTrackEnds();

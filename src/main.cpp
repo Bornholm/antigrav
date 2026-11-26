@@ -1,4 +1,5 @@
 #include "core/log.h"
+#include "core/update.h"
 #include "game/audio.h"
 #include "game/app.h"
 #include "game/i18n.h"
@@ -88,6 +89,7 @@ struct Options {
     int hostAuto = 0;    // essais réseau sans interface, voir App
     bool joinAuto = false;
     bool realtime = false; // mode sans fenêtre : cadence réelle, nécessaire au réseau
+    bool checkUpdate = false; // cherche la dernière version publiée, l'affiche et quitte
     bool audio = true;
     bool music = true;
     std::string wav;     // mode sans fenêtre : écrit le son de la course dans ce fichier
@@ -138,6 +140,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--host-auto")) o.hostAuto = std::atoi(value());
         else if (!std::strcmp(a, "--join-auto")) o.joinAuto = true;
         else if (!std::strcmp(a, "--realtime")) o.realtime = true;
+        else if (!std::strcmp(a, "--check-update")) o.checkUpdate = true;
         else if (!std::strcmp(a, "--screen")) o.screen = value();
         else if (!std::strcmp(a, "--no-audio")) o.audio = false;
         else if (!std::strcmp(a, "--no-music")) o.music = false;
@@ -758,5 +761,16 @@ int runWindowed(const Options& opt) {
 
 int main(int argc, char** argv) {
     Options opt = parseOptions(argc, argv);
+    if (opt.checkUpdate) {
+        std::string tag, error;
+        // Sortie directe : sous Windows, le journal de SDL ne va pas sur la
+        // console d'un programme graphique.
+        if (!core::UpdateCheck::fetchLatest(tag, error)) {
+            std::printf("Recherche de mise à jour impossible : %s\n", error.c_str());
+            return 1;
+        }
+        std::printf("Dernière version publiée : %s\n", tag.c_str());
+        return 0;
+    }
     return opt.headless ? runHeadless(opt) : runWindowed(opt);
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/update.h"
 #include "game/records.h"
 #include "game/music.h"
 #include "game/race.h"
@@ -87,6 +88,7 @@ struct App {
     int lobbyCup = -1;    // hôte : coupe choisie pour le salon, -1 pour une course simple
     int clientCupSeen = 0; // client : nombre de courses de coupe attendu au classement
     int cupChoice = 0;  // coupe choisie dans le menu des coupes
+    core::UpdateCheck updates; // Windows : nouvelle version publiée
     int keyCapture = -1; // commande qui attend sa touche dans l'écran Clavier, -1 sinon
     int songsCup = 0;   // coupe affichée dans la liste des morceaux
     bool scoreSaved = false; // le score de la course en cours est déjà enregistré

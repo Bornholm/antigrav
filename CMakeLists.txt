@@ -205,6 +205,7 @@ endif()
 set(GAME_SOURCES
   src/main.cpp
   src/core/log.cpp
+  src/core/update.cpp
   src/gfx/gpu.cpp
   src/gfx/swapchain.cpp
   src/gfx/pipeline.cpp
@@ -235,6 +236,8 @@ elseif(WIN32)
   # Sous-système graphique : pas de console qui s'ouvre avec le jeu.
   enable_language(RC)
   add_executable(soundwave WIN32 ${GAME_SOURCES} assets/windows/soundwave.rc)
+  # Recherche de mise à jour : client HTTPS fourni par Windows.
+  target_link_libraries(soundwave PRIVATE winhttp)
   set(GAME_TARGET soundwave)
 else()
   add_executable(soundwave ${GAME_SOURCES})

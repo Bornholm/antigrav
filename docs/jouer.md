@@ -97,6 +97,8 @@ Le réglage QUALITÉ vaut « Auto » par défaut, avec entre parenthèses le niv
 
 Le réglage CADENCE fonctionne de la même façon. En « Auto », le jeu vise la fréquence de l'écran, par exemple 120 images par seconde sur un écran à 120 Hz. Si même la qualité basse ne suffit pas à la tenir, il plafonne à 60 images par seconde, ce qui double le temps disponible pour chaque image et lui permet de remonter en qualité. Il ne repasse à la cadence de l'écran que si le GPU tiendrait largement celle-ci. Un écran à 60 Hz n'est jamais plafonné. Choisir « Maximale » ou « 60 images/s » fixe la cadence.
 
+Sur Windows, le jeu cherche au démarrage si une nouvelle version est publiée sur GitHub. Si c'est le cas, un bouton NOUVELLE VERSION apparaît sous le menu principal et ouvre la page de téléchargement. Le réglage MISES À JOUR des options coupe cette recherche. Les versions de développement, dont le numéro n'est pas celui d'une release, ne cherchent pas. Sur Android, le Play Store se charge des mises à jour.
+
 Deux réglages allègent le jeu sur un appareil modeste.
 
 - **Qualité.** Haute par défaut. Moyenne réduit l'anticrénelage, le halo et la définition de la 3D à 85 %. Basse coupe en plus les reflets sur la piste, descend la 3D à 70 %, raccourcit la distance de vue et retire la moitié des objets volants.

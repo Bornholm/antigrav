@@ -16,7 +16,9 @@ struct Settings {
     // Niveau de rendu en vigueur : celui du joueur, sinon celui du mode
     // automatique, haute en attendant son estimation.
     int effectiveQuality() const { return quality >= 0 ? quality : autoQuality >= 0 ? autoQuality : 2; }
-    bool cap60 = false;       // plafonne l'affichage à 60 images par seconde
+    int cadence = -1;         // -1 automatique, 0 maximale, 1 plafond à 60 images par seconde
+    bool autoCap60 = false;   // plafond choisi par le mode automatique
+    bool cap60() const { return cadence == 1 || (cadence < 0 && autoCap60); }
     // Touches du clavier pour tourner à gauche, à droite et utiliser le bonus,
     // en codes de position. 0 : touche par défaut.
     int keys[3] = {0, 0, 0};

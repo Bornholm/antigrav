@@ -48,7 +48,11 @@ void Settings::load() {
         else if (key == "graphics") quality = value == "auto" ? -1 : std::clamp(std::atoi(value.c_str()), 0, 2);
         else if (key == "auto_quality") autoQuality = std::clamp(std::atoi(value.c_str()), -1, 2);
         else if (key == "difficulty") difficulty = value == "0" ? 0 : value == "2" ? 2 : 1;
-        else if (key == "cap60") cap60 = value == "1";
+        // Ancienne clé, écrite même sans choix du joueur : seul le plafond,
+        // qui ne pouvait venir que de lui, reste imposé.
+        else if (key == "cap60") cadence = value == "1" ? 1 : -1;
+        else if (key == "cadence") cadence = value == "60" ? 1 : value == "max" ? 0 : -1;
+        else if (key == "auto_cap60") autoCap60 = value == "1";
         else if (key == "ship") ship = std::atoi(value.c_str());
         else if (key == "key_left") keys[0] = std::atoi(value.c_str());
         else if (key == "key_right") keys[1] = std::atoi(value.c_str());
@@ -65,7 +69,8 @@ void Settings::save() const {
     text += "graphics=" + (quality < 0 ? std::string("auto") : std::to_string(quality)) + "\n";
     if (autoQuality >= 0) text += "auto_quality=" + std::to_string(autoQuality) + "\n";
     text += std::string("difficulty=") + static_cast<char>('0' + difficulty) + "\n";
-    text += std::string("cap60=") + (cap60 ? "1" : "0") + "\n";
+    text += std::string("cadence=") + (cadence < 0 ? "auto" : cadence == 1 ? "60" : "max") + "\n";
+    text += std::string("auto_cap60=") + (autoCap60 ? "1" : "0") + "\n";
     text += "ship=" + std::to_string(ship) + "\n";
     static const char* const kKeyNames[] = {"key_left", "key_right", "key_use"};
     for (int i = 0; i < 3; i++)

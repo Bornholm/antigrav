@@ -513,7 +513,7 @@ int runWindowed(const Options& opt) {
     renderer.loadTrack(race.track, race.theme, race.songSerial);
     renderer.settings = opt.render;
     if (opt.quality >= 0) app.settings.quality = std::clamp(opt.quality, 0, 2);
-    if (opt.cap60) app.settings.cap60 = true;
+    if (opt.cap60) app.settings.cadence = 1;
     // Qualité automatique : première estimation, sur ce que dit le système.
     if (app.settings.autoQuality < 0) {
         app.settings.autoQuality = estimateQuality(gpu);
@@ -615,7 +615,7 @@ int runWindowed(const Options& opt) {
 
         // Plafond à 60 images par seconde : on attend le créneau suivant.
         const Uint64 kCapNs = 1000000000ull / 60;
-        if (app.settings.cap60) {
+        if (app.settings.cap60()) {
             const Uint64 nowNs = SDL_GetTicksNS();
             if (nextFrameNs > nowNs) SDL_DelayPrecise(nextFrameNs - nowNs);
             // Après un retard, repartir de maintenant plutôt que rattraper.
@@ -662,17 +662,25 @@ int runWindowed(const Options& opt) {
             if (const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window));
                 mode && mode->refresh_rate > 1.0f)
                 refresh = mode->refresh_rate;
-            if (app.settings.cap60) refresh = std::min(refresh, 60.0f);
+            const float screenMs = 1000.0f / refresh;
+            if (app.settings.cap60()) refresh = std::min(refresh, 60.0f);
             adaptive.update(dt * 1000.0f, 1000.0f / refresh,
                             static_cast<float>(renderer.stats.lastTotalMs()));
-            // En mode automatique, la charge règle aussi le niveau de rendu.
-            if (app.settings.quality < 0) {
+            // En mode automatique, la charge règle aussi le niveau de rendu
+            // et la cadence.
+            if (app.settings.quality < 0 || app.settings.cadence < 0) {
+                governor.ownsLevel = app.settings.quality < 0;
+                governor.ownsCadence = app.settings.cadence < 0;
                 governor.level = app.settings.effectiveQuality();
-                if (governor.update(dt * 1000.0f, 1000.0f / refresh, adaptive.step,
+                governor.cap60 = app.settings.cap60();
+                if (governor.update(dt * 1000.0f, 1000.0f / refresh, screenMs, adaptive.step,
                                     static_cast<float>(renderer.stats.lastTotalMs()))) {
-                    logInfo("Qualité automatique : niveau %d", governor.level);
-                    const bool lowered = governor.level < app.settings.autoQuality;
-                    app.settings.autoQuality = governor.level;
+                    logInfo("Réglage automatique : niveau %d, %s", governor.level,
+                            governor.cap60 ? "60 images/s" : "cadence de l'écran");
+                    const bool lowered = governor.level < app.settings.effectiveQuality() ||
+                                         (governor.cap60 && !app.settings.cap60());
+                    if (governor.ownsLevel) app.settings.autoQuality = governor.level;
+                    if (governor.ownsCadence) app.settings.autoCap60 = governor.cap60;
                     app.settings.save();
                     renderer.settings = gfx::qualitySettings(governor.level, opt.render);
                     // Un niveau moins cher rend de la marge : la résolution
@@ -695,7 +703,7 @@ int runWindowed(const Options& opt) {
                           "GPU %.1f ms   image %.1f ms   %.0f i/s   3D %ux%u   Q%d%s",
                           renderer.stats.lastTotalMs(), cpuMsSmoothed, 1000.0 / cpuMsSmoothed,
                           renderer.sceneExtent.width, renderer.sceneExtent.height,
-                          app.settings.effectiveQuality(), app.settings.quality < 0 ? " auto" : "");
+                          app.settings.effectiveQuality(), app.settings.cap60() ? " 60" : "");
         }
         app.statsLine = statsText;
 

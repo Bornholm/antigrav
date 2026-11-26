@@ -690,7 +690,7 @@ void testQualityGovernor() {
     auto run = [&](gfx::QualityGovernor& g, int step, float gpuMs, float seconds) {
         int changes = 0;
         for (float t = 0.0f; t < seconds; t += budget * 0.001f)
-            if (g.update(budget, budget, step, gpuMs)) changes++;
+            if (g.update(budget, budget, budget, step, gpuMs)) changes++;
         return changes;
     };
     gfx::QualityGovernor g;
@@ -711,6 +711,36 @@ void testQualityGovernor() {
     run(g, 3, budget, 3.5f);
     CHECK(g.level == 0 && g.raiseBlocked);
     CHECK(run(g, 0, budget * 0.3f, 120.0f) == 0 && g.level == 0);
+    // Écran à 60 Hz : jamais de plafond.
+    CHECK(!g.cap60);
+
+    // Écran à 120 Hz : la qualité baisse d'abord, puis la cadence passe à 60.
+    const float screen = 1000.0f / 120.0f;
+    auto run120 = [&](gfx::QualityGovernor& q, int step, float gpuMs, float seconds) {
+        for (float t = 0.0f; t < seconds;) {
+            const float target = q.cap60 ? budget : screen;
+            q.update(target, target, screen, step, gpuMs);
+            t += target * 0.001f;
+        }
+    };
+    gfx::QualityGovernor h;
+    run120(h, 3, screen, 3.5f);
+    run120(h, 3, screen, 3.5f);
+    CHECK(h.level == 0 && !h.cap60);
+    run120(h, 3, screen, 3.5f);
+    CHECK(h.level == 0 && h.cap60);
+    // À 60 images par seconde, de la marge sous le budget de 60 mais pas sous
+    // celui de 120 : la qualité remonte, la cadence reste plafonnée.
+    run120(h, 0, budget * 0.3f, 21.0f);
+    CHECK(h.level == 1 && h.cap60);
+    // Assez de marge pour l'écran entier : la cadence repart en premier.
+    run120(h, 0, screen * 0.3f, 21.0f);
+    CHECK(h.level == 1 && !h.cap60);
+    // Cadence imposée par le joueur : le régulateur n'y touche pas.
+    gfx::QualityGovernor m;
+    m.ownsCadence = false;
+    run120(m, 4, screen, 30.0f);
+    CHECK(m.level == 0 && !m.cap60);
 }
 
 void testAdaptiveScale() {

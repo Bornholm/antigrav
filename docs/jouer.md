@@ -95,6 +95,8 @@ L'écran **Options** du menu principal règle la langue de l'interface (françai
 
 Le réglage QUALITÉ vaut « Auto » par défaut, avec entre parenthèses le niveau retenu. Au premier lancement, le jeu estime ce niveau d'après l'appareil : haute avec une carte graphique dédiée, moyenne avec un GPU intégré de PC, et sur téléphone selon la mémoire, haute à partir de 7 Go, moyenne à partir de 4,5 Go, basse en dessous. Pendant le jeu, il mesure la charge : si la résolution doit descendre à 60 % ou moins pendant trois secondes, le niveau baisse d'un cran ; si le GPU reste sous 40 % de son temps disponible pendant vingt secondes à pleine résolution, il monte d'un cran. Une montée qui ne tient pas est annulée et le jeu ne réessaie plus de monter jusqu'au lancement suivant. Le niveau retenu est gardé pour les lancements suivants. Choisir Basse, Moyenne ou Haute fixe le niveau et coupe ce réglage automatique.
 
+Le réglage CADENCE fonctionne de la même façon. En « Auto », le jeu vise la fréquence de l'écran, par exemple 120 images par seconde sur un écran à 120 Hz. Si même la qualité basse ne suffit pas à la tenir, il plafonne à 60 images par seconde, ce qui double le temps disponible pour chaque image et lui permet de remonter en qualité. Il ne repasse à la cadence de l'écran que si le GPU tiendrait largement celle-ci. Un écran à 60 Hz n'est jamais plafonné. Choisir « Maximale » ou « 60 images/s » fixe la cadence.
+
 Deux réglages allègent le jeu sur un appareil modeste.
 
 - **Qualité.** Haute par défaut. Moyenne réduit l'anticrénelage, le halo et la définition de la 3D à 85 %. Basse coupe en plus les reflets sur la piste, descend la 3D à 70 %, raccourcit la distance de vue et retire la moitié des objets volants.

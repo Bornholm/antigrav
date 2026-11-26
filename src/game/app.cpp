@@ -799,8 +799,13 @@ void App::drawMenus(glm::vec2) {
             settings.save();
         }
         y += kRow;
-        if (ui.selector({800.0f, y}, 400.0f, "CADENCE", settings.cap60 ? "60 images/s" : "Maximale") != 0) {
-            settings.cap60 = !settings.cap60;
+        // Même principe : automatique d'abord, avec la cadence retenue.
+        char cadenceLabel[48];
+        std::snprintf(cadenceLabel, sizeof(cadenceLabel), "Auto (%s)", tr(settings.cap60() ? "60 images/s" : "Maximale"));
+        const char* cadenceValue = settings.cadence < 0 ? cadenceLabel : settings.cadence == 1 ? "60 images/s" : "Maximale";
+        if (int d = ui.selector({800.0f, y}, 400.0f, "CADENCE", cadenceValue); d != 0) {
+            // Ordre du sélecteur : automatique, maximale, 60 images/s.
+            settings.cadence = (settings.cadence + 1 + d + 3) % 3 - 1;
             settings.save();
         }
         y += kRow;

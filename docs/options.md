@@ -16,7 +16,7 @@
 | `--scale N` | échelle de la 3D par rapport à la sortie, 0.7 par exemple |
 | `--difficulty N` | niveau des IA d'une course lancée par `--race` : 0 facile, 1 normale, 2 difficile |
 | `--quality N` | qualité du rendu pour ce lancement : 0 basse, 1 moyenne, 2 haute. Sans cette option, le jeu suit le réglage QUALITÉ, automatique par défaut |
-| `--cap60` | plafonne l'affichage à 60 images par seconde |
+| `--cap60` | plafonne l'affichage à 60 images par seconde. Sans cette option, le jeu suit le réglage CADENCE, automatique par défaut |
 | `--no-adaptive` | garde la 3D à une définition fixe |
 | `--stats` | affiche les temps GPU et le nombre d'images par seconde |
 | `--no-vsync` | ne pas attendre l'écran, pour mesurer |

@@ -62,40 +62,61 @@ inline bool AdaptiveScale::update(float frameMs, float budgetMs, float gpuMs) {
     return false;
 }
 
-// Qualité automatique : choisit le niveau de rendu (0 basse, 1 moyenne,
-// 2 haute) d'après la charge mesurée. Elle s'appuie sur la résolution
-// adaptative : si celle-ci doit descendre bas et y rester, le niveau baisse ;
-// si le GPU reste largement sous le budget à pleine résolution, il monte. Une
-// montée qui doit être annulée peu après bloque les montées suivantes.
+// Qualité et cadence automatiques, d'après la charge mesurée. Le régulateur
+// choisit le niveau de rendu (0 basse, 1 moyenne, 2 haute) et, sur un écran
+// plus rapide que 60 Hz, s'il faut plafonner à 60 images par seconde.
+//
+// Il s'appuie sur la résolution adaptative. Si celle-ci doit descendre bas et
+// y rester, le niveau baisse ; déjà en basse, la cadence passe à 60 images par
+// seconde. Si le GPU reste largement sous le budget à pleine résolution, il
+// remonte dans l'ordre inverse : d'abord la cadence de l'écran, puis le
+// niveau. Une montée qui doit être annulée peu après bloque les suivantes.
 struct QualityGovernor {
     int level = 2;
+    bool cap60 = false;       // cadence plafonnée à 60 images par seconde
+    bool ownsLevel = true;    // le niveau est automatique
+    bool ownsCadence = true;  // la cadence est automatique
     float low = 0.0f;         // secondes passées à basse résolution
     float easy = 0.0f;        // secondes à pleine résolution, GPU peu chargé
     float sinceRaise = 1e9f;  // temps écoulé depuis la dernière montée
     bool raiseBlocked = false;
 
-    // scaleStep : palier de la résolution adaptative. gpuMs : temps GPU
-    // mesuré, 0 s'il est inconnu. Renvoie vrai si le niveau change.
-    inline bool update(float frameMs, float budgetMs, int scaleStep, float gpuMs);
+    // budgetMs : durée d'image visée, plafond compris. screenMs : durée d'une
+    // image de l'écran, sans plafond. scaleStep : palier de la résolution
+    // adaptative. gpuMs : temps GPU mesuré, 0 s'il est inconnu. Renvoie vrai
+    // si le niveau ou la cadence change.
+    inline bool update(float frameMs, float budgetMs, float screenMs, int scaleStep, float gpuMs);
 };
 
-inline bool QualityGovernor::update(float frameMs, float budgetMs, int scaleStep, float gpuMs) {
+inline bool QualityGovernor::update(float frameMs, float budgetMs, float screenMs, int scaleStep, float gpuMs) {
     if (frameMs <= 0.0f || budgetMs <= 0.0f || frameMs > budgetMs * 6.0f) return false;
     const float dt = frameMs * 0.001f;
     sinceRaise += dt;
-    // Résolution à 60 % ou moins : ce niveau coûte trop cher pour l'appareil.
+    // Un écran à 60 Hz ou moins n'a rien à gagner au plafond.
+    const bool canCap = ownsCadence && screenMs < 1000.0f / 60.0f - 0.5f;
+    // Résolution à 60 % ou moins : le rendu coûte trop cher pour l'appareil.
     low = scaleStep >= 3 ? low + dt : 0.0f;
-    if (low > 3.0f && level > 0) {
-        if (sinceRaise < 30.0f) raiseBlocked = true;
-        level--;
-        low = easy = 0.0f;
-        return true;
+    if (low > 3.0f) {
+        const bool lowerLevel = ownsLevel && level > 0;
+        const bool capNow = !lowerLevel && canCap && !cap60;
+        if (lowerLevel || capNow) {
+            if (sinceRaise < 30.0f) raiseBlocked = true;
+            if (lowerLevel) level--;
+            else cap60 = true;
+            low = easy = 0.0f;
+            return true;
+        }
     }
-    // Pleine résolution et GPU à moins de 40 % du budget : le niveau du
-    // dessus a de la marge. Il faut une mesure du GPU pour en juger.
-    easy = scaleStep == 0 && gpuMs > 0.0f && gpuMs < budgetMs * 0.4f ? easy + dt : 0.0f;
-    if (easy > 20.0f && level < 2 && !raiseBlocked) {
-        level++;
+    // Pleine résolution et GPU peu chargé : de la marge pour monter. Il faut
+    // une mesure du GPU pour en juger. Le coût d'une image ne dépend pas de
+    // la cadence : la même mesure dit si l'écran entier tiendrait.
+    const bool full = scaleStep == 0 && gpuMs > 0.0f;
+    const bool uncap = cap60 && ownsCadence && full && gpuMs < screenMs * 0.4f;
+    const bool raise = ownsLevel && level < 2 && full && gpuMs < budgetMs * 0.4f;
+    easy = uncap || raise ? easy + dt : 0.0f;
+    if (easy > 20.0f && !raiseBlocked) {
+        if (uncap) cap60 = false;
+        else level++;
         low = easy = 0.0f;
         sinceRaise = 0.0f;
         return true;

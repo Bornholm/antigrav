@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -43,6 +44,9 @@ void Settings::load() {
         else if (key == "quality") quality = value == "0" ? 0 : value == "1" ? 1 : 2;
         else if (key == "difficulty") difficulty = value == "0" ? 0 : value == "2" ? 2 : 1;
         else if (key == "cap60") cap60 = value == "1";
+        else if (key == "key_left") keys[0] = std::atoi(value.c_str());
+        else if (key == "key_right") keys[1] = std::atoi(value.c_str());
+        else if (key == "key_use") keys[2] = std::atoi(value.c_str());
     }
 }
 
@@ -55,6 +59,9 @@ void Settings::save() const {
     text += std::string("quality=") + static_cast<char>('0' + quality) + "\n";
     text += std::string("difficulty=") + static_cast<char>('0' + difficulty) + "\n";
     text += std::string("cap60=") + (cap60 ? "1" : "0") + "\n";
+    static const char* const kKeyNames[] = {"key_left", "key_right", "key_use"};
+    for (int i = 0; i < 3; i++)
+        if (keys[i] > 0) text += std::string(kKeyNames[i]) + "=" + std::to_string(keys[i]) + "\n";
     SDL_SaveFile(path.c_str(), text.data(), text.size());
 }
 

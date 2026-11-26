@@ -25,6 +25,18 @@ bool touchInterface();
 // Pour les captures : fait comme si un écran tactile avait servi.
 void forceTouchInterface();
 
+// Touche du clavier liée à chaque commande, réglable dans les options. La
+// valeur est un code de position (scancode SDL) : la touche garde sa place
+// quelle que soit la disposition du clavier. Les flèches et la barre d'espace
+// restent actives en plus.
+int keyBinding(Button button);
+int defaultKeyBinding(Button button);
+// Lie la touche à la commande. Si une autre commande l'utilisait, les deux
+// échangent leurs touches.
+void setKeyBinding(Button button, int scancode);
+// Nom de la touche tel qu'il est gravé sur le clavier du joueur, en UTF-8.
+const char* keyBindingName(Button button);
+
 // Commandes du joueur pour une image.
 struct Controls {
     float steer = 0.0f;
@@ -41,6 +53,7 @@ struct UiInput {
     char typed[8] = ""; // chiffres et points saisis au clavier
     int typedCount = 0;
     bool backspace = false;
+    int key = 0; // dernière touche enfoncée, en code de position, 0 sinon
     char text[32] = ""; // texte saisi au clavier, du système ou physique, en UTF-8
 };
 
@@ -54,6 +67,9 @@ struct InputReader {
     };
     Pointer pointers[kMaxPointers];
     bool keyLeft = false, keyRight = false, keyUse = false;
+    // Détail du clavier : touches fixes d'un côté, touches réglables de l'autre.
+    bool arrowLeft = false, arrowRight = false, arrowUse = false, spaceUse = false;
+    bool boundLeft = false, boundRight = false, boundUse = false;
     // Manette : stick gauche ou croix pour tourner, A ou gâchette droite pour le bonus.
     float padSteer = 0.0f;
     bool padLeft = false, padRight = false, padUse = false, padTrigger = false;

@@ -12,6 +12,9 @@ struct Settings {
     int difficulty = 1;       // niveau des IA : 0 facile, 1 normal, 2 difficile
     int quality = 2;          // 0 basse, 1 moyenne, 2 haute
     bool cap60 = false;       // plafonne l'affichage à 60 images par seconde
+    // Touches du clavier pour tourner à gauche, à droite et utiliser le bonus,
+    // en codes de position. 0 : touche par défaut.
+    int keys[3] = {0, 0, 0};
 
     void load();
     void save() const;

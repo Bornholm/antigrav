@@ -17,7 +17,7 @@ struct SDL_Window;
 
 namespace game {
 
-enum class Screen { Main, Options, Solo, Songs, Cups, CupTable, Multi, Address, Name, Lobby, Race };
+enum class Screen { Main, Options, Keys, Solo, Songs, Cups, CupTable, Multi, Address, Name, Lobby, Race };
 
 // Une coupe en cours : trois courses, des points selon la place, et le score
 // du joueur cumulé pour la note finale. Le classement est tenu par nom, ce qui
@@ -87,6 +87,7 @@ struct App {
     int lobbyCup = -1;    // hôte : coupe choisie pour le salon, -1 pour une course simple
     int clientCupSeen = 0; // client : nombre de courses de coupe attendu au classement
     int cupChoice = 0;  // coupe choisie dans le menu des coupes
+    int keyCapture = -1; // commande qui attend sa touche dans l'écran Clavier, -1 sinon
     int songsCup = 0;   // coupe affichée dans la liste des morceaux
     bool scoreSaved = false; // le score de la course en cours est déjà enregistré
     // Clé d'un morceau dans les records : par son indice dans la liste, ou

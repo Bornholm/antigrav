@@ -19,6 +19,31 @@ bool touchSeen = false;
 #endif
 } // namespace
 
+namespace {
+const int kDefaultKeys[] = {SDL_SCANCODE_A, SDL_SCANCODE_D, SDL_SCANCODE_W};
+int boundKeys[] = {SDL_SCANCODE_A, SDL_SCANCODE_D, SDL_SCANCODE_W};
+} // namespace
+
+int keyBinding(Button button) { return boundKeys[static_cast<int>(button)]; }
+int defaultKeyBinding(Button button) { return kDefaultKeys[static_cast<int>(button)]; }
+
+void setKeyBinding(Button button, int scancode) {
+    if (scancode <= 0 || scancode >= SDL_SCANCODE_COUNT) return;
+    const int at = static_cast<int>(button);
+    for (int other = 0; other < static_cast<int>(Button::Count); other++)
+        if (other != at && boundKeys[other] == scancode) boundKeys[other] = boundKeys[at];
+    boundKeys[at] = scancode;
+}
+
+const char* keyBindingName(Button button) {
+    // Le nom suit la disposition du clavier : la touche A d'un clavier
+    // américain s'affiche « Q » sur un clavier français.
+    const SDL_Scancode sc = static_cast<SDL_Scancode>(keyBinding(button));
+    const char* name = SDL_GetKeyName(SDL_GetKeyFromScancode(sc, SDL_KMOD_NONE, false));
+    if (!name || !*name) name = SDL_GetScancodeName(sc);
+    return name && *name ? name : "?";
+}
+
 void setButtonsSwapped(bool swapped) { swappedButtons = swapped; }
 bool buttonsSwapped() { return swappedButtons; }
 bool touchInterface() { return touchSeen; }
@@ -73,6 +98,7 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
     // Appuis ponctuels pour les menus.
     if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
         SDL_Scancode sc = event.key.scancode;
+        ui.key = static_cast<int>(sc);
         if (sc == SDL_SCANCODE_UP) ui.up = true;
         else if (sc == SDL_SCANCODE_DOWN) ui.down = true;
         else if (sc == SDL_SCANCODE_LEFT) ui.left = true;
@@ -116,23 +142,19 @@ void InputReader::handleEvent(const SDL_Event& event, glm::vec2 screen) {
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
         bool down = event.type == SDL_EVENT_KEY_DOWN;
-        switch (event.key.scancode) {
-        case SDL_SCANCODE_LEFT:
-        case SDL_SCANCODE_A:
-            keyLeft = down;
-            break;
-        case SDL_SCANCODE_RIGHT:
-        case SDL_SCANCODE_D:
-            keyRight = down;
-            break;
-        case SDL_SCANCODE_SPACE:
-        case SDL_SCANCODE_UP:
-        case SDL_SCANCODE_W:
-            keyUse = down;
-            break;
-        default:
-            break;
-        }
+        // Chaque source garde son état : relâcher la flèche ne relâche pas la
+        // touche choisie par le joueur, et inversement.
+        const int sc = static_cast<int>(event.key.scancode);
+        if (sc == SDL_SCANCODE_LEFT) arrowLeft = down;
+        if (sc == SDL_SCANCODE_RIGHT) arrowRight = down;
+        if (sc == SDL_SCANCODE_SPACE) spaceUse = down;
+        if (sc == SDL_SCANCODE_UP) arrowUse = down;
+        if (sc == keyBinding(Button::Left)) boundLeft = down;
+        if (sc == keyBinding(Button::Right)) boundRight = down;
+        if (sc == keyBinding(Button::Use)) boundUse = down;
+        keyLeft = arrowLeft || boundLeft;
+        keyRight = arrowRight || boundRight;
+        keyUse = spaceUse || arrowUse || boundUse;
         break;
     }
     case SDL_EVENT_GAMEPAD_ADDED:

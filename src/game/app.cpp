@@ -228,6 +228,8 @@ void App::init(int startTrack) {
     records.load();
     setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
     setButtonsSwapped(settings.swapButtons);
+    for (int i = 0; i < 3; i++)
+        if (settings.keys[i] > 0) setKeyBinding(static_cast<Button>(i), settings.keys[i]);
     if (settings.name[0]) {
         std::snprintf(playerName, sizeof(playerName), "%s", settings.name);
     } else {
@@ -784,7 +786,55 @@ void App::drawMenus(glm::vec2) {
             settings.save();
         }
         y += kRow;
+        // Touches du clavier, pour qui ne joue pas au doigt.
+        if (!touchInterface()) {
+            char keys[64];
+            std::snprintf(keys, sizeof(keys), "%s  %s  %s", keyBindingName(Button::Left),
+                          keyBindingName(Button::Right), keyBindingName(Button::Use));
+            if (ui.link({800.0f, y}, 400.0f, "CLAVIER", keys)) {
+                keyCapture = -1;
+                go(Screen::Keys);
+                return;
+            }
+            y += kRow;
+        }
         if (ui.button({800.0f, y + 14.0f}, {400.0f, 40.0f}, "RETOUR", true, kQuiet) || ui.in.back) go(Screen::Main);
+        return;
+    }
+
+    if (screen == Screen::Keys) {
+        ui.title({800.0f, 96.0f}, "CLAVIER", 64.0f);
+        // Une commande attend sa touche : la prochaine touche enfoncée est la
+        // sienne, sauf Échap qui annule. Cette frappe ne compte pas pour le menu.
+        if (keyCapture >= 0 && ui.in.key != 0) {
+            if (ui.in.key != SDL_SCANCODE_ESCAPE && ui.in.key != SDL_SCANCODE_AC_BACK) {
+                setKeyBinding(static_cast<Button>(keyCapture), ui.in.key);
+                for (int i = 0; i < 3; i++) settings.keys[i] = keyBinding(static_cast<Button>(i));
+                settings.save();
+            }
+            keyCapture = -1;
+            ui.in = UiInput{};
+        }
+        static const char* const kActions[] = {"GAUCHE", "DROITE", "BONUS"};
+        float y = 270.0f;
+        for (int i = 0; i < 3; i++) {
+            const bool waiting = keyCapture == i;
+            if (ui.link({800.0f, y}, 400.0f, kActions[i], waiting ? "Appuyez sur une touche" : keyBindingName(static_cast<Button>(i))))
+                keyCapture = waiting ? -1 : i;
+            y += kRow;
+        }
+        ui.text({800.0f, y - 6.0f}, "Les flèches et la barre d'espace restent actives", 20.0f, kQuiet);
+        y += 58.0f;
+        if (ui.button({590.0f, y}, {190.0f, 40.0f}, "PAR DÉFAUT", true, kQuiet)) {
+            keyCapture = -1;
+            for (int i = 0; i < 3; i++) setKeyBinding(static_cast<Button>(i), defaultKeyBinding(static_cast<Button>(i)));
+            for (int& key : settings.keys) key = 0;
+            settings.save();
+        }
+        if (ui.button({1010.0f, y}, {190.0f, 40.0f}, "RETOUR", true, kQuiet) || ui.in.back) {
+            keyCapture = -1;
+            go(Screen::Options);
+        }
         return;
     }
 

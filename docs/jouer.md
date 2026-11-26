@@ -108,6 +108,8 @@ L'hôte peut choisir n'importe quel morceau, y compris un de ses fichiers. Le je
 | Bonus | espace, flèche haut ou W | A ou gâchette droite | bouton de droite |
 | Menus | flèches, Entrée, Échap | croix, A, B | toucher |
 
+Les lettres A, D et W désignent une position sur le clavier, celle d'un clavier américain. Sur un clavier français, ce sont les touches Q, D et Z. L'écran **Options**, ligne CLAVIER, affiche le nom réel des touches et permet d'en choisir d'autres : toucher une commande, puis appuyer sur la touche voulue. Échap annule, PAR DÉFAUT rétablit les touches d'origine. Les flèches et la barre d'espace restent actives dans tous les cas.
+
 En haut de l'écran, la barre montre où en est chaque vaisseau dans le morceau. Le cadre de droite montre les virages à venir.
 
 La souris agit comme un doigt. Pendant une course, le bouton MENU, Échap ou le geste retour d'Android proposent de quitter la course.

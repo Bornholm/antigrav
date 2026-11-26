@@ -274,6 +274,7 @@ int runHeadless(const Options& opt) {
     } else {
         if (opt.screen == "solo") app.screen = game::Screen::Solo;
         else if (opt.screen == "options") app.screen = game::Screen::Options;
+        else if (opt.screen == "clavier") app.screen = game::Screen::Keys;
         else if (opt.screen == "morceaux") app.screen = game::Screen::Songs;
         else if (opt.screen == "coupes") app.screen = game::Screen::Cups;
         else if (opt.screen == "tableau" || opt.screen == "podium") {

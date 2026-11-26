@@ -285,6 +285,20 @@ void App::startAttract() {
     if (synth) synth->setEngine(0.0f, false, false);
 }
 
+// Nouveau vaisseau choisi : la démonstration le prend en route, sans
+// repartir de zéro, pour que le morceau ne recommence pas.
+void App::changeAttractShip() {
+    if (inRace || !race.orbit) {
+        startAttract();
+        return;
+    }
+    for (int i = 0; i < race.world.count; i++) {
+        const int s = i == 0 ? ship : (ship + i) % sim::kShipCount;
+        race.world.vehicles[i].ship = s;
+        race.config.racers[i].ship = s;
+    }
+}
+
 RaceConfig App::withOpponents(RaceConfig base, int count) const {
     int humans = base.racerCount;
     for (int i = 0; i < count && base.racerCount < sim::kMaxVehicles; i++) {
@@ -883,7 +897,7 @@ void App::drawMenus(glm::vec2) {
             settings.ship = ship;
             settings.save();
             if (net.role != net::Role::Off) net.setShip(ship);
-            startAttract();
+            changeAttractShip();
         }
         y += kRow;
         if (!hostControls) return y;
@@ -941,7 +955,7 @@ void App::drawMenus(glm::vec2) {
             ship = (ship + d + sim::kShipCount) % sim::kShipCount;
             settings.ship = ship;
             settings.save();
-            startAttract();
+            changeAttractShip();
         }
         if ((d = ui.selector({1120.0f, 640.0f}, 310.0f, "DIFFICULTÉ", kDifficulties[std::clamp(settings.difficulty, 0, 2)])) != 0) {
             settings.difficulty = (settings.difficulty + d + 3) % 3;

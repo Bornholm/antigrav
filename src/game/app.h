@@ -156,6 +156,7 @@ struct App {
   private:
     void go(Screen next);
     void startAttract();
+    void changeAttractShip();
     void selectSong(int index);
     void selectSongNow(int index);
     // Lance un travail long derrière un écran de chargement : il s'exécute à

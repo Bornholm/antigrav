@@ -741,7 +741,7 @@ void App::drawMenus(glm::vec2) {
     if (screen == Screen::Main) {
         ui.veil(0.30f);
         ui.title({800.0f, 240.0f}, "SOUNDWAVE", 150.0f);
-        ui.text({800.0f, 318.0f}, "COURSE MUSICALE", 26.0f, kCyan);
+        ui.text({800.0f, 318.0f}, "BRISEZ LE MUR DU SON", 26.0f, kCyan);
         if (ui.button({800.0f, 420.0f}, {280.0f, 44.0f}, "SOLO")) go(Screen::Solo);
         if (ui.button({800.0f, 522.0f}, {280.0f, 44.0f}, "COUPES", true, kYellow)) {
             notice = "";

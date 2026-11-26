@@ -1,24 +1,15 @@
 #include "net/share.h"
 
-#include <arpa/inet.h>
-#include <cerrno>
+#include "net/sock.h"
+
+#include <algorithm>
 #include <cstring>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
 namespace net {
 
 namespace {
 
 const uint32_t kShareMagic = 0x53474141u; // "AAGS"
-
-void setNonBlocking(int sock) {
-    int flags = ::fcntl(sock, F_GETFL, 0);
-    ::fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-}
 
 // En-tête d'un envoi : marque, taille, identifiant. Petit-boutiste, comme le
 // reste du protocole.
@@ -32,20 +23,19 @@ void writeHeader(uint8_t* out, uint64_t id, uint32_t size) {
 
 bool Share::serve(uint16_t port) {
     close();
-    listener = ::socket(AF_INET, SOCK_STREAM, 0);
+    listener = sock::open(SOCK_STREAM);
     if (listener < 0) return false;
-    int yes = 1;
-    ::setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    sock::option(listener, SOL_SOCKET, SO_REUSEADDR, 1);
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(port);
     if (::bind(listener, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0 || ::listen(listener, kMaxLinks) != 0) {
-        ::close(listener);
+        sock::close(listener);
         listener = -1;
         return false;
     }
-    setNonBlocking(listener);
+    sock::setNonBlocking(listener);
     return true;
 }
 
@@ -55,14 +45,14 @@ void Share::offer(uint64_t id, std::shared_ptr<const std::vector<uint8_t>> data)
     offered = std::move(data);
     // Les envois de l'ancien bloc n'ont plus lieu d'être.
     for (Link& link : links) {
-        if (link.sock >= 0) ::close(link.sock);
+        if (link.sock >= 0) sock::close(link.sock);
         link = Link{};
     }
 }
 
 void Share::fetch(uint32_t ip, uint16_t port, uint64_t id) {
-    if (client >= 0) ::close(client);
-    client = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (client >= 0) sock::close(client);
+    client = sock::open(SOCK_STREAM);
     wantedId = id;
     headerGot = 0;
     expected = 0;
@@ -71,14 +61,14 @@ void Share::fetch(uint32_t ip, uint16_t port, uint64_t id) {
     fromIp = ip;
     fromPort = port;
     if (client < 0) return;
-    setNonBlocking(client);
+    sock::setNonBlocking(client);
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = ip;
     addr.sin_port = htons(port);
     // Connexion non bloquante : elle aboutit pendant les pump() suivants.
-    if (::connect(client, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0 && errno != EINPROGRESS) {
-        ::close(client);
+    if (::connect(client, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0 && !sock::pending()) {
+        sock::close(client);
         client = -1;
     }
 }
@@ -99,16 +89,16 @@ void Share::pump() {
     // Hôte : nouveaux clients, puis suite des envois.
     if (listener >= 0) {
         for (;;) {
-            int sock = ::accept(listener, nullptr, nullptr);
+            int sock = sock::accept(listener);
             if (sock < 0) break;
             Link* free = nullptr;
             for (Link& link : links)
                 if (link.sock < 0) free = &link;
             if (!free || !offered) {
-                ::close(sock);
+                sock::close(sock);
                 continue;
             }
-            setNonBlocking(sock);
+            sock::setNonBlocking(sock);
             *free = Link{};
             free->sock = sock;
             free->data = offered;
@@ -118,21 +108,21 @@ void Share::pump() {
             if (link.sock < 0) continue;
             bool failed = false;
             while (link.headerSent < sizeof(link.header) && !failed) {
-                ssize_t n = ::send(link.sock, link.header + link.headerSent, sizeof(link.header) - link.headerSent, MSG_NOSIGNAL);
+                long n = sock::send(link.sock, link.header + link.headerSent, sizeof(link.header) - link.headerSent);
                 if (n > 0) link.headerSent += static_cast<size_t>(n);
-                else if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+                else if (sock::wouldBlock()) break;
                 else failed = true;
             }
             while (link.headerSent == sizeof(link.header) && link.sent < link.data->size() && !failed) {
-                ssize_t n = ::send(link.sock, link.data->data() + link.sent, link.data->size() - link.sent, MSG_NOSIGNAL);
+                long n = sock::send(link.sock, link.data->data() + link.sent, link.data->size() - link.sent);
                 if (n > 0) link.sent += static_cast<size_t>(n);
-                else if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+                else if (sock::wouldBlock()) break;
                 else failed = true;
             }
             if (failed || (link.headerSent == sizeof(link.header) && link.sent == link.data->size())) {
                 // Fermeture propre : le client lit jusqu'à la fin avant de voir la coupure.
-                ::shutdown(link.sock, SHUT_WR);
-                ::close(link.sock);
+                sock::shutdownWrite(link.sock);
+                sock::close(link.sock);
                 link = Link{};
             }
         }
@@ -142,11 +132,11 @@ void Share::pump() {
     if (client >= 0 && !done) {
         bool closed = false;
         while (headerGot < sizeof(header)) {
-            ssize_t n = ::recv(client, header + headerGot, sizeof(header) - headerGot, 0);
+            long n = sock::recv(client, header + headerGot, sizeof(header) - headerGot);
             if (n > 0) {
                 headerGot += static_cast<size_t>(n);
             } else {
-                closed = n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK && errno != ENOTCONN && errno != EINPROGRESS);
+                closed = n == 0 || !sock::pending();
                 break;
             }
         }
@@ -166,19 +156,19 @@ void Share::pump() {
         uint8_t chunk[65536];
         while (!closed && expected > 0 && received.size() < expected) {
             const size_t want = std::min(sizeof(chunk), expected - received.size());
-            ssize_t n = ::recv(client, chunk, want, 0);
+            long n = sock::recv(client, chunk, want);
             if (n > 0) received.insert(received.end(), chunk, chunk + n);
             else {
-                closed = n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK);
+                closed = n == 0 || !sock::wouldBlock();
                 break;
             }
         }
         if (expected > 0 && received.size() == expected) {
             done = true;
-            ::close(client);
+            sock::close(client);
             client = -1;
         } else if (closed) {
-            ::close(client);
+            sock::close(client);
             client = -1;
             received.clear();
             expected = 0;
@@ -188,13 +178,13 @@ void Share::pump() {
 }
 
 void Share::close() {
-    if (listener >= 0) ::close(listener);
+    if (listener >= 0) sock::close(listener);
     listener = -1;
     for (Link& link : links) {
-        if (link.sock >= 0) ::close(link.sock);
+        if (link.sock >= 0) sock::close(link.sock);
         link = Link{};
     }
-    if (client >= 0) ::close(client);
+    if (client >= 0) sock::close(client);
     client = -1;
     offered.reset();
     offeredId = 0;

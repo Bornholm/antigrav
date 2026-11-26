@@ -5,7 +5,7 @@
 
 #include <SDL3/SDL.h>
 
-#include <arpa/inet.h>
+#include "net/sock.h"
 #include <memory>
 #include <vector>
 #include <algorithm>
@@ -211,7 +211,7 @@ void App::installHostSong() {
 }
 
 bool App::useSongFile(const std::string& path) {
-    const size_t cut = path.find_last_of('/');
+    const size_t cut = path.find_last_of("/\\");
     std::string name = cut == std::string::npos ? path : path.substr(cut + 1);
     const size_t dot = name.find_last_of('.');
     if (dot != std::string::npos && dot > 0) name.resize(dot);

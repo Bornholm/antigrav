@@ -10,6 +10,14 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+# Windows : tout est lié en statique, le jeu tient dans un seul exécutable
+# sans DLL de MinGW à côté.
+if(WIN32)
+  add_link_options(-static)
+  # printf de MinGW plutôt que celui de Windows, qui ignore %zu et %lld.
+  add_compile_definitions(__USE_MINGW_ANSI_STDIO=1)
+endif()
+
 include(FetchContent)
 
 # Dépendances épinglées, téléchargées en archives : bien plus rapide qu'un
@@ -40,7 +48,12 @@ FetchContent_MakeAvailable(vulkan_headers volk vma glm stb dr_libs)
 # SDL est compilé avec le jeu sur Android, et sur Linux quand le système ne
 # fournit pas SDL3 : l'exécutable l'embarque alors en statique.
 # SOUNDWAVE_SDL_ARCHIVE peut désigner une archive déjà téléchargée.
-option(SOUNDWAVE_BUNDLED_SDL "Compiler SDL3 avec le jeu" ${ANDROID})
+if(ANDROID OR WIN32)
+  set(BUNDLED_SDL_DEFAULT ON)
+else()
+  set(BUNDLED_SDL_DEFAULT OFF)
+endif()
+option(SOUNDWAVE_BUNDLED_SDL "Compiler SDL3 avec le jeu" ${BUNDLED_SDL_DEFAULT})
 if(SOUNDWAVE_BUNDLED_SDL)
   set(SOUNDWAVE_SDL_ARCHIVE "https://www.libsdl.org/release/SDL3-3.4.16.tar.gz"
       CACHE STRING "Archive des sources de SDL3")
@@ -146,9 +159,13 @@ target_compile_definitions(sim PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_RADI
 target_compile_options(sim PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
 set_target_properties(sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Réseau local : ne dépend que de la simulation et des sockets POSIX.
+# Réseau local : ne dépend que de la simulation et des sockets, POSIX ou
+# Winsock (src/net/sock.h).
 add_library(net STATIC src/net/net.cpp src/net/share.cpp)
 target_link_libraries(net PUBLIC sim)
+if(WIN32)
+  target_link_libraries(net PUBLIC ws2_32)
+endif()
 target_compile_options(net PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
 set_target_properties(net PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -214,6 +231,11 @@ if(ANDROID)
   # SDL charge le jeu comme bibliothèque partagée nommée "main".
   add_library(main SHARED ${GAME_SOURCES})
   set(GAME_TARGET main)
+elseif(WIN32)
+  # Sous-système graphique : pas de console qui s'ouvre avec le jeu.
+  enable_language(RC)
+  add_executable(soundwave WIN32 ${GAME_SOURCES} assets/windows/soundwave.rc)
+  set(GAME_TARGET soundwave)
 else()
   add_executable(soundwave ${GAME_SOURCES})
   set(GAME_TARGET soundwave)

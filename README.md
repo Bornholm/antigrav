@@ -10,13 +10,13 @@ Soundwave est un jeu de course où chaque piste naît d'un morceau de musique. V
 
 La course dure le temps du morceau. On pilote à plus de 1 000 km/h, on ramasse des bonus pour attaquer ou se protéger, et on court contre sept IA au plus ou contre d'autres joueurs en Wi-Fi local. En multijoueur, l'hôte choisit le morceau et le jeu l'envoie aux autres.
 
-Pour Android et Linux. Le moteur est écrit pour ce jeu, en C++20 sur Vulkan 1.1 et SDL3.
+Pour Android, Linux et Windows. Le moteur est écrit pour ce jeu, en C++20 sur Vulkan 1.1 et SDL3.
 
 ## Installer
 
-Chaque [release](https://github.com/Bornholm/soundwave/releases) contient un APK pour Android 13 ou plus récent, en ARM 64 bits, et une archive `.tar.gz` pour Linux x86_64. Il faut un GPU compatible Vulkan 1.1.
+Chaque [release](https://github.com/Bornholm/soundwave/releases) contient un APK pour Android 13 ou plus récent, en ARM 64 bits, une archive `.tar.gz` pour Linux x86_64 et une archive `.zip` pour Windows 10 ou plus récent, en 64 bits. Il faut un GPU compatible Vulkan 1.1.
 
-Sur Linux, extraire l'archive et lancer `./soundwave`. Pour courir directement sur un fichier :
+Sur Linux, extraire l'archive et lancer `./soundwave`. Sur Windows, extraire l'archive et lancer `soundwave.exe`. Pour courir directement sur un fichier :
 
 ```sh
 ./soundwave --song morceau.mp3
@@ -27,7 +27,7 @@ Les formats lus sont le MP3, l'Ogg Vorbis, le FLAC et le WAV.
 ## Documentation
 
 - [Jouer](docs/jouer.md) : commandes, bonus, ce que la musique change à la piste, multijoueur
-- [Compiler](docs/compiler.md) : Linux et Android
+- [Compiler](docs/compiler.md) : Linux, Windows et Android
 - [Options de la ligne de commande](docs/options.md)
 - [Développer](docs/developper.md) : tests, analyse d'un morceau, captures, organisation du code
 - [Publier](docs/publier.md) : intégration continue, releases, clé de signature, Play Store

@@ -1,5 +1,9 @@
 // Morceaux de musique inclus tels quels dans le binaire. Généré par CMake.
+#ifdef _WIN32
+    .section .rdata,"dr"
+#else
     .section .rodata
+#endif
     .balign 16
     .global soundwave_music_0
     .global soundwave_music_0_end
@@ -60,4 +64,6 @@ soundwave_music_8_end:
 soundwave_music_9:
     .incbin "@MUSIC_DIR@/leviathan.ogg"
 soundwave_music_9_end:
+#ifndef _WIN32
     .section .note.GNU-stack,"",%progbits
+#endif

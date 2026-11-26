@@ -79,6 +79,79 @@ jobs:
           path: dist/soundwave-linux-x86_64.tar.gz
           if-no-files-found: error
 
+  # Compilation croisée vers Windows avec MinGW-w64. Les tests tournent sous
+  # Wine.
+  windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer les dépendances
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build glslc zip g++-mingw-w64-x86-64-posix wine64 \
+            xvfb xauth libvulkan1 mesa-vulkan-drivers
+
+      - name: Restaurer l'archive de SDL
+        uses: actions/cache@v4
+        with:
+          path: .cache/sdl
+          key: sdl-${{ env.SDL_VERSION }}
+
+      - name: Télécharger SDL
+        run: |
+          mkdir -p .cache/sdl
+          test -f .cache/sdl/SDL3-$SDL_VERSION.tar.gz || curl -fL --retry 3 \
+            -o .cache/sdl/SDL3-$SDL_VERSION.tar.gz \
+            https://www.libsdl.org/release/SDL3-$SDL_VERSION.tar.gz
+
+      - name: Configurer
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then export SOUNDWAVE_VERSION="${GITHUB_REF_NAME#v}"; fi
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSOUNDWAVE_SDL_ARCHIVE=$PWD/.cache/sdl/SDL3-$SDL_VERSION.tar.gz
+
+      - name: Compiler
+        run: cmake --build build
+
+      - name: Tester
+        env:
+          WINEDEBUG: -all
+        run: ctest --test-dir build --output-on-failure
+
+      # Le jeu lui-même, lancé sous Wine avec le pilote Vulkan logiciel de
+      # Mesa : il doit rendre une image de course.
+      - name: Capturer une image du jeu
+        env:
+          WINEDEBUG: -all
+        run: |
+          cd build
+          timeout 600 xvfb-run -a /usr/lib/wine/wine64 soundwave.exe --headless --race --autopilot \
+            --track 0 --time 20 --frames 4 --fps 30 --size 1280x720 --no-audio --out capture.png
+          test -s capture.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soundwave-windows-capture
+          path: build/capture.png
+          if-no-files-found: error
+
+      - name: Préparer l'archive
+        run: |
+          mkdir -p dist/soundwave-windows-x86_64
+          cp build/soundwave.exe README.md LICENSE dist/soundwave-windows-x86_64/
+          x86_64-w64-mingw32-strip dist/soundwave-windows-x86_64/soundwave.exe
+          cd dist && zip -q -r soundwave-windows-x86_64.zip soundwave-windows-x86_64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soundwave-windows-x86_64
+          path: dist/soundwave-windows-x86_64.zip
+          if-no-files-found: error
+
   android:
     runs-on: ubuntu-24.04
     steps:
@@ -161,10 +234,10 @@ jobs:
           path: soundwave.aab
           if-no-files-found: error
 
-  # Sur un tag v*, publie les deux fichiers dans une release GitHub.
+  # Sur un tag v*, publie les trois fichiers dans une release GitHub.
   release:
     if: github.ref_type == 'tag'
-    needs: [linux, android]
+    needs: [linux, windows, android]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -180,8 +253,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           mv artifacts/soundwave-linux-x86_64/soundwave-linux-x86_64.tar.gz "soundwave-$TAG-linux-x86_64.tar.gz"
+          mv artifacts/soundwave-windows-x86_64/soundwave-windows-x86_64.zip "soundwave-$TAG-windows-x86_64.zip"
           mv artifacts/soundwave-android/soundwave.apk "soundwave-$TAG-android.apk"
-          sha256sum "soundwave-$TAG-linux-x86_64.tar.gz" "soundwave-$TAG-android.apk" > SHA256SUMS
+          sha256sum "soundwave-$TAG-linux-x86_64.tar.gz" "soundwave-$TAG-windows-x86_64.zip" "soundwave-$TAG-android.apk" > SHA256SUMS
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" soundwave-* SHA256SUMS --clobber
           else

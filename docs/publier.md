@@ -2,9 +2,9 @@
 
 ## Intégration continue
 
-`.github/workflows/build.yml` compile le jeu pour Linux, lance les tests, puis compile l'APK de debug. Il tourne à chaque push sur `main`, sur les pull requests, sur les tags `v*` et à la demande. Les deux résultats sont à télécharger dans les artefacts de l'exécution : `soundwave-linux-x86_64` et `soundwave-android`.
+`.github/workflows/build.yml` compile le jeu pour Linux et pour Windows, lance les tests des deux, puis compile l'APK de debug. Il tourne à chaque push sur `main`, sur les pull requests, sur les tags `v*` et à la demande. Les trois résultats sont à télécharger dans les artefacts de l'exécution : `soundwave-linux-x86_64`, `soundwave-windows-x86_64` et `soundwave-android`.
 
-Pousser un tag `v*`, par exemple `v0.2.0`, crée en plus une release GitHub avec l'archive Linux, l'APK en variante release et leurs sommes SHA-256. Le numéro de version de l'APK vient du tag. Le menu principal affiche cette version en bas à droite. Hors d'un tag, il affiche la sortie de `git describe`, par exemple `v0.5.0-3-gabc1234`.
+Pousser un tag `v*`, par exemple `v0.2.0`, crée en plus une release GitHub avec l'archive Linux, l'archive Windows, l'APK en variante release et leurs sommes SHA-256. Le numéro de version de l'APK vient du tag. Le menu principal affiche cette version en bas à droite. Hors d'un tag, il affiche la sortie de `git describe`, par exemple `v0.5.0-3-gabc1234`.
 
 ## Clé de signature
 

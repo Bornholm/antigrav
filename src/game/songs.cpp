@@ -206,7 +206,7 @@ void SongLibrary::scan() {
 }
 
 int SongLibrary::markPlayed(const std::string& path) {
-    const size_t cut = path.find_last_of('/');
+    const size_t cut = path.find_last_of("/\\");
     const std::string file = cut == std::string::npos ? path : path.substr(cut + 1);
     std::vector<std::string> order = loadOrder();
     order.erase(std::remove(order.begin(), order.end(), file), order.end());

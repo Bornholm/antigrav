@@ -8,7 +8,8 @@
 #include <memory>
 #include <vector>
 #include <string_view>
-#include <unistd.h>
+#include <chrono>
+#include <thread>
 
 namespace {
 
@@ -27,7 +28,7 @@ const uint16_t kTestPort = 47931;
 // Fait circuler les paquets : la boucle locale les livre presque aussitôt.
 void pump(net::Net& host, net::Net& client, sim::Session* hs, sim::Session* cs, double& now) {
     for (int i = 0; i < 4; i++) {
-        usleep(300);
+        std::this_thread::sleep_for(std::chrono::microseconds(300));
         now += 0.01;
         host.poll(now, hs);
         client.poll(now, cs);
@@ -100,12 +101,12 @@ void playRace(float dropRate, int latencyTicks) {
 
         client.clientTick(clientSession, clientInput);
         if (t >= latencyTicks) {
-            usleep(150);
+            std::this_thread::sleep_for(std::chrono::microseconds(150));
             host.poll(now, &hostSession);
             hostSession.tick(hostInput);
             if (hostSession.world.tick % 2 == 0) host.hostSendSnapshot(hostSession);
         }
-        usleep(150);
+        std::this_thread::sleep_for(std::chrono::microseconds(150));
         client.poll(now, &clientSession);
         if (client.corrected) {
             client.corrected = false;
@@ -152,7 +153,7 @@ void testSongShare() {
             now += 0.02;
             host.poll(now, nullptr);
             client.poll(now, nullptr);
-            usleep(500);
+            std::this_thread::sleep_for(std::chrono::microseconds(500));
         }
     };
     spin(40);

@@ -1,10 +1,6 @@
 #include "net/net.h"
 
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include "net/sock.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -178,18 +174,17 @@ uint32_t parseIp(const char* text) {
 }
 
 static int openSocket(uint16_t port) {
-    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    int s = sock::open(SOCK_DGRAM);
     if (s < 0) return -1;
-    int yes = 1;
-    setsockopt(s, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(yes));
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-    fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK);
+    sock::option(s, SOL_SOCKET, SO_BROADCAST, 1);
+    sock::option(s, SOL_SOCKET, SO_REUSEADDR, 1);
+    sock::setNonBlocking(s);
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(port);
     if (::bind(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-        ::close(s);
+        sock::close(s);
         return -1;
     }
     return s;
@@ -242,7 +237,7 @@ void Net::close() {
         if (role == Role::Host)
             for (const Peer& p : peers)
                 if (p.active) send(p.ip, p.port, &leave, sizeof(leave));
-        ::close(sock);
+        sock::close(sock);
     }
     sock = -1;
     share.close();
@@ -284,8 +279,7 @@ void Net::send(uint32_t ip, uint16_t port, const void* data, int size) {
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = ip;
     addr.sin_port = port;
-    ::sendto(sock, data, static_cast<size_t>(size), 0, reinterpret_cast<sockaddr*>(&addr),
-             sizeof(addr));
+    sock::sendTo(sock, data, static_cast<size_t>(size), addr);
 }
 
 void Net::discover(uint16_t port) {
@@ -505,10 +499,8 @@ void Net::poll(double time, sim::Session* session) {
     uint8_t buffer[1500];
     for (;;) {
         sockaddr_in from{};
-        socklen_t fromLen = sizeof(from);
-        ssize_t n = ::recvfrom(sock, buffer, sizeof(buffer), 0,
-                               reinterpret_cast<sockaddr*>(&from), &fromLen);
-        if (n < static_cast<ssize_t>(sizeof(Header))) break;
+        long n = sock::recvFrom(sock, buffer, sizeof(buffer), from);
+        if (n < static_cast<long>(sizeof(Header))) break;
         Header h;
         std::memcpy(&h, buffer, sizeof(h));
         if (h.magic != kMagic) continue;

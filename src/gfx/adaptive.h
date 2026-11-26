@@ -62,4 +62,45 @@ inline bool AdaptiveScale::update(float frameMs, float budgetMs, float gpuMs) {
     return false;
 }
 
+// Qualité automatique : choisit le niveau de rendu (0 basse, 1 moyenne,
+// 2 haute) d'après la charge mesurée. Elle s'appuie sur la résolution
+// adaptative : si celle-ci doit descendre bas et y rester, le niveau baisse ;
+// si le GPU reste largement sous le budget à pleine résolution, il monte. Une
+// montée qui doit être annulée peu après bloque les montées suivantes.
+struct QualityGovernor {
+    int level = 2;
+    float low = 0.0f;         // secondes passées à basse résolution
+    float easy = 0.0f;        // secondes à pleine résolution, GPU peu chargé
+    float sinceRaise = 1e9f;  // temps écoulé depuis la dernière montée
+    bool raiseBlocked = false;
+
+    // scaleStep : palier de la résolution adaptative. gpuMs : temps GPU
+    // mesuré, 0 s'il est inconnu. Renvoie vrai si le niveau change.
+    inline bool update(float frameMs, float budgetMs, int scaleStep, float gpuMs);
+};
+
+inline bool QualityGovernor::update(float frameMs, float budgetMs, int scaleStep, float gpuMs) {
+    if (frameMs <= 0.0f || budgetMs <= 0.0f || frameMs > budgetMs * 6.0f) return false;
+    const float dt = frameMs * 0.001f;
+    sinceRaise += dt;
+    // Résolution à 60 % ou moins : ce niveau coûte trop cher pour l'appareil.
+    low = scaleStep >= 3 ? low + dt : 0.0f;
+    if (low > 3.0f && level > 0) {
+        if (sinceRaise < 30.0f) raiseBlocked = true;
+        level--;
+        low = easy = 0.0f;
+        return true;
+    }
+    // Pleine résolution et GPU à moins de 40 % du budget : le niveau du
+    // dessus a de la marge. Il faut une mesure du GPU pour en juger.
+    easy = scaleStep == 0 && gpuMs > 0.0f && gpuMs < budgetMs * 0.4f ? easy + dt : 0.0f;
+    if (easy > 20.0f && level < 2 && !raiseBlocked) {
+        level++;
+        low = easy = 0.0f;
+        sinceRaise = 0.0f;
+        return true;
+    }
+    return false;
+}
+
 } // namespace gfx

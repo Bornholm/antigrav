@@ -224,6 +224,22 @@ void submitFrame(gfx::Gpu& gpu, FrameData& frame, VkSemaphore wait, VkSemaphore 
 
 // Rendu dans une image hors écran, sans fenêtre. Le temps avance d'un pas fixe,
 // donc deux exécutions produisent les mêmes images.
+// Niveau de départ du mode automatique, avant toute mesure. La mesure en
+// course corrige ensuite, et le niveau retenu est gardé pour les lancements
+// suivants.
+int estimateQuality(const gfx::Gpu& gpu) {
+    const VkPhysicalDeviceType type = gpu.properties.deviceType;
+    if (type == VK_PHYSICAL_DEVICE_TYPE_CPU) return 0;
+    if (type == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) return 2;
+#ifdef __ANDROID__
+    // Sur téléphone, la mémoire suit assez bien la gamme de l'appareil.
+    const int ram = SDL_GetSystemRAM();
+    return ram >= 7000 ? 2 : ram >= 4500 ? 1 : 0;
+#else
+    return 1; // GPU intégré d'un PC : la mesure dira s'il peut monter
+#endif
+}
+
 int runHeadless(const Options& opt) {
     gfx::Gpu gpu;
     gpu.init(nullptr, opt.validation);
@@ -323,10 +339,16 @@ int runHeadless(const Options& opt) {
     gfx::Renderer renderer;
     renderer.init(gpu, format);
     renderer.loadTrack(race.track, race.theme, race.songSerial);
-    // Les captures ne dépendent pas des réglages enregistrés : qualité haute
-    // sauf demande contraire.
-    app.settings.quality = opt.quality >= 0 ? std::clamp(opt.quality, 0, 2) : 2;
-    renderer.settings = gfx::qualitySettings(app.settings.quality, opt.render);
+    // Les captures ne dépendent pas des réglages enregistrés : qualité
+    // automatique au niveau haut, comme une première installation, sauf
+    // demande contraire.
+    if (opt.quality >= 0) {
+        app.settings.quality = std::clamp(opt.quality, 0, 2);
+    } else {
+        app.settings.quality = -1;
+        app.settings.autoQuality = 2;
+    }
+    renderer.settings = gfx::qualitySettings(app.settings.effectiveQuality(), opt.render);
 
     FrameData frames[kFramesInFlight];
     createFrames(gpu, frames);
@@ -492,12 +514,20 @@ int runWindowed(const Options& opt) {
     renderer.settings = opt.render;
     if (opt.quality >= 0) app.settings.quality = std::clamp(opt.quality, 0, 2);
     if (opt.cap60) app.settings.cap60 = true;
+    // Qualité automatique : première estimation, sur ce que dit le système.
+    if (app.settings.autoQuality < 0) {
+        app.settings.autoQuality = estimateQuality(gpu);
+        app.settings.save();
+    }
+    if (app.settings.quality < 0)
+        logInfo("Qualité automatique : niveau %d (%d Mo de mémoire)", app.settings.autoQuality, SDL_GetSystemRAM());
 
     FrameData frames[kFramesInFlight];
     createFrames(gpu, frames);
 
     // Sans synchronisation verticale, la cadence ne dit rien de la charge.
     gfx::AdaptiveScale adaptive;
+    gfx::QualityGovernor governor;
     const bool useAdaptive = opt.adaptive && opt.vsync;
     Uint64 nextFrameNs = 0;
 
@@ -626,7 +656,7 @@ int runWindowed(const Options& opt) {
 
         // Qualité choisie dans les options, puis résolution adaptative : la 3D
         // perd des pixels quand les images arrivent en retard sur l'écran.
-        renderer.settings = gfx::qualitySettings(app.settings.quality, opt.render);
+        renderer.settings = gfx::qualitySettings(app.settings.effectiveQuality(), opt.render);
         if (useAdaptive) {
             float refresh = 60.0f;
             if (const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window));
@@ -635,6 +665,24 @@ int runWindowed(const Options& opt) {
             if (app.settings.cap60) refresh = std::min(refresh, 60.0f);
             adaptive.update(dt * 1000.0f, 1000.0f / refresh,
                             static_cast<float>(renderer.stats.lastTotalMs()));
+            // En mode automatique, la charge règle aussi le niveau de rendu.
+            if (app.settings.quality < 0) {
+                governor.level = app.settings.effectiveQuality();
+                if (governor.update(dt * 1000.0f, 1000.0f / refresh, adaptive.step,
+                                    static_cast<float>(renderer.stats.lastTotalMs()))) {
+                    logInfo("Qualité automatique : niveau %d", governor.level);
+                    const bool lowered = governor.level < app.settings.autoQuality;
+                    app.settings.autoQuality = governor.level;
+                    app.settings.save();
+                    renderer.settings = gfx::qualitySettings(governor.level, opt.render);
+                    // Un niveau moins cher rend de la marge : la résolution
+                    // repart presque pleine.
+                    if (lowered) {
+                        adaptive = gfx::AdaptiveScale{};
+                        adaptive.step = 1;
+                    }
+                }
+            }
             renderer.settings.renderScale =
                 std::max(0.4f, renderer.settings.renderScale * adaptive.factor());
         }
@@ -644,9 +692,10 @@ int runWindowed(const Options& opt) {
         if (opt.stats && now - statsTick > 500000000ull) {
             statsTick = now;
             std::snprintf(statsText, sizeof(statsText),
-                          "GPU %.1f ms   image %.1f ms   %.0f i/s   3D %ux%u",
+                          "GPU %.1f ms   image %.1f ms   %.0f i/s   3D %ux%u   Q%d%s",
                           renderer.stats.lastTotalMs(), cpuMsSmoothed, 1000.0 / cpuMsSmoothed,
-                          renderer.sceneExtent.width, renderer.sceneExtent.height);
+                          renderer.sceneExtent.width, renderer.sceneExtent.height,
+                          app.settings.effectiveQuality(), app.settings.quality < 0 ? " auto" : "");
         }
         app.statsLine = statsText;
 

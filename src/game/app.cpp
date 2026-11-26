@@ -446,7 +446,7 @@ void App::leaveNetwork() {
 void App::update(double time, float dt, const Controls& controls, const UiInput& input,
                  glm::vec2 screenSize, const gfx::FontAtlas& fonts) {
     now = time;
-    race.lightDecor = settings.quality == 0;
+    race.lightDecor = settings.effectiveQuality() == 0;
     // Travail en attente : le message de chargement a eu une image pour
     // s'afficher, on peut bloquer.
     if (pending && pendingFrames++ >= 1) {
@@ -789,8 +789,13 @@ void App::drawMenus(glm::vec2) {
         }
         // Charge du rendu, pour les appareils modestes.
         static const char* const kQualities[] = {"Basse", "Moyenne", "Haute"};
-        if (int d = ui.selector({800.0f, y}, 400.0f, "QUALITÉ", kQualities[std::clamp(settings.quality, 0, 2)]); d != 0) {
-            settings.quality = (settings.quality + d + 3) % 3;
+        // Premier choix : automatique, avec le niveau retenu entre parenthèses.
+        char qualityLabel[48];
+        std::snprintf(qualityLabel, sizeof(qualityLabel), "Auto (%s)", tr(kQualities[settings.effectiveQuality()]));
+        const char* qualityValue = settings.quality < 0 ? qualityLabel : kQualities[std::clamp(settings.quality, 0, 2)];
+        if (int d = ui.selector({800.0f, y}, 400.0f, "QUALITÉ", qualityValue); d != 0) {
+            // Ordre du sélecteur : automatique, basse, moyenne, haute.
+            settings.quality = (settings.quality + 1 + d + 4) % 4 - 1;
             settings.save();
         }
         y += kRow;

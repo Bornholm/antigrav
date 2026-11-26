@@ -2,6 +2,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -41,7 +42,11 @@ void Settings::load() {
         if (key == "name") std::snprintf(name, sizeof(name), "%s", value.c_str());
         else if (key == "lang") lang = langFromCode(value.c_str());
         else if (key == "swap") swapButtons = value == "1";
-        else if (key == "quality") quality = value == "0" ? 0 : value == "1" ? 1 : 2;
+        // Ancienne clé, écrite même sans choix du joueur : seules basse et
+        // moyenne, qui ne pouvaient venir que de lui, restent imposées.
+        else if (key == "quality") quality = value == "0" ? 0 : value == "1" ? 1 : -1;
+        else if (key == "graphics") quality = value == "auto" ? -1 : std::clamp(std::atoi(value.c_str()), 0, 2);
+        else if (key == "auto_quality") autoQuality = std::clamp(std::atoi(value.c_str()), -1, 2);
         else if (key == "difficulty") difficulty = value == "0" ? 0 : value == "2" ? 2 : 1;
         else if (key == "cap60") cap60 = value == "1";
         else if (key == "ship") ship = std::atoi(value.c_str());
@@ -57,7 +62,8 @@ void Settings::save() const {
     std::string text = std::string("name=") + name + "\n";
     if (lang != Lang::Count) text += std::string("lang=") + langCode(lang) + "\n";
     text += std::string("swap=") + (swapButtons ? "1" : "0") + "\n";
-    text += std::string("quality=") + static_cast<char>('0' + quality) + "\n";
+    text += "graphics=" + (quality < 0 ? std::string("auto") : std::to_string(quality)) + "\n";
+    if (autoQuality >= 0) text += "auto_quality=" + std::to_string(autoQuality) + "\n";
     text += std::string("difficulty=") + static_cast<char>('0' + difficulty) + "\n";
     text += std::string("cap60=") + (cap60 ? "1" : "0") + "\n";
     text += "ship=" + std::to_string(ship) + "\n";

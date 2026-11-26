@@ -93,6 +93,8 @@ Le réglage DIFFICULTÉ, en solo et dans le salon de l'hôte, a trois niveaux. E
 
 L'écran **Options** du menu principal règle la langue de l'interface (français, anglais ou espagnol) et le pseudo vu par les autres joueurs, 16 caractères au plus. Par défaut, sur Android comme sur Linux, le jeu suit la langue du système : le choix « Auto » du réglage LANGUE. Une langue non traduite donne l'anglais. Sur un écran tactile, le réglage DIRECTION place les boutons de direction à gauche ou à droite, le bouton de bonus passant de l'autre côté. Le pseudo se change aussi dans **Multijoueur**. Ces réglages sont gardés d'un lancement à l'autre.
 
+Le réglage QUALITÉ vaut « Auto » par défaut, avec entre parenthèses le niveau retenu. Au premier lancement, le jeu estime ce niveau d'après l'appareil : haute avec une carte graphique dédiée, moyenne avec un GPU intégré de PC, et sur téléphone selon la mémoire, haute à partir de 7 Go, moyenne à partir de 4,5 Go, basse en dessous. Pendant le jeu, il mesure la charge : si la résolution doit descendre à 60 % ou moins pendant trois secondes, le niveau baisse d'un cran ; si le GPU reste sous 40 % de son temps disponible pendant vingt secondes à pleine résolution, il monte d'un cran. Une montée qui ne tient pas est annulée et le jeu ne réessaie plus de monter jusqu'au lancement suivant. Le niveau retenu est gardé pour les lancements suivants. Choisir Basse, Moyenne ou Haute fixe le niveau et coupe ce réglage automatique.
+
 Deux réglages allègent le jeu sur un appareil modeste.
 
 - **Qualité.** Haute par défaut. Moyenne réduit l'anticrénelage, le halo et la définition de la 3D à 85 %. Basse coupe en plus les reflets sur la piste, descend la 3D à 70 %, raccourcit la distance de vue et retire la moitié des objets volants.

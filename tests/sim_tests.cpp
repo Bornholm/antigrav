@@ -683,6 +683,36 @@ void testRanking() {
 
 // Résolution adaptative : elle baisse sous la charge, remonte au calme, et
 // espace ses essais quand le palier du dessus ne tient pas.
+// Qualité automatique : elle baisse quand la résolution reste basse, monte
+// quand le GPU a de la marge, et cesse de monter après une montée ratée.
+void testQualityGovernor() {
+    const float budget = 1000.0f / 60.0f;
+    auto run = [&](gfx::QualityGovernor& g, int step, float gpuMs, float seconds) {
+        int changes = 0;
+        for (float t = 0.0f; t < seconds; t += budget * 0.001f)
+            if (g.update(budget, budget, step, gpuMs)) changes++;
+        return changes;
+    };
+    gfx::QualityGovernor g;
+    // Charge normale : rien ne bouge.
+    CHECK(run(g, 1, budget * 0.7f, 60.0f) == 0 && g.level == 2);
+    // Résolution tombée à 60 % : le niveau baisse, un cran toutes les 3 s.
+    run(g, 3, budget, 3.5f);
+    CHECK(g.level == 1);
+    run(g, 4, budget, 3.5f);
+    CHECK(g.level == 0);
+    CHECK(run(g, 4, budget, 30.0f) == 0 && g.level == 0);
+    // Sans mesure du GPU, pas de montée.
+    CHECK(run(g, 0, 0.0f, 60.0f) == 0 && g.level == 0);
+    // Large marge pendant 20 s : il monte d'un cran.
+    run(g, 0, budget * 0.3f, 21.0f);
+    CHECK(g.level == 1);
+    // Cette montée ne tient pas : il redescend et ne réessaie plus.
+    run(g, 3, budget, 3.5f);
+    CHECK(g.level == 0 && g.raiseBlocked);
+    CHECK(run(g, 0, budget * 0.3f, 120.0f) == 0 && g.level == 0);
+}
+
 void testAdaptiveScale() {
     const float budget = 1000.0f / 60.0f;
     auto run = [&](gfx::AdaptiveScale& a, float frameMs, float gpuMs, float seconds) {
@@ -751,6 +781,7 @@ void testScore() {
 int main() {
     testScore();
     testAdaptiveScale();
+    testQualityGovernor();
     testTrackGeometry();
     testTrackEnds();
     testDeterminism();

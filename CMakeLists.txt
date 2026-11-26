@@ -241,6 +241,8 @@ elseif(WIN32)
   set(GAME_TARGET soundwave)
 else()
   add_executable(soundwave ${GAME_SOURCES})
+  # Recherche de mise à jour : libcurl est chargée à la demande par dlopen.
+  target_link_libraries(soundwave PRIVATE ${CMAKE_DL_LIBS})
   set(GAME_TARGET soundwave)
 endif()
 

@@ -6,6 +6,12 @@
 #include <mutex>
 #include <string>
 
+// Plateformes qui cherchent elles-mêmes une nouvelle version : Windows et
+// Linux. Sur Android, le Play Store s'en charge.
+#if defined(_WIN32) || (defined(__linux__) && !defined(__ANDROID__))
+#define SOUNDWAVE_UPDATE_CHECK 1
+#endif
+
 namespace core {
 
 // Vrai si `latest` est une version plus récente que `current`. Les deux sont
@@ -41,7 +47,8 @@ inline std::string tagFromRelease(const std::string& json) {
 
 // Recherche d'une nouvelle version, en arrière-plan. Une seule requête, vers
 // l'API publique de GitHub, sans rien envoyer d'autre que la demande elle-même.
-// Seule la version Windows la fait : sur Android le Play Store s'en charge.
+// Windows passe par WinHTTP, Linux par libcurl chargée à la demande : sans
+// elle, la recherche n'a simplement pas lieu.
 class UpdateCheck {
   public:
     static constexpr const char* kReleasesUrl = "https://github.com/Bornholm/soundwave/releases/latest";

@@ -228,7 +228,7 @@ void App::init(int startTrack) {
     records.load();
     setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
     setButtonsSwapped(settings.swapButtons);
-#if defined(_WIN32) && defined(SOUNDWAVE_VERSION)
+#if defined(SOUNDWAVE_UPDATE_CHECK) && defined(SOUNDWAVE_VERSION)
     if (settings.checkUpdates && !autoPlay) updates.start(SOUNDWAVE_VERSION);
 #endif
     // Vaisseau de la dernière partie, sauf s'il est imposé au lancement.
@@ -832,7 +832,7 @@ void App::drawMenus(glm::vec2) {
             settings.save();
         }
         y += kRow;
-#ifdef _WIN32
+#ifdef SOUNDWAVE_UPDATE_CHECK
         // Recherche de nouvelle version au démarrage, auprès de GitHub.
         if (ui.selector({800.0f, y}, 400.0f, "MISES À JOUR", settings.checkUpdates ? "Vérifier" : "Ne pas vérifier") != 0) {
             settings.checkUpdates = !settings.checkUpdates;

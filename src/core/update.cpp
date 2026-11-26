@@ -8,6 +8,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <winhttp.h>
+#elif defined(SOUNDWAVE_UPDATE_CHECK)
+#include <dlfcn.h>
 #endif
 
 namespace core {
@@ -62,6 +64,78 @@ bool UpdateCheck::fetchLatest(std::string& tag, std::string& error) {
     return ok;
 }
 
+#elif defined(SOUNDWAVE_UPDATE_CHECK)
+
+namespace {
+
+// Le strict nécessaire de l'API de libcurl. Ces valeurs font partie de son
+// ABI et ne changent pas d'une version à l'autre.
+constexpr int kOptWriteData = 10001, kOptUrl = 10002, kOptUserAgent = 10018;
+constexpr int kOptWriteFunction = 20011;
+constexpr int kOptTimeout = 13, kOptFollow = 52, kOptConnectTimeout = 78, kOptNoSignal = 99;
+constexpr int kInfoResponseCode = 0x200002;
+
+size_t appendBody(char* data, size_t size, size_t count, void* user) {
+    std::string& body = *static_cast<std::string*>(user);
+    if (body.size() > (1u << 20)) return 0; // une réponse normale fait quelques Ko
+    body.append(data, size * count);
+    return size * count;
+}
+
+} // namespace
+
+bool UpdateCheck::fetchLatest(std::string& tag, std::string& error) {
+    // Chargée à la demande : le jeu n'en dépend pas pour démarrer.
+    void* lib = dlopen("libcurl.so.4", RTLD_NOW | RTLD_LOCAL);
+    if (!lib) {
+        error = "libcurl introuvable";
+        return false;
+    }
+    using Init = void* (*)();
+    using SetOpt = int (*)(void*, int, ...);
+    using Perform = int (*)(void*);
+    using GetInfo = int (*)(void*, int, ...);
+    using Cleanup = void (*)(void*);
+    auto init = reinterpret_cast<Init>(dlsym(lib, "curl_easy_init"));
+    auto setopt = reinterpret_cast<SetOpt>(dlsym(lib, "curl_easy_setopt"));
+    auto perform = reinterpret_cast<Perform>(dlsym(lib, "curl_easy_perform"));
+    auto getinfo = reinterpret_cast<GetInfo>(dlsym(lib, "curl_easy_getinfo"));
+    auto cleanup = reinterpret_cast<Cleanup>(dlsym(lib, "curl_easy_cleanup"));
+    void* curl = init && setopt && perform && getinfo && cleanup ? init() : nullptr;
+    if (!curl) {
+        error = "libcurl inutilisable";
+        dlclose(lib);
+        return false;
+    }
+    std::string body;
+    using Write = size_t (*)(char*, size_t, size_t, void*);
+    setopt(curl, kOptUrl, "https://api.github.com/repos/Bornholm/soundwave/releases/latest");
+    // Nom de client générique : rien qui désigne le joueur ou sa machine.
+    setopt(curl, kOptUserAgent, "Soundwave");
+    setopt(curl, kOptWriteFunction, static_cast<Write>(appendBody));
+    setopt(curl, kOptWriteData, static_cast<void*>(&body));
+    setopt(curl, kOptFollow, 1L);
+    setopt(curl, kOptConnectTimeout, 5L);
+    setopt(curl, kOptTimeout, 10L);
+    setopt(curl, kOptNoSignal, 1L); // appelé hors du fil principal
+    const int result = perform(curl);
+    long status = 0;
+    getinfo(curl, kInfoResponseCode, &status);
+    cleanup(curl);
+    dlclose(lib);
+    if (result != 0) {
+        error = "erreur libcurl " + std::to_string(result);
+        return false;
+    }
+    if (status != 200) {
+        error = "HTTP " + std::to_string(status);
+        return false;
+    }
+    tag = tagFromRelease(body);
+    if (tag.empty()) error = "réponse sans tag";
+    return !tag.empty();
+}
+
 #else
 
 bool UpdateCheck::fetchLatest(std::string&, std::string& error) {
@@ -72,7 +146,7 @@ bool UpdateCheck::fetchLatest(std::string&, std::string& error) {
 #endif
 
 void UpdateCheck::start(const char* current) {
-#ifdef _WIN32
+#ifdef SOUNDWAVE_UPDATE_CHECK
     int parts[3];
     if (!parseVersion(current, parts) || started_.exchange(true)) return;
     const std::string mine = current;

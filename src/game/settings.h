@@ -11,7 +11,7 @@ struct Settings {
     bool swapButtons = false; // direction à droite, bonus à gauche
     int difficulty = 1;       // niveau des IA : 0 facile, 1 normal, 2 difficile
     int ship = 0;             // dernier vaisseau choisi
-    bool checkUpdates = true; // Windows : chercher une nouvelle version au démarrage
+    bool checkUpdates = true; // Windows et Linux : chercher une nouvelle version au démarrage
     int quality = -1;         // -1 automatique, 0 basse, 1 moyenne, 2 haute
     int autoQuality = -1;     // niveau choisi par le mode automatique, -1 pas encore estimé
     // Niveau de rendu en vigueur : celui du joueur, sinon celui du mode

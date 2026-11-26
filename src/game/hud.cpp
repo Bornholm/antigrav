@@ -133,14 +133,51 @@ const vec4 kItemColors[] = {
     vec4(0.55f, 0.45f, 1.0f, 1.0f), kYellow, kCyan, vec4(1.0f, 0.55f, 0.15f, 1.0f),
 };
 
+// Aide au départ turbo, dessinée sur le bouton du bonus (ou sur le cadre du
+// bonus au clavier). Un anneau se resserre sur le bouton pendant le compte à
+// rebours et le touche à l'ouverture de la fenêtre : le bouton s'allume, c'est
+// le moment d'appuyer. Rend vrai quand l'aide est affichée.
+bool drawStartCue(gfx::HudBatch& hud, const HudState& s, vec2 c, vec2 half, float corner) {
+    if (!s.gridStart || s.countdown <= 0.0f) return false;
+    const float lead = 1.2f; // l'anneau apparaît 1,2 s avant la fenêtre
+    const float untilWindow = s.countdown - sim::kStartWindow;
+    const vec4 dark{0.06f, 0.05f, 0.09f, 0.5f};
+    auto label = [&](const char* text, vec4 glow) {
+        hud.text(FontId::Bold, tr(text), c + vec2(0.0f, 12.0f), 30.0f, kWhite, Align::Center, 0.2f, glow);
+    };
+    if (s.startBoost == 2) {
+        hud.roundRect(c, half, corner, alpha(kMagenta, 0.25f), kMagenta, 5.0f);
+        label("RATÉ", alpha(kMagenta, 0.7f));
+        return true;
+    }
+    if (s.startBoost == 1 || untilWindow <= 0.0f) {
+        // Fenêtre ouverte, ou appui déjà réussi : le bouton brille.
+        const float beat = 0.5f + 0.5f * std::sin(s.countdown * 40.0f);
+        hud.roundRect(c, half, corner, alpha(kCyan, 0.40f + 0.15f * beat), kCyan, 8.0f);
+        const float halo = 0.14f * std::min(half.x, half.y);
+        hud.roundRect(c, half + halo, corner + halo, vec4(0.0f), alpha(kCyan, 0.5f + 0.3f * beat), 3.0f);
+        label("TURBO", alpha(kCyan, 0.9f));
+        return true;
+    }
+    if (untilWindow > lead) return false;
+    // L'anneau approche : il part loin du bord du bouton, d'une marge qui
+    // dépend de sa plus petite dimension, et s'en rapproche.
+    const float t = untilWindow / lead;
+    const float grow = 0.9f * t * std::min(half.x, half.y);
+    hud.roundRect(c, half, corner, dark, alpha(kCyan, 0.5f), 2.5f);
+    hud.roundRect(c, half + grow, corner + grow, vec4(0.0f), alpha(kCyan, 0.35f + 0.65f * (1.0f - t)), 4.0f);
+    return true;
+}
+
 // Au clavier ou à la manette, pas de boutons à l'écran : seulement le bonus
 // porté, en bas à droite.
 void drawItemBadge(gfx::HudBatch& hud, const HudState& s) {
-    const int item = std::clamp(s.item, 0, 6);
-    if (!item) return;
     hud.anchor = Anchor::Right;
     hud.vAnchor = gfx::VAnchor::Bottom;
     const vec2 c{1440.0f, 800.0f};
+    if (drawStartCue(hud, s, c, {120.0f, 40.0f}, 14.0f)) return;
+    const int item = std::clamp(s.item, 0, 6);
+    if (!item) return;
     hud.roundRect(c, {120.0f, 40.0f}, 14.0f, vec4(0.05f, 0.04f, 0.09f, 0.6f), kItemColors[item], 3.0f);
     hud.text(FontId::Bold, tr(kItemNames[item]), c + vec2(0.0f, 12.0f), 32.0f, kWhite, Align::Center, 0.2f,
              alpha(kItemColors[item], 0.6f));
@@ -181,6 +218,7 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
         const bool down = shapeOf(Button::Use, c, r);
         const int item = std::clamp(s.item, 0, 6);
         const vec4 tint = item ? kItemColors[item] : alpha(kWhite, 0.35f);
+        if (drawStartCue(hud, s, c, {r, r}, r)) return;
         hud.circle(c, r, down && item ? alpha(tint, 0.35f) : vec4(0.06f, 0.05f, 0.09f, 0.5f), tint, item ? (down ? 7.0f : 5.0f) : 2.5f);
         if (item) {
             hud.circle(c, r * 0.78f, vec4(0.0f), alpha(tint, 0.45f), 2.0f);

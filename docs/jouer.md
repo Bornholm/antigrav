@@ -27,6 +27,8 @@ Dans **Solo**, la ligne MORCEAU ouvre la liste des morceaux : à gauche les morc
 
 Sur un départ arrêté, appuyer sur le bouton de bonus juste avant le signal, dans les trois dernières dixièmes de seconde du compte à rebours, lance le vaisseau en turbo pendant une seconde et demie. « DÉPART TURBO ! » s'affiche sous le « GO ! ».
 
+Le bouton de bonus aide à viser : pendant le compte à rebours, un anneau se resserre autour de lui et le touche à l'ouverture de la fenêtre. Le bouton s'allume alors en bleu avec le mot TURBO, c'est le moment d'appuyer. Un départ raté le passe en rose avec le mot RATÉ. Au clavier et à la manette, la même aide s'affiche sur le cadre du bonus, en bas à droite.
+
 Un appui dans la dernière seconde mais trop tôt affiche « TROP TÔT » et fait rater le départ turbo, même si l'on rappuie ensuite au bon moment. Appuyer plusieurs fois dans la fenêtre le fait rater aussi. Un appui avant la dernière seconde ne compte pas. Les IA tentent aussi leur chance : souvent en difficile, rarement en facile.
 
 ## Bonus

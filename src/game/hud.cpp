@@ -299,9 +299,18 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         float pulse = 1.0f + 0.25f * (s.countdown - std::floor(s.countdown));
         hud.text(FontId::Bold, buf, {800.0f, 400.0f}, 190.0f * pulse, kWhite, Align::Center,
                  0.2f, alpha(kCyan, 0.8f));
+        // Appui trop tôt : le joueur le sait tout de suite. Un appui réussi
+        // ne se révèle qu'au signal.
+        if (s.startBoost == 2)
+            hud.text(FontId::Bold, tr("TROP TÔT"), {800.0f, 520.0f}, 44.0f, kWhite, Align::Center, 0.2f,
+                     alpha(kMagenta, 0.8f));
     } else if (s.gridStart && s.raceTime < 1.2f && !s.finished) {
         hud.text(FontId::Bold, tr("GO !"), {800.0f, 400.0f}, 170.0f,
                  alpha(kYellow, 1.0f - s.raceTime / 1.2f), Align::Center, 0.2f);
+        if (s.startBoost == 1)
+            hud.text(FontId::Bold, tr("DÉPART TURBO !"), {800.0f, 520.0f}, 48.0f,
+                     alpha(kWhite, 1.0f - s.raceTime / 1.2f), Align::Center, 0.2f,
+                     alpha(kCyan, 0.8f * (1.0f - s.raceTime / 1.2f)));
     }
 
     if (s.statsLine[0]) {

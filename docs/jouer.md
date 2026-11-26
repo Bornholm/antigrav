@@ -23,6 +23,12 @@ Dans **Solo**, la ligne MORCEAU ouvre la liste des morceaux : à gauche les morc
 - **Sans tempo net.** Si le jeu ne trouve pas de pulsation régulière, il cale la piste sur une grille fixe et sur l'intensité du morceau, et l'indique sous le titre.
 
 
+## Départ turbo
+
+Sur un départ arrêté, appuyer sur le bouton de bonus juste avant le signal, dans les trois dernières dixièmes de seconde du compte à rebours, lance le vaisseau en turbo pendant une seconde et demie. « DÉPART TURBO ! » s'affiche sous le « GO ! ».
+
+Un appui dans la dernière seconde mais trop tôt affiche « TROP TÔT » et fait rater le départ turbo, même si l'on rappuie ensuite au bon moment. Appuyer plusieurs fois dans la fenêtre le fait rater aussi. Un appui avant la dernière seconde ne compte pas. Les IA tentent aussi leur chance : souvent en difficile, rarement en facile.
+
 ## Bonus
 
 Des boîtes à bonus, de grands losanges jaunes surmontés d'un faisceau, donnent un bonus à qui passe dessus les mains vides. On n'en porte qu'un à la fois. Le bouton de droite affiche son nom et le déclenche.

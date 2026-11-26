@@ -51,6 +51,7 @@ struct HudState {
     bool incoming = false;   // un tir arrive sur le joueur
     bool shielded = false;
     bool gridStart = false; // départ arrêté : affiche le signal du départ
+    int startBoost = 0;     // départ turbo du joueur : 0 pas tenté, 1 réussi, 2 raté
     bool pressed[static_cast<int>(Button::Count)] = {};
 };
 

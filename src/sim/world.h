@@ -34,6 +34,13 @@ enum class Item : uint8_t {
 constexpr float kStunDuration = 0.9f;  // secondes sans contrôle après un choc
 constexpr float kHitLoss = 0.40f;      // part de vitesse perdue sur un choc
 constexpr float kTurboTime = 2.6f;     // secondes
+// Départ turbo : un appui sur le bonus dans la dernière fraction de seconde
+// du compte à rebours lance le vaisseau en turbo. Un appui dans la seconde
+// qui précède cette fenêtre fait rater le départ turbo. Plus tôt, l'appui ne
+// compte pas : un bouton encore tenu en sortant du menu ne coûte rien.
+constexpr float kStartWindow = 0.30f; // secondes avant le signal
+constexpr float kStartEarly = 1.0f;   // début de la zone « trop tôt »
+constexpr float kStartTurbo = 1.5f;   // secondes de turbo gagnées
 constexpr float kTurboSpeed = 1.22f;   // vitesse en turbo, rapportée à la croisière
 constexpr float kShieldTime = 9.0f;    // secondes, ou jusqu'au premier choc
 constexpr float kMineLife = 30.0f;     // secondes
@@ -84,6 +91,7 @@ struct Vehicle {
     Item item = Item::None;  // bonus porté
     bool useHeld = false;    // état précédent de la commande, pour détecter l'appui
     bool boxHit = false;     // vient de passer sur une boîte à bonus, à servir au prochain pas
+    uint8_t startBoost = 0;  // départ turbo : 0 pas tenté, 1 réussi, 2 raté
 };
 
 enum class MissileKind : uint8_t {

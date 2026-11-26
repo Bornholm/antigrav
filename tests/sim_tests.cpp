@@ -245,6 +245,55 @@ void testWall() {
     CHECK(world.vehicles[0].speed < sim::kCruiseSpeed);
 }
 
+// Départ turbo : un appui net dans la fenêtre lance le turbo au signal, un
+// appui trop tôt ou répété le fait rater, un appui très en avance ne compte pas.
+void testStartBoost() {
+    sim::Track track = sim::Track::make(0);
+    // Appuis du vaisseau 0 aux instants donnés du compte à rebours, en secondes
+    // avant le signal. Rend son état au premier pas de course.
+    auto start = [&](std::initializer_list<float> presses) {
+        sim::World world = makeGrid();
+        world.countdown = 3.0f;
+        while (world.countdown > 0.0f) {
+            sim::Input inputs[sim::kMaxVehicles] = {};
+            for (float at : presses)
+                if (std::abs(world.countdown - at) < sim::kFixedDt * 0.5f) inputs[0].use = true;
+            sim::step(world, track, inputs);
+        }
+        return world.vehicles[0];
+    };
+    const sim::Vehicle clean = start({0.15f});
+    CHECK(clean.startBoost == 1 && clean.turboTime == sim::kStartTurbo);
+    const sim::Vehicle none = start({});
+    CHECK(none.startBoost == 0 && none.turboTime == 0.0f);
+    const sim::Vehicle early = start({0.7f});
+    CHECK(early.startBoost == 2 && early.turboTime == 0.0f);
+    // Trop tôt puis au bon moment : le départ reste raté.
+    const sim::Vehicle retry = start({0.7f, 0.15f});
+    CHECK(retry.startBoost == 2 && retry.turboTime == 0.0f);
+    // Marteler le bouton dans la fenêtre ne marche pas non plus.
+    const sim::Vehicle mash = start({0.25f, 0.15f});
+    CHECK(mash.startBoost == 2 && mash.turboTime == 0.0f);
+    // Un appui en tout début de compte à rebours est oublié.
+    const sim::Vehicle forgiven = start({2.5f, 0.15f});
+    CHECK(forgiven.startBoost == 1 && forgiven.turboTime == sim::kStartTurbo);
+
+    // Le turbo de départ donne une avance, modeste, au bout de trois secondes.
+    auto distanceAfter = [&](bool boost) {
+        sim::World world = makeGrid();
+        world.countdown = 3.0f;
+        for (int i = 0; i < 60 * 6; i++) {
+            sim::Input inputs[sim::kMaxVehicles] = {};
+            inputs[0].use = boost && world.countdown > 0.0f && world.countdown <= 0.15f;
+            sim::step(world, track, inputs);
+        }
+        return world.vehicles[0].dist;
+    };
+    const float gain = distanceAfter(true) - distanceAfter(false);
+    std::printf("départ turbo : %.1f m d'avance après 3 s de course\n", gain);
+    CHECK(gain > 5.0f && gain < 200.0f);
+}
+
 void testCountdownAndFinish() {
     sim::Track track = sim::Track::make(0);
     sim::World world = makeGrid();
@@ -711,6 +760,7 @@ int main() {
     testPace();
     testRanking();
     testCountdownAndFinish();
+    testStartBoost();
     testSynth();
     testItems();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");

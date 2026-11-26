@@ -10,7 +10,7 @@ namespace net {
 
 namespace {
 
-const uint32_t kMagic = 0x38474141u; // "AAG8" : le salon porte la coupe en cours
+const uint32_t kMagic = 0x39474141u; // "AAG9" : les vaisseaux portent leur départ turbo
 constexpr double kTimeout = 5.0;      // secondes sans nouvelles avant de couper
 
 enum Type : uint8_t {
@@ -86,7 +86,7 @@ struct InputPacket {
 struct WireVehicle {
     float dist, lateral, lateralVel, speed, roll, finishTime, shieldTime, turboTime, stunTime, airTime;
     uint8_t item;
-    uint8_t flags; // bit 0 turbo, 1 frottement, 2 arrivé, 3 bouton tenu, 4 boîte franchie
+    uint8_t flags; // bit 0 turbo, 1 frottement, 2 arrivé, 3 bouton tenu, 4 boîte franchie, 5 et 6 départ turbo
 };
 struct WireMissile {
     uint8_t active; // bit 0 actif, bits 1 et 2 nature, voir sim::MissileKind
@@ -407,7 +407,7 @@ void Net::hostSendSnapshot(const sim::Session& session) {
         o.airTime = v.airTime;
         o.item = static_cast<uint8_t>(v.item);
         o.flags = static_cast<uint8_t>((v.boosting ? 1 : 0) | (v.scraping ? 2 : 0) | (v.finished ? 4 : 0) |
-                                       (v.useHeld ? 8 : 0) | (v.boxHit ? 16 : 0));
+                                       (v.useHeld ? 8 : 0) | (v.boxHit ? 16 : 0) | ((v.startBoost & 3) << 5));
         packet.inputs[i] = packInput(session.lastInputs[i]);
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {
@@ -451,6 +451,7 @@ void Net::reconcile(sim::Session& session, const void* data) {
         v.finished = o.flags & 4;
         v.useHeld = o.flags & 8;
         v.boxHit = o.flags & 16;
+        v.startBoost = (o.flags >> 5) & 3;
         if (i != session.localIndex) session.remoteInputs[i] = unpackInput(s.inputs[i]);
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {

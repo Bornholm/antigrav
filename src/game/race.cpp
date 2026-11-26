@@ -148,6 +148,12 @@ void Race::react(const sim::World& before) {
             if (now.stunTime > was.stunTime + 0.05f) tally.hits++;
             if (was.item == sim::Item::None && now.item != sim::Item::None) tally.pickups++;
         }
+        // Départ turbo réussi : il part au signal.
+        if (before.countdown > 0.0f && world.countdown <= 0.0f && now.startBoost == 1) {
+            sound(Sfx::Turbo);
+            burst(kTurbo, 2.0f, 10.0f, 0.4f, 3.0f);
+            screen(kTurbo, 0.22f);
+        }
         // Bonus ramassé.
         if (was.item == sim::Item::None && now.item != sim::Item::None) {
             sound(Sfx::Pickup);
@@ -539,6 +545,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.showGap = !world.ownClock && world.countdown <= 0.0f && !player.finished;
     state.gap = sim::gapOf(world, track, player);
     state.countdown = world.countdown;
+    state.startBoost = player.startBoost;
     state.raceTime = player.finished ? player.finishTime : world.raceTime;
     state.finished = player.finished;
     state.score = score;

@@ -131,6 +131,8 @@ const Entry kEntries[] = {
     {"TIR EN APPROCHE", "INCOMING SHOT", "DISPARO ENTRANTE"},
     {"TIR EN APPROCHE !", "INCOMING SHOT!", "¡DISPARO ENTRANTE!"},
     {"GO !", "GO!", "¡YA!"},
+    {"DÉPART TURBO !", "ROCKET START!", "¡SALIDA TURBO!"},
+    {"TROP TÔT", "TOO EARLY", "DEMASIADO PRONTO"},
     {"COURSE TERMINÉE", "RACE OVER", "CARRERA TERMINADA"},
     {"POSITION %d / %d", "POSITION %d / %d", "POSICIÓN %d / %d"},
     {"SCORE %d", "SCORE %d", "PUNTOS %d"},

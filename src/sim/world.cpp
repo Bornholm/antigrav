@@ -299,7 +299,18 @@ void step(World& world, const Track& track, const Input* inputs) {
     world.tick++;
     world.time += kFixedDt;
     if (world.countdown > 0.0f) {
+        // Départ turbo : un seul appui net, au bon moment.
+        for (int i = 0; i < world.count; i++) {
+            Vehicle& v = world.vehicles[i];
+            const bool pressed = inputs[i].use && !v.useHeld;
+            v.useHeld = inputs[i].use;
+            if (!pressed || world.countdown > kStartEarly) continue;
+            v.startBoost = world.countdown <= kStartWindow && v.startBoost == 0 ? 1 : 2;
+        }
         world.countdown -= kFixedDt;
+        if (world.countdown <= 0.0f)
+            for (int i = 0; i < world.count; i++)
+                if (world.vehicles[i].startBoost == 1) world.vehicles[i].turboTime = kStartTurbo;
         return;
     }
     world.raceTime += kFixedDt;
@@ -355,11 +366,12 @@ struct AiSkill {
     float foresight; // part de son anticipation
     float trigger;   // part de son empressement à déclencher un bonus
     float lapse;     // part des secondes où il ne regarde ni boîtes ni barrières
+    float start;     // part des départs turbo réussis
 };
 const AiSkill kAiSkills[3] = {
-    {0.55f, 0.35f, 0.30f}, // facile
-    {0.80f, 0.65f, 0.12f}, // normal
-    {1.00f, 1.00f, 0.00f}, // difficile
+    {0.55f, 0.35f, 0.30f, 0.15f}, // facile
+    {0.80f, 0.65f, 0.12f, 0.45f}, // normal
+    {1.00f, 1.00f, 0.00f, 0.80f}, // difficile
 };
 
 } // namespace
@@ -372,6 +384,14 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     const Vehicle& v = world.vehicles[index];
     const ShipStats& stats = shipStats(v.ship);
     Input in;
+
+    // Sur la grille : tente le départ turbo, ou le laisse passer. Le tirage
+    // dépend du circuit, pour que ce ne soient pas toujours les mêmes.
+    if (world.countdown > 0.0f) {
+        const uint32_t race = static_cast<uint32_t>(track.length) + static_cast<uint32_t>(world.count) * 7919u;
+        in.use = chance(index, race, 31u) < skill.start && world.countdown <= kStartWindow * 0.5f;
+        return in;
+    }
 
     // Regarde devant pour prendre le virage à temps.
     TrackFrame here = track.at(v.dist);

@@ -1,5 +1,7 @@
 #include "game/input.h"
 
+#include "game/i18n.h"
+
 #include <cstring>
 
 #include "gfx/hud.h"
@@ -41,7 +43,35 @@ const char* keyBindingName(Button button) {
     const SDL_Scancode sc = static_cast<SDL_Scancode>(keyBinding(button));
     const char* name = SDL_GetKeyName(SDL_GetKeyFromScancode(sc, SDL_KMOD_NONE, false));
     if (!name || !*name) name = SDL_GetScancodeName(sc);
-    return name && *name ? name : "?";
+    if (!name || !*name) return "?";
+    // SDL nomme les touches spéciales en anglais : on traduit les courantes.
+    // La police ne couvre que le Latin-1, d'où « Maj » et les flèches en toutes lettres.
+    struct KeyName {
+        const char* sdl;
+        const char* fr;
+        const char* es;
+    };
+    static const KeyName kNames[] = {
+        {"Space", "Espace", "Espacio"},
+        {"Return", "Entrée", "Intro"},
+        {"Tab", "Tab", "Tab"},
+        {"Backspace", "Retour arrière", "Retroceso"},
+        {"Left", "Gauche", "Izquierda"},
+        {"Right", "Droite", "Derecha"},
+        {"Up", "Haut", "Arriba"},
+        {"Down", "Bas", "Abajo"},
+        {"Left Shift", "Maj gauche", "Mayús izq."},
+        {"Right Shift", "Maj droite", "Mayús der."},
+        {"Left Ctrl", "Ctrl gauche", "Ctrl izq."},
+        {"Right Ctrl", "Ctrl droite", "Ctrl der."},
+        {"Left Alt", "Alt", "Alt"},
+        {"Right Alt", "Alt Gr", "Alt Gr"},
+        {"Keypad Enter", "Entrée (pavé)", "Intro (teclado num.)"},
+    };
+    if (lang() != Lang::En)
+        for (const KeyName& k : kNames)
+            if (!std::strcmp(k.sdl, name)) return lang() == Lang::Es ? k.es : k.fr;
+    return name;
 }
 
 void setButtonsSwapped(bool swapped) { swappedButtons = swapped; }

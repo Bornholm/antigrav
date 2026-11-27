@@ -176,6 +176,15 @@ void drawItemBadge(gfx::HudBatch& hud, const HudState& s) {
     hud.vAnchor = gfx::VAnchor::Bottom;
     const vec2 c{1440.0f, 800.0f};
     if (drawStartCue(hud, s, c, {120.0f, 40.0f}, 14.0f)) return;
+    {
+        // Vrille : allumée en cyan quand elle est prête, pâle pendant l'attente.
+        const vec2 r = c - vec2(0.0f, 74.0f);
+        const bool ready = s.rollReady && s.rollCharge >= 1.0f;
+        const vec4 tint = ready ? kCyan : alpha(kWhite, 0.15f + 0.25f * s.rollCharge);
+        hud.roundRect(r, {84.0f, 22.0f}, 10.0f, vec4(0.05f, 0.04f, 0.09f, ready ? 0.6f : 0.35f), tint, ready ? 2.5f : 1.5f);
+        hud.text(FontId::Bold, tr("VRILLE"), r + vec2(0.0f, 8.0f), 22.0f, ready ? kWhite : alpha(kWhite, 0.45f), Align::Center, 0.2f,
+                 ready ? alpha(kCyan, 0.6f) : vec4(0.0f));
+    }
     const int item = std::clamp(s.item, 0, 6);
     if (!item) return;
     hud.roundRect(c, {120.0f, 40.0f}, 14.0f, vec4(0.05f, 0.04f, 0.09f, 0.6f), kItemColors[item], 3.0f);

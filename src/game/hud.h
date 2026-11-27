@@ -79,6 +79,7 @@ struct HudState {
     bool incoming = false;   // un tir arrive sur le joueur
     float threat = -1.0f;    // secondes avant qu'un tir le touche, négatif s'il n'y en a pas
     bool rollReady = true;   // le joueur peut vriller
+    float rollCharge = 1.0f; // attente entre deux vrilles écoulée, de 0 à 1
     bool rolling = false;    // en pleine vrille
     bool shielded = false;
     bool gridStart = false; // départ arrêté : affiche le signal du départ

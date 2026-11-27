@@ -207,9 +207,22 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
         vec4 glass = down ? vec4(0.30f, 0.60f, 0.85f, 0.45f) : vec4(0.10f, 0.12f, 0.24f, 0.34f);
         hud.circle(c, r, glass, alpha(down ? kCyan : kWhite, 0.9f), down ? 4.0f : 2.5f);
         float k = r / 70.0f; // la flèche suit la taille du bouton
+        // Vrille : un anneau extérieur se remplit pendant l'attente, puis
+        // s'allume en cyan avec une seconde flèche quand elle est prête.
+        const bool ready = s.rollReady && s.rollCharge >= 1.0f;
+        if (ready) {
+            hud.circle(c, r + 12.0f * k, vec4(0.0f), alpha(kCyan, 0.85f), 4.0f);
+            polyline(hud,
+                     {c + vec2(-13.0f * dirSign + 16.0f * dirSign, -22.0f) * k, c + vec2(15.0f * dirSign + 16.0f * dirSign, 0.0f) * k,
+                      c + vec2(-13.0f * dirSign + 16.0f * dirSign, 22.0f) * k},
+                     6.0f * k, alpha(kCyan, 0.9f));
+        } else {
+            hud.circle(c, r + 12.0f * k, vec4(0.0f), alpha(kWhite, 0.08f + 0.22f * s.rollCharge), 2.0f);
+        }
         polyline(hud,
-                 {c + vec2(-13.0f * dirSign, -28.0f) * k, c + vec2(15.0f * dirSign, 0.0f) * k,
-                  c + vec2(-13.0f * dirSign, 28.0f) * k},
+                 {c + vec2(-13.0f * dirSign - (ready ? 8.0f * dirSign : 0.0f), -28.0f) * k,
+                  c + vec2(15.0f * dirSign - (ready ? 8.0f * dirSign : 0.0f), 0.0f) * k,
+                  c + vec2(-13.0f * dirSign - (ready ? 8.0f * dirSign : 0.0f), 28.0f) * k},
                  9.0f * k, kWhite);
     }
     {

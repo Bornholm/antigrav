@@ -398,7 +398,9 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         if (b.rollDir != 0) {
             const float left = mixf(a.rollDir == b.rollDir ? a.rollTime : sim::kRollTime, b.rollTime, alpha);
             const float u = 1.0f - std::clamp(left / sim::kRollTime, 0.0f, 1.0f);
-            roll -= static_cast<float>(b.rollDir) * 6.2832f * (1.0f - (1.0f - u) * (1.0f - u));
+            // Vers la droite, l'aile droite monte : le sens inverse de
+            // l'inclinaison d'un virage.
+            roll += static_cast<float>(b.rollDir) * 6.2832f * (1.0f - (1.0f - u) * (1.0f - u));
         }
         float bob = std::sin(time * 3.1f + static_cast<float>(i) * 1.7f) * 0.05f;
         if (i == localIndex) playerDist = dist;
@@ -727,6 +729,7 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     }
     state.threat = shotThreat();
     state.rollReady = player.rollCooldown <= 0.0f && player.stunTime <= 0.0f;
+    state.rollCharge = 1.0f - std::clamp(player.rollCooldown / sim::kRollCooldown, 0.0f, 1.0f);
     state.rolling = player.rollTime > 0.0f;
     state.gridStart = config.gridStart;
 

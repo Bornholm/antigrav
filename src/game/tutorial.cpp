@@ -88,7 +88,7 @@ TutorialPage tutorialPage(int index) {
     case 7:
         p.title = "VRILLE";
         p.scene = TutorialScene::Dodge;
-        p.hud = kHudAlerts;
+        p.hud = kHudAlerts | kHudButtons;
         p.slow = 0.6f;
         p.loop = 3.2f;
         line(touch ? "Touchez deux fois vite une flèche : le vaisseau vrille de ce côté."

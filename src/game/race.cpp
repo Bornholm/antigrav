@@ -106,6 +106,11 @@ void Race::init(const RaceConfig& cfg, int local) {
     accumulator = 0.0f;
     camLateral = world.vehicles[localIndex].lateral;
     for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
+    lastTap[0] = lastTap[1] = -10.0f;
+    tapDown[0] = tapDown[1] = false;
+    rollHold = 0.0f;
+    rollWanted = 0;
+    alertWait = 0.0f;
 
     minimap.clear();
 }
@@ -224,6 +229,7 @@ void Race::react(const sim::World& before) {
             screen(kShield, 0.30f);
         }
         if (was.airTime <= 0.0f && now.airTime > 0.0f) sound(Sfx::Jump);
+        if (was.rollTime <= 0.0f && now.rollTime > 0.0f) sound(Sfx::Roll);
     }
 }
 
@@ -232,6 +238,26 @@ void Race::update(float dt, const Controls& input) {
     sim::Input local;
     local.steer = input.steer;
     local.use = input.pressed[static_cast<int>(Button::Use)];
+    // Double appui sur une direction : vrille de ce côté. Appuyer de l'autre
+    // côté entre-temps annule le premier appui, pour qu'un pouce qui passe
+    // d'un bouton à l'autre ne vrille pas.
+    tapClock += dt;
+    for (int side = 0; side < 2; side++) {
+        const bool down = input.pressed[static_cast<int>(side ? Button::Right : Button::Left)];
+        if (down && !tapDown[side]) {
+            if (tapClock - lastTap[side] <= kDoubleTap) {
+                rollWanted = static_cast<int8_t>(side ? 1 : -1);
+                rollHold = 0.12f;
+                lastTap[side] = -10.0f;
+            } else {
+                lastTap[side] = tapClock;
+            }
+            lastTap[1 - side] = -10.0f;
+        }
+        tapDown[side] = down;
+    }
+    if (rollHold > 0.0f) local.roll = rollWanted;
+    rollHold -= dt;
 
     // Une image très longue ne doit pas déclencher une rafale de pas.
     accumulator += std::min(dt, 0.1f);
@@ -287,8 +313,29 @@ void Race::update(float dt, const Controls& input) {
     updatePresentation(dt);
 }
 
+float Race::shotThreat() const {
+    float best = -1.0f;
+    for (const sim::Missile& m : world.missiles) {
+        const float t = sim::shotImpactTime(world, localIndex, m);
+        if (t >= 0.0f && (best < 0.0f || t < best)) best = t;
+    }
+    return best;
+}
+
 void Race::updatePresentation(float dt) {
     const sim::Vehicle& player = world.vehicles[localIndex];
+
+    // Un tir approche : des bips graves de plus en plus serrés, comme un radar
+    // de recul, jusqu'au moment de vriller.
+    {
+        const float threat = shotThreat();
+        alertWait -= dt;
+        if (threat >= 0.0f && threat < kAlertLead && alertWait <= 0.0f) {
+            if (synth) synth->play(Sfx::Alert, threat <= kDodgeLead ? 1.0f : 0.75f);
+            alertWait = std::clamp(threat * 0.22f, 0.07f, 0.45f);
+        }
+        if (threat < 0.0f) alertWait = 0.0f;
+    }
 
     // Niveaux de la musique pour le décor : montée vive, descente plus lente,
     // comme les barres d'un égaliseur.
@@ -347,6 +394,12 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         float roll = mixf(a.roll, b.roll, alpha);
         // Touché par un missile : le vaisseau part en vrille.
         if (b.stunTime > 0.0f) roll += (b.stunTime / sim::kStunDuration) * 12.566f;
+        // Vrille : un tour complet sur le côté choisi, vif au début.
+        if (b.rollDir != 0) {
+            const float left = mixf(a.rollDir == b.rollDir ? a.rollTime : sim::kRollTime, b.rollTime, alpha);
+            const float u = 1.0f - std::clamp(left / sim::kRollTime, 0.0f, 1.0f);
+            roll -= static_cast<float>(b.rollDir) * 6.2832f * (1.0f - (1.0f - u) * (1.0f - u));
+        }
         float bob = std::sin(time * 3.1f + static_cast<float>(i) * 1.7f) * 0.05f;
         if (i == localIndex) playerDist = dist;
 
@@ -672,6 +725,9 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
                                   world.vehicles[i].dist < player.dist);
         if (!covered) state.incoming = true;
     }
+    state.threat = shotThreat();
+    state.rollReady = player.rollCooldown <= 0.0f && player.stunTime <= 0.0f;
+    state.rolling = player.rollTime > 0.0f;
     state.gridStart = config.gridStart;
 
     hud.begin(fonts, screen.x, screen.y);

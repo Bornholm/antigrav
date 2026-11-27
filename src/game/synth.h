@@ -6,7 +6,7 @@
 namespace game {
 
 // Effets sonores des bonus et des chocs, tous synthétisés.
-enum class Sfx : uint8_t { Pickup, Shot, Mine, Pulse, Turbo, ShieldUp, ShieldBreak, Comet, Hit, Jump, Count };
+enum class Sfx : uint8_t { Pickup, Shot, Mine, Pulse, Turbo, ShieldUp, ShieldBreak, Comet, Hit, Jump, Roll, Alert, Count };
 
 // Synthétiseur du son de course : moteur, vent, boost, frottement et bips du
 // départ. Tout est calculé, aucun fichier audio n'est chargé.

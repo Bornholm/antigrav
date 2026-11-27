@@ -389,7 +389,7 @@ void App::setupTutorialScene() {
     race.hudParts = page.hud;
     race.countdownY = 560.0f;
     // Les bips du compte à rebours seulement : le reste du temps, le thème joue seul.
-    race.synth = page.scene == TutorialScene::Countdown ? synth : nullptr;
+    race.synth = page.scene == TutorialScene::Countdown || page.scene == TutorialScene::Dodge ? synth : nullptr;
     inRace = false;
 
     // La scène commence au quart du morceau, ou un peu avant l'élément de piste
@@ -406,6 +406,16 @@ void App::setupTutorialScene() {
             }
         if (feature) target = feature->dist - 450.0f;
     }
+    if (page.scene == TutorialScene::Dodge) {
+        // Une portion sans barrière ni tremplin, pour que rien d'autre ne
+        // vienne gêner l'esquive.
+        auto clear = [&](float from) {
+            for (const sim::Feature& f : t.features)
+                if (f.type != sim::FeatureType::ItemBox && f.dist > from - 50.0f && f.dist < from + 900.0f) return false;
+            return true;
+        };
+        while (target < 0.8f * t.length && !clear(target)) target += 100.0f;
+    }
     sim::Vehicle& me = race.world.vehicles[0];
     if (page.scene != TutorialScene::Countdown)
         while (me.dist < target && race.world.raceTime < t.duration) race.tick({});
@@ -414,6 +424,30 @@ void App::setupTutorialScene() {
         me.lateral = std::clamp(feature->lateral, -t.halfWidth + 4.0f, t.halfWidth - 4.0f);
         me.lateralVel = 0.0f;
         me.item = sim::Item::None;
+    }
+    if (page.scene == TutorialScene::Dodge) {
+        // Les autres partent devant, et un tir arrive droit sur le joueur.
+        for (sim::Missile& m : race.world.missiles) m.active = false;
+        for (int i = 1; i < race.world.count; i++) {
+            sim::Vehicle& o = race.world.vehicles[i];
+            o.dist = me.dist + 90.0f + 35.0f * static_cast<float>(i);
+            o.lateral = (i % 2 ? -1.0f : 1.0f) * 0.5f * t.halfWidth;
+            o.speed = me.speed;
+            o.item = sim::Item::None; // ni mine ni onde sur le chemin du joueur
+        }
+        me.lateral = std::clamp(me.lateral, -0.4f * t.halfWidth, 0.4f * t.halfWidth);
+        me.item = sim::Item::None;
+        me.shieldTime = 0.0f;
+        me.rollCooldown = 0.0f;
+        sim::Missile& m = race.world.missiles[0];
+        m = sim::Missile{};
+        m.active = true;
+        m.kind = sim::MissileKind::Shot;
+        m.owner = 1;
+        m.dist = me.dist - 330.0f;
+        m.lateral = me.lateral;
+        m.speed = me.speed + 170.0f;
+        m.life = 4.5f;
     }
     race.previous = race.world;
     race.accumulator = 0.0f;
@@ -690,6 +724,12 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
         // et en boucle.
         const TutorialPage page = tutorialPage(tutorialIndex);
         race.autopilot = true;
+        // Démonstration de la vrille : elle part au bon moment, à coup sûr.
+        if (page.scene == TutorialScene::Dodge) {
+            const float threat = race.shotThreat();
+            sim::Vehicle& me = race.world.vehicles[race.localIndex];
+            if (threat >= 0.0f && threat <= kDodgeLead * 0.6f) sim::startRoll(me, me.lateral > 0.0f ? -1 : 1);
+        }
         race.update(dt * page.slow, Controls{});
         if (race.world.raceTime >= tutorialEnd || race.finished()) {
             race.world = tutorialSnap;

@@ -86,13 +86,24 @@ TutorialPage tutorialPage(int index) {
         line("Sur un tremplin, vous survolez barrières et mines.");
         break;
     case 7:
+        p.title = "VRILLE";
+        p.scene = TutorialScene::Dodge;
+        p.hud = kHudAlerts;
+        p.slow = 0.6f;
+        p.loop = 3.2f;
+        line(touch ? "Touchez deux fois vite une flèche : le vaisseau vrille de ce côté."
+                   : "Appuyez deux fois vite sur une direction : le vaisseau vrille de ce côté.");
+        line("Pendant la vrille, les tirs passent au travers. Comptez 2,5 s entre deux vrilles.");
+        line("Quand un tir arrive, un anneau se resserre : vrillez quand il touche le vaisseau.");
+        break;
+    case 8:
         p.title = "LE RYTHME";
         p.hud = kHudTimer | kHudStandings;
         line("ÉCART : votre avance sur la musique, en secondes.");
         line("Trop d'avance vous freine, du retard vous aspire.");
         line("Rester juste devant la musique rapporte le plus de points de TEMPO.");
         break;
-    case 8:
+    case 9:
         p.title = "FANTÔME";
         p.hud = kHudTimer | kHudStandings;
         p.ghost = true;

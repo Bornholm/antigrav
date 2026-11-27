@@ -53,6 +53,13 @@ constexpr float kJumpHeight = 16.0f;   // hauteur au sommet du saut, en mètres
 constexpr float kCometSpeed = 300.0f;  // vitesse de la comète en plus de celle du lanceur, en m/s
 constexpr float kCometLife = 14.0f;    // secondes
 constexpr float kCometChance = 0.22f;  // part des boîtes du dernier qui donnent une comète
+// Vrille : un tonneau rapide sur le côté, d'un double appui sur une direction.
+// Les tirs passent au travers ; les barrières, les mines, l'onde et la comète
+// frappent toujours, mais l'écart aide à les éviter.
+constexpr float kRollTime = 0.5f;      // secondes de vrille, toutes protégées des tirs
+constexpr float kRollDash = 0.3f;      // secondes de poussée sur le côté, au début de la vrille
+constexpr float kRollSpeed = 30.0f;    // vitesse latérale de la poussée, en m/s
+constexpr float kRollCooldown = 2.5f;  // secondes entre deux vrilles, comptées depuis le début de la première
 
 // Éléments de piste, voir sim::Feature.
 constexpr float kBarrierLoss = 0.55f;    // part de vitesse perdue contre une barrière
@@ -69,6 +76,7 @@ constexpr float kDraft = 0.16f;          // part de vitesse gagnée à kWindow d
 struct Input {
     float steer = 0.0f; // -1 à gauche, +1 à droite
     bool use = false;   // déclenche le bonus porté, à l'appui
+    int8_t roll = 0;    // vrille vers la gauche (-1) ou la droite (+1), à l'appui
 };
 
 // État d'un vaisseau en coordonnées de piste. Structure plate : un état
@@ -92,6 +100,10 @@ struct Vehicle {
     bool useHeld = false;    // état précédent de la commande, pour détecter l'appui
     bool boxHit = false;     // vient de passer sur une boîte à bonus, à servir au prochain pas
     uint8_t startBoost = 0;  // départ turbo : 0 pas tenté, 1 réussi, 2 raté
+    float rollTime = 0.0f;   // secondes de vrille restantes
+    float rollCooldown = 0.0f; // secondes avant de pouvoir vriller de nouveau
+    int8_t rollDir = 0;      // sens de la vrille en cours, -1 à gauche, +1 à droite
+    bool rollHeld = false;   // état précédent de la commande de vrille, pour détecter l'appui
 };
 
 enum class MissileKind : uint8_t {
@@ -146,6 +158,14 @@ void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track, const
 // passer des occasions d'utiliser ses bonus.
 Input autopilot(const World& world, int index, const Track& track, const AiProfile& profile,
                 float laneOffset, int difficulty = 2);
+
+// Lance une vrille si le vaisseau le peut : ni sonné, ni arrivé, ni en
+// attente de la suivante. Renvoie vrai si la vrille part.
+bool startRoll(Vehicle& vehicle, int dir);
+
+// Secondes avant qu'un tir rattrape un vaisseau, s'il le vise : le tir est
+// derrière lui, et aucun autre vaisseau ne s'intercale. Négatif sinon.
+float shotImpactTime(const World& world, int index, const Missile& missile);
 
 // Vitesse de croisière d'un vaisseau là où il se trouve.
 float cruiseSpeed(const Vehicle& vehicle, const Track& track);

@@ -65,6 +65,13 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
     float steer = std::clamp(in.steer, -1.0f, 1.0f);
 
     v.shieldTime = std::max(0.0f, v.shieldTime - dt);
+    v.rollTime = std::max(0.0f, v.rollTime - dt);
+    v.rollCooldown = std::max(0.0f, v.rollCooldown - dt);
+    if (v.rollTime <= 0.0f) v.rollDir = 0;
+    // Vrille : seul l'appui compte, comme pour le bonus.
+    const int8_t rollIn = in.roll > 0 ? 1 : in.roll < 0 ? -1 : 0;
+    if (rollIn != 0 && !v.rollHeld) startRoll(v, rollIn);
+    v.rollHeld = rollIn != 0;
     bool stunned = v.stunTime > 0.0f;
     v.stunTime = std::max(0.0f, v.stunTime - dt);
     if (stunned) steer *= 0.3f;
@@ -102,6 +109,9 @@ void stepVehicleDt(Vehicle& v, const Input& in, const Track& track, const Clock&
     // Braquage, plus la dérive vers l'extérieur du virage.
     float steerSpeed = kSteerSpeed * stats.handling;
     v.lateralVel += (steer * steerSpeed - v.lateralVel) * std::min(1.0f, kSteerResponse * dt);
+    // Début de vrille : le vaisseau se jette sur le côté, plus vite qu'en braquant.
+    if (v.rollDir != 0 && v.rollTime > kRollTime - kRollDash)
+        v.lateralVel = static_cast<float>(v.rollDir) * std::max(kRollSpeed, std::abs(v.lateralVel));
     float drift = -f.curvature * v.speed * v.speed * kDrift / stats.grip;
     v.lateral += (v.lateralVel + drift) * dt;
     // Glisser coûte de la vitesse : un vaisseau qui accroche sort plus vite
@@ -272,6 +282,8 @@ void stepMissiles(World& world, const Track& track, float dt) {
             }
             if (std::abs(v.dist - m.dist) > 6.5f || std::abs(v.lateral - m.lateral) > 3.8f)
                 continue;
+            // En vrille, le tir passe au travers et file vers le suivant.
+            if (m.kind == MissileKind::Shot && v.rollTime > 0.0f) continue;
             m.active = false;
             hit(v, kHitLoss, kStunDuration);
             break;
@@ -283,6 +295,29 @@ void stepMissiles(World& world, const Track& track, float dt) {
 
 void stepVehicle(Vehicle& vehicle, const Input& input, const Track& track, const World& world) {
     stepVehicleDt(vehicle, input, track, {world.raceTime, world.ownClock}, kFixedDt);
+}
+
+bool startRoll(Vehicle& v, int dir) {
+    if (dir == 0 || v.rollCooldown > 0.0f || v.stunTime > 0.0f || v.finished) return false;
+    v.rollDir = static_cast<int8_t>(dir > 0 ? 1 : -1);
+    v.rollTime = kRollTime;
+    v.rollCooldown = kRollCooldown;
+    return true;
+}
+
+float shotImpactTime(const World& world, int index, const Missile& m) {
+    if (!m.active || m.kind != MissileKind::Shot || m.owner == index) return -1.0f;
+    const Vehicle& v = world.vehicles[index];
+    const float behind = v.dist - m.dist;
+    if (behind <= -4.0f || v.finished) return -1.0f;
+    // Le tir vise le plus proche devant lui : un autre vaisseau entre les
+    // deux le prendra avant.
+    for (int i = 0; i < world.count; i++)
+        if (i != index && i != m.owner && world.vehicles[i].dist - m.dist > -4.0f && world.vehicles[i].dist < v.dist)
+            return -1.0f;
+    const float closing = m.speed - v.speed;
+    if (closing <= 1.0f) return -1.0f;
+    return std::max(0.0f, behind) / closing;
 }
 
 float airHeight(const Vehicle& vehicle) {
@@ -367,11 +402,12 @@ struct AiSkill {
     float trigger;   // part de son empressement à déclencher un bonus
     float lapse;     // part des secondes où il ne regarde ni boîtes ni barrières
     float start;     // part des départs turbo réussis
+    float dodge;     // part des tirs esquivés d'une vrille
 };
 const AiSkill kAiSkills[3] = {
-    {0.55f, 0.35f, 0.30f, 0.15f}, // facile
-    {0.80f, 0.65f, 0.12f, 0.45f}, // normal
-    {1.00f, 1.00f, 0.00f, 0.80f}, // difficile
+    {0.55f, 0.35f, 0.30f, 0.15f, 0.10f}, // facile
+    {0.80f, 0.65f, 0.12f, 0.45f, 0.30f}, // normal
+    {1.00f, 1.00f, 0.00f, 0.80f, 0.55f}, // difficile
 };
 
 } // namespace
@@ -466,6 +502,22 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
     // Devant un obstacle il braque franchement, sans arrondir sa trajectoire.
     float wanted = (line - v.lateral) * (dodging ? 5.0f : 1.6f) - drift;
     in.steer = std::clamp(wanted / steerSpeed, -1.0f, 1.0f);
+
+    // Vrille : un tir arrive, il le voit venir et vrille au dernier moment,
+    // vers le côté le plus large. Un tirage par tir, pour s'y tenir.
+    if (v.rollCooldown <= 0.0f && v.stunTime <= 0.0f && v.shieldTime <= 0.0f) {
+        for (int k = 0; k < kMaxMissiles; k++) {
+            const Missile& m = world.missiles[k];
+            const float impact = shotImpactTime(world, index, m);
+            if (impact < 0.0f || impact > kRollTime * 0.6f) continue;
+            // Le tir change de place à chaque pas : la clé tient à son
+            // emplacement, à son tireur et à la tranche de cinq secondes.
+            const uint32_t shot = static_cast<uint32_t>(k) * 8u + static_cast<uint32_t>(m.owner);
+            if (chance(index, shot, 41u + world.tick / 300u) >= skill.dodge) continue;
+            in.roll = static_cast<int8_t>(v.lateral > 0.0f ? -1 : 1);
+            break;
+        }
+    }
 
     // Décisions prises par tranches d'une demi-seconde pour les tirages.
     uint32_t slot = world.tick / 30u;

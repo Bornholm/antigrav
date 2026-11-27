@@ -48,6 +48,14 @@ Chaque bonus a son effet lumineux et son bruit : halo sur les tirs, mines qui cl
 
 Un vaisseau touché perd une bonne part de sa vitesse et le contrôle pendant près d'une seconde. Les derniers reçoivent plus souvent des tirs et des turbos, les premiers des mines et des boucliers. Le tout dernier a une chance sur cinq de tirer une comète, de quoi rebattre les cartes.
 
+## Vrille
+
+Deux appuis rapides sur une direction, à moins de 0,28 s d'écart, lancent une vrille de ce côté : le vaisseau fait un tonneau d'une demi-seconde et se jette de quelques mètres sur le côté. Pendant la vrille, les tirs passent au travers et filent vers le vaisseau suivant. Les barrières, les mines, l'onde et la comète frappent toujours, mais l'écart aide à rejoindre une ouverture. Il faut attendre 2,5 s entre le début d'une vrille et la suivante, et un vaisseau sonné ne peut pas vriller. Un appui sur l'autre direction entre les deux annule le premier, pour qu'un pouce qui passe d'un bouton à l'autre ne déclenche rien.
+
+Quand un tir vise le joueur, un anneau se resserre sur son vaisseau pendant les deux dernières secondes et demie, et des bips graves s'accélèrent. Quand l'anneau touche le vaisseau, il clignote et VRILLE ! s'affiche : c'est le moment. L'anneau est gris si la vrille n'est pas encore prête, bleu sous bouclier, qui encaissera le tir de toute façon. Les IA vrillent aussi : une fois sur dix en facile, trois fois sur dix en normal, un peu plus d'une fois sur deux en difficile.
+
+## Vitesse
+
 Il n'y a ni jauge d'énergie ni bouton de boost : la vitesse suit la musique. Un élastique freine qui prend de l'avance sur elle et aspire qui traîne, donc le peloton reste groupé. La ligne ÉCART donne l'avance du vaisseau sur la musique.
 
 ## Coupes
@@ -95,7 +103,7 @@ Le fantôme ne tient compte que du temps, pas du score : un meilleur score sur u
 
 ## Tutoriel
 
-Le bouton TUTORIEL du menu principal présente le jeu en dix pages : la piste tirée du morceau, les morceaux personnels, le pilotage, le départ turbo, les bonus et leur liste, les barrières et tremplins, le rythme, le fantôme et le barème du score. Chaque page pose un texte fixe sur une scène jouée par le moteur, sur la piste du menu, avec les seuls éléments d'interface dont elle parle. Les scènes d'action passent au ralenti et repartent en boucle. Le compte à rebours de la page DÉPART TURBO recommence à chaque fois, avec la tentative de départ turbo. Les textes suivent l'appareil : boutons à l'écran au doigt, touches choisies au clavier.
+Le bouton TUTORIEL du menu principal présente le jeu en onze pages : la piste tirée du morceau, les morceaux personnels, le pilotage, le départ turbo, les bonus et leur liste, les barrières et tremplins, la vrille, le rythme, le fantôme et le barème du score. Chaque page pose un texte fixe sur une scène jouée par le moteur, sur la piste du menu, avec les seuls éléments d'interface dont elle parle. Les scènes d'action passent au ralenti et repartent en boucle. Le compte à rebours de la page DÉPART TURBO recommence à chaque fois, avec la tentative de départ turbo. Les textes suivent l'appareil : boutons à l'écran au doigt, touches choisies au clavier.
 
 SUIVANT, PRÉCÉDENT et FERMER tournent les pages. Au clavier, Entrée passe à la suivante, Échap ferme, et les flèches tournent les pages. Tant que le tutoriel n'a jamais été ouvert, son bouton est mis en avant dans le menu.
 
@@ -133,6 +141,7 @@ L'hôte peut choisir n'importe quel morceau, y compris un de ses fichiers. Le je
 | Action | Clavier | Manette | Écran |
 |---|---|---|---|
 | Tourner | flèches, ou A et D | stick gauche ou croix | boutons en bas à gauche |
+| Vrille | deux appuis rapides sur une direction | deux appuis sur la croix | deux appuis sur une flèche |
 | Bonus | espace, flèche haut ou W | A ou gâchette droite | bouton de droite |
 | Menus | flèches, Entrée, Échap | croix, A, B | toucher |
 

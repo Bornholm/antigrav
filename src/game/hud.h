@@ -33,6 +33,11 @@ enum HudPart : uint32_t {
     kHudAll = 0xFFFFFFFFu,
 };
 
+// Alerte d'un tir qui approche : à partir de kAlertLead secondes avant
+// l'impact. À kDodgeLead secondes, c'est le moment de vriller.
+constexpr float kAlertLead = 2.5f;
+constexpr float kDodgeLead = 0.4f;
+
 // Ce que l'interface affiche pendant une course.
 struct HudState {
     uint32_t parts = kHudAll;
@@ -72,6 +77,9 @@ struct HudState {
     glm::vec4 flash{0.0f};   // voile de couleur sur tout l'écran : rgb teinte, a force
     int item = 0;            // bonus porté, voir sim::Item ; 0 pour aucun
     bool incoming = false;   // un tir arrive sur le joueur
+    float threat = -1.0f;    // secondes avant qu'un tir le touche, négatif s'il n'y en a pas
+    bool rollReady = true;   // le joueur peut vriller
+    bool rolling = false;    // en pleine vrille
     bool shielded = false;
     bool gridStart = false; // départ arrêté : affiche le signal du départ
     int startBoost = 0;     // départ turbo du joueur : 0 pas tenté, 1 réussi, 2 raté

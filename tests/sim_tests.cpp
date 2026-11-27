@@ -251,6 +251,67 @@ void testWall() {
 // appui trop tôt ou répété le fait rater, un appui très en avance ne compte pas.
 // Fantôme : relevé à pas réguliers, relu au même endroit, et fichier qui
 // survit à l'aller-retour.
+// Vrille : écart sur le côté, tirs qui passent au travers, attente entre deux.
+void testRoll() {
+    sim::Track track = flatTrack();
+    auto setup = [](sim::World& world) {
+        world = sim::World{};
+        world.ownClock = true; // pas d'élastique : ce test mesure la physique seule
+        world.count = 2;
+        world.vehicles[0].dist = 100.0f;
+        world.vehicles[1].dist = 300.0f;
+        world.vehicles[0].speed = world.vehicles[1].speed = sim::kCruiseSpeed;
+        world.missiles[0] = {true, sim::MissileKind::Shot, 0, 150.0f, 0.0f, sim::kCruiseSpeed + 170.0f, 4.0f, 0};
+    };
+    sim::World world;
+    setup(world);
+    sim::Input inputs[2];
+    // Sans vrille, le tir touche.
+    const float impact = sim::shotImpactTime(world, 1, world.missiles[0]);
+    CHECK(impact > 0.8f && impact < 1.0f);
+    CHECK(sim::shotImpactTime(world, 0, world.missiles[0]) < 0.0f); // le tireur ne craint rien
+    bool stunned = false;
+    for (int s = 0; s < 90; s++) {
+        sim::step(world, track, inputs);
+        stunned = stunned || world.vehicles[1].stunTime > 0.0f;
+    }
+    CHECK(stunned);
+
+    // Vrille juste avant l'impact : le tir passe au travers et file plus loin.
+    setup(world);
+    stunned = false;
+    float before = 0.0f;
+    for (int s = 0; s < 90; s++) {
+        const float left = sim::shotImpactTime(world, 1, world.missiles[0]);
+        inputs[1].roll = left >= 0.0f && left < 0.25f ? 1 : 0;
+        if (inputs[1].roll && before == 0.0f) before = world.vehicles[1].lateral;
+        sim::step(world, track, inputs);
+        stunned = stunned || world.vehicles[1].stunTime > 0.0f;
+    }
+    CHECK(!stunned);
+    CHECK(world.vehicles[1].lateral - before > 5.0f); // l'écart sur le côté
+    CHECK(world.vehicles[1].rollTime == 0.0f && world.vehicles[1].rollDir == 0);
+
+    // Un appui tenu ne relance pas la vrille, et il faut attendre entre deux.
+    sim::Vehicle v;
+    v.speed = sim::kCruiseSpeed;
+    sim::Input hold;
+    hold.roll = -1;
+    sim::World empty;
+    empty.ownClock = true;
+    sim::stepVehicle(v, hold, track, empty);
+    CHECK(v.rollDir == -1 && v.rollTime > 0.0f);
+    for (int s = 0; s < 60; s++) sim::stepVehicle(v, hold, track, empty);
+    CHECK(v.rollTime == 0.0f);
+    CHECK(!sim::startRoll(v, 1)); // encore en attente
+    for (int s = 0; s < 120; s++) sim::stepVehicle(v, {}, track, empty);
+    CHECK(sim::startRoll(v, 1));
+    // Sonné, pas de vrille.
+    sim::Vehicle dazed;
+    dazed.stunTime = 0.5f;
+    CHECK(!sim::startRoll(dazed, 1));
+}
+
 void testGhost() {
     sim::Track track = sim::Track::make(0);
     sim::World world = makeGrid();
@@ -883,6 +944,7 @@ int main() {
     testCountdownAndFinish();
     testStartBoost();
     testGhost();
+    testRoll();
     testSynth();
     testItems();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");

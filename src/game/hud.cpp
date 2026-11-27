@@ -233,14 +233,38 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
 
 // Alerte accrochée au vaisseau du joueur : c'est là qu'il regarde.
 void drawAlerts(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
-    if (!s.incoming) return;
+    if (!s.incoming && !s.rolling) return;
     const glm::vec4 clip = viewProj * glm::vec4(s.shipPos, 1.0f);
     if (clip.w <= 0.5f) return;
     hud.anchor = Anchor::Left;
     hud.vAnchor = gfx::VAnchor::Top;
     const vec2 c = (vec2(clip.x, clip.y) / clip.w * 0.5f + 0.5f) * hud.screen / hud.scale;
-    hud.text(FontId::Bold, tr(s.shielded ? "TIR EN APPROCHE" : "TIR EN APPROCHE !"), c + vec2(0.0f, -120.0f), 28.0f,
-             s.shielded ? kCyan : kMagenta, Align::Center, 0.2f, alpha(s.shielded ? kCyan : kMagenta, 0.5f));
+
+    // Anneau qui se resserre sur le vaisseau à mesure que le tir approche, et
+    // le touche quand il est temps de vriller. Gris si la vrille n'est pas
+    // prête, bleu sous bouclier, qui encaissera le tir de toute façon.
+    const char* label = s.shielded ? "TIR EN APPROCHE" : "TIR EN APPROCHE !";
+    vec4 color = s.shielded ? kCyan : kMagenta;
+    if (s.threat >= 0.0f && s.threat < kAlertLead && !s.rolling) {
+        const float far = std::clamp((s.threat - kDodgeLead) / (kAlertLead - kDodgeLead), 0.0f, 1.0f);
+        const float contact = 150.0f;
+        const bool now = s.threat <= kDodgeLead;
+        if (!s.shielded && !s.rollReady) color = alpha(kWhite, 0.45f);
+        if (now && !s.shielded && s.rollReady) {
+            // Moment de vriller : l'anneau clignote sur le vaisseau.
+            const float blink = 0.6f + 0.4f * std::sin(s.raceTime * 40.0f);
+            hud.circle(c, contact, alpha(color, 0.10f * blink), alpha(color, blink), 9.0f);
+            label = "VRILLE !";
+        } else {
+            hud.circle(c, contact, vec4(0.0f), alpha(color, 0.25f), 2.0f);
+            hud.circle(c, contact + far * 380.0f, vec4(0.0f), alpha(color, 0.35f + 0.55f * (1.0f - far)), 3.0f + 4.0f * (1.0f - far));
+        }
+    } else if (s.rolling) {
+        if (!s.incoming) return;
+        label = "ESQUIVE";
+        color = kCyan;
+    }
+    hud.text(FontId::Bold, tr(label), c + vec2(0.0f, -120.0f), 28.0f, color, Align::Center, 0.2f, alpha(color, 0.5f));
 }
 
 void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {

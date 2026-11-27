@@ -78,7 +78,7 @@ void Synth::play(Sfx sfx, float volume) {
 
 // Un échantillon d'une voix d'effet. Renvoie 0 et libère la voix à la fin.
 float Synth::voiceSample(Voice& v, float dt) {
-    static const float kLength[static_cast<int>(Sfx::Count)] = {0.16f, 1.00f, 0.20f, 1.30f, 0.85f, 0.60f, 0.35f, 1.40f, 0.55f, 0.45f};
+    static const float kLength[static_cast<int>(Sfx::Count)] = {0.16f, 1.00f, 0.20f, 1.30f, 0.85f, 0.60f, 0.35f, 1.40f, 0.55f, 0.45f, 0.42f, 0.09f};
     const float length = kLength[v.kind], t = v.time, u = t / length;
     if (u >= 1.0f) {
         v.kind = -1;
@@ -149,6 +149,18 @@ float Synth::voiceSample(Voice& v, float dt) {
         v.low += (n - v.low) * (0.03f + 0.12f * u);
         out = v.low * std::sin(3.14159265f * u) * 0.9f + drive(tone(60.0f)) * std::exp(-t * 12.0f) * 0.4f;
         break;
+    case Sfx::Roll: { // vrille : un souffle qui passe d'un coup, filtre ouvert puis refermé
+        const float sweep = std::sin(3.14159265f * u);
+        v.low += (n - v.low) * (0.03f + 0.25f * sweep);
+        v.band += (v.low - v.band) * 0.02f;
+        out = (v.low - v.band) * sweep * sweep * 1.6f + drive(tone(55.0f + 25.0f * sweep)) * sweep * 0.25f;
+        break;
+    }
+    case Sfx::Alert: { // tir en approche : bip grave et sec, carré adouci
+        const float envelope = std::min(1.0f, t * 400.0f) * std::min(1.0f, (1.0f - u) * 8.0f);
+        out = drive(tone(196.0f) * 1.6f) * envelope * 0.45f;
+        break;
+    }
     default: break;
     }
     v.time += dt;

@@ -12,6 +12,7 @@ enum class TutorialScene : uint8_t {
     Countdown, // compte à rebours sur la grille, le joueur peut tenter son départ turbo
     ItemBox,   // à l'approche d'une boîte à bonus, au ralenti
     Barrier,   // à l'approche d'une barrière, au ralenti
+    Dodge,     // un tir arrive par derrière, le vaisseau l'esquive d'une vrille
 };
 
 struct TutorialPage {
@@ -27,7 +28,7 @@ struct TutorialPage {
     bool scoreTable = false; // la page détaille le barème du score
 };
 
-constexpr int kTutorialPages = 10;
+constexpr int kTutorialPages = 11;
 
 // Page du tutoriel dans la langue du jeu, avec les commandes de l'appareil :
 // boutons à l'écran au doigt, touches choisies au clavier.

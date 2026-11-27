@@ -10,7 +10,7 @@ namespace net {
 
 namespace {
 
-const uint32_t kMagic = 0x39474141u; // "AAG9" : les vaisseaux portent leur départ turbo
+const uint32_t kMagic = 0x41474141u; // "AAGA" : les vaisseaux portent leur vrille
 constexpr double kTimeout = 5.0;      // secondes sans nouvelles avant de couper
 
 enum Type : uint8_t {
@@ -76,7 +76,7 @@ struct StartPacket {
 };
 struct WireInput {
     float steer;
-    uint8_t flags; // bit 0 bonus
+    uint8_t flags; // bit 0 bonus, 1 vrille à gauche, 2 vrille à droite
 };
 struct InputPacket {
     Header h;
@@ -85,8 +85,10 @@ struct InputPacket {
 };
 struct WireVehicle {
     float dist, lateral, lateralVel, speed, roll, finishTime, shieldTime, turboTime, stunTime, airTime;
+    float rollTime, rollCooldown;
     uint8_t item;
-    uint8_t flags; // bit 0 turbo, 1 frottement, 2 arrivé, 3 bouton tenu, 4 boîte franchie, 5 et 6 départ turbo
+    uint8_t flags; // bit 0 turbo, 1 frottement, 2 arrivé, 3 bouton tenu, 4 boîte franchie, 5 et 6 départ turbo, 7 vrille tenue
+    int8_t rollDir;
 };
 struct WireMissile {
     uint8_t active; // bit 0 actif, bits 1 et 2 nature, voir sim::MissileKind
@@ -111,7 +113,7 @@ struct SnapshotPacket {
 WireInput packInput(const sim::Input& in) {
     WireInput w;
     w.steer = in.steer;
-    w.flags = static_cast<uint8_t>(in.use ? 1 : 0);
+    w.flags = static_cast<uint8_t>((in.use ? 1 : 0) | (in.roll < 0 ? 2 : 0) | (in.roll > 0 ? 4 : 0));
     return w;
 }
 
@@ -119,6 +121,7 @@ sim::Input unpackInput(const WireInput& w) {
     sim::Input in;
     in.steer = std::clamp(w.steer, -1.0f, 1.0f);
     in.use = w.flags & 1;
+    in.roll = static_cast<int8_t>((w.flags & 4 ? 1 : 0) - (w.flags & 2 ? 1 : 0));
     return in;
 }
 
@@ -405,9 +408,13 @@ void Net::hostSendSnapshot(const sim::Session& session) {
         o.turboTime = v.turboTime;
         o.stunTime = v.stunTime;
         o.airTime = v.airTime;
+        o.rollTime = v.rollTime;
+        o.rollCooldown = v.rollCooldown;
+        o.rollDir = v.rollDir;
         o.item = static_cast<uint8_t>(v.item);
         o.flags = static_cast<uint8_t>((v.boosting ? 1 : 0) | (v.scraping ? 2 : 0) | (v.finished ? 4 : 0) |
-                                       (v.useHeld ? 8 : 0) | (v.boxHit ? 16 : 0) | ((v.startBoost & 3) << 5));
+                                       (v.useHeld ? 8 : 0) | (v.boxHit ? 16 : 0) | ((v.startBoost & 3) << 5) |
+                                       (v.rollHeld ? 128 : 0));
         packet.inputs[i] = packInput(session.lastInputs[i]);
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {
@@ -445,6 +452,9 @@ void Net::reconcile(sim::Session& session, const void* data) {
         v.turboTime = o.turboTime;
         v.stunTime = o.stunTime;
         v.airTime = o.airTime;
+        v.rollTime = o.rollTime;
+        v.rollCooldown = o.rollCooldown;
+        v.rollDir = static_cast<int8_t>(std::clamp<int>(o.rollDir, -1, 1));
         v.item = o.item < static_cast<uint8_t>(sim::Item::Count) ? static_cast<sim::Item>(o.item) : sim::Item::None;
         v.boosting = o.flags & 1;
         v.scraping = o.flags & 2;
@@ -452,6 +462,7 @@ void Net::reconcile(sim::Session& session, const void* data) {
         v.useHeld = o.flags & 8;
         v.boxHit = o.flags & 16;
         v.startBoost = (o.flags >> 5) & 3;
+        v.rollHeld = o.flags & 128;
         if (i != session.localIndex) session.remoteInputs[i] = unpackInput(s.inputs[i]);
     }
     for (int i = 0; i < sim::kMaxMissiles; i++) {

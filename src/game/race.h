@@ -78,6 +78,18 @@ struct Race : sim::Session {
     uint32_t hudParts = kHudAll;
     float countdownY = 400.0f;
 
+    // Double appui sur une direction : vrille. On retient l'instant du
+    // dernier appui de chaque côté ; la demande de vrille est tenue quelques
+    // pas, pour que la simulation et l'hôte la voient à coup sûr.
+    static constexpr float kDoubleTap = 0.28f; // secondes au plus entre les deux appuis
+    float tapClock = 0.0f;
+    float lastTap[2] = {-10.0f, -10.0f};
+    bool tapDown[2] = {};
+    float rollHold = 0.0f;
+    int8_t rollWanted = 0;
+    // Bips d'un tir qui approche : secondes avant le prochain.
+    float alertWait = 0.0f;
+
     // Caméra lissée.
     float camLateral = 0.0f;
     float camFov = 1.12f;
@@ -98,6 +110,9 @@ struct Race : sim::Session {
     void fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams& out);
 
     bool finished() const { return world.vehicles[localIndex].finished; }
+    // Secondes avant que le tir le plus proche rattrape le joueur, ou un
+    // nombre négatif si aucun ne le vise.
+    float shotThreat() const;
     // Caméra en orbite autour du vaisseau local, pour les menus. Angle en radians.
     bool orbit = false;
     float orbitAngle = 0.0f;

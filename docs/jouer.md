@@ -95,9 +95,9 @@ Le fantôme ne tient compte que du temps, pas du score : un meilleur score sur u
 
 ## Tutoriel
 
-Le bouton TUTORIEL du menu principal présente le jeu en neuf pages : la piste tirée du morceau, le pilotage, le départ turbo, les bonus et leur liste, les barrières et tremplins, le rythme, le fantôme et le barème du score. Chaque page pose un texte fixe sur une scène jouée par le moteur, sur la piste du menu, avec les seuls éléments d'interface dont elle parle. Les scènes d'action passent au ralenti et repartent en boucle. Sur deux pages, on essaie soi-même : on pilote sur la page PILOTER, et on tente son départ turbo pendant le compte à rebours de la page DÉPART TURBO, qui recommence à chaque fois. Les textes suivent l'appareil : boutons à l'écran au doigt, touches choisies au clavier.
+Le bouton TUTORIEL du menu principal présente le jeu en dix pages : la piste tirée du morceau, les morceaux personnels, le pilotage, le départ turbo, les bonus et leur liste, les barrières et tremplins, le rythme, le fantôme et le barème du score. Chaque page pose un texte fixe sur une scène jouée par le moteur, sur la piste du menu, avec les seuls éléments d'interface dont elle parle. Les scènes d'action passent au ralenti et repartent en boucle. Le compte à rebours de la page DÉPART TURBO recommence à chaque fois, avec la tentative de départ turbo. Les textes suivent l'appareil : boutons à l'écran au doigt, touches choisies au clavier.
 
-SUIVANT, PRÉCÉDENT et FERMER tournent les pages. Au clavier, Entrée passe à la suivante, Échap ferme, et les flèches tournent les pages, sauf sur les deux pages où elles pilotent. Tant que le tutoriel n'a jamais été ouvert, son bouton est mis en avant dans le menu.
+SUIVANT, PRÉCÉDENT et FERMER tournent les pages. Au clavier, Entrée passe à la suivante, Échap ferme, et les flèches tournent les pages. Tant que le tutoriel n'a jamais été ouvert, son bouton est mis en avant dans le menu.
 
 ## Difficulté
 

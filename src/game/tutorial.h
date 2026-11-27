@@ -22,13 +22,12 @@ struct TutorialPage {
     uint32_t hud = 0;        // éléments d'interface affichés, voir HudPart
     float slow = 1.0f;       // vitesse de la scène, 1 pour le temps réel
     float loop = 6.0f;       // secondes de course avant que la scène reparte
-    bool steer = false;      // le joueur pilote : la scène n'est plus automatique
     bool items = false;      // la page présente la liste des bonus
     bool ghost = false;      // un fantôme court avec le joueur
     bool scoreTable = false; // la page détaille le barème du score
 };
 
-constexpr int kTutorialPages = 9;
+constexpr int kTutorialPages = 10;
 
 // Page du tutoriel dans la langue du jeu, avec les commandes de l'appareil :
 // boutons à l'écran au doigt, touches choisies au clavier.

@@ -29,9 +29,15 @@ TutorialPage tutorialPage(int index) {
         line("En haut, la barre montre où chacun en est dans le morceau.");
         break;
     case 1:
+        p.title = "VOS MORCEAUX";
+        p.hud = kHudSongBar;
+        line("Dans Solo, la ligne MORCEAU ouvre la liste des morceaux.");
+        line("CHOISIR UN FICHIER y prend un morceau de votre appareil : MP3, Ogg, FLAC ou WAV.");
+        line("Le jeu en tire une piste et garde vos cinq derniers morceaux.");
+        break;
+    case 2:
         p.title = "PILOTER";
         p.hud = kHudButtons | kHudSpeed;
-        p.steer = true;
         p.loop = 8.0f;
         if (touch) {
             line("Touchez les flèches en bas de l'écran pour tourner.");
@@ -42,11 +48,10 @@ TutorialPage tutorialPage(int index) {
         line("Le vaisseau accélère tout seul : vous ne gérez que la trajectoire.");
         line("Les murets des bords vous freinent.");
         break;
-    case 2:
+    case 3:
         p.title = "DÉPART TURBO";
         p.scene = TutorialScene::Countdown;
         p.hud = kHudButtons | kHudCountdown;
-        p.steer = true;
         p.loop = 2.5f;
         line(touch ? "Pendant le compte à rebours, un anneau se resserre sur le bouton du bonus."
                    : "Pendant le compte à rebours, un anneau se resserre sur le cadre en bas à droite.");
@@ -54,7 +59,7 @@ TutorialPage tutorialPage(int index) {
         else keyLine("Appuyez sur %s quand il s'allume : vous partez en turbo.", Button::Use);
         line("Trop tôt, c'est raté pour cette course.");
         break;
-    case 3:
+    case 4:
         p.title = "BONUS";
         p.scene = TutorialScene::ItemBox;
         p.hud = kHudButtons;
@@ -66,12 +71,12 @@ TutorialPage tutorialPage(int index) {
         if (touch) line("Touchez le bouton pour le déclencher.");
         else keyLine("Appuyez sur %s pour le déclencher.", Button::Use);
         break;
-    case 4:
+    case 5:
         p.title = "LES BONUS";
         p.items = true;
         line("Les boîtes donnent un bonus au hasard.");
         break;
-    case 5:
+    case 6:
         p.title = "BARRIÈRES ET TREMPLINS";
         p.scene = TutorialScene::Barrier;
         p.slow = 0.35f;
@@ -80,14 +85,14 @@ TutorialPage tutorialPage(int index) {
         line("Seul le centre du vaisseau compte, une aile peut passer au travers.");
         line("Sur un tremplin, vous survolez barrières et mines.");
         break;
-    case 6:
+    case 7:
         p.title = "LE RYTHME";
         p.hud = kHudTimer | kHudStandings;
         line("ÉCART : votre avance sur la musique, en secondes.");
         line("Trop d'avance vous freine, du retard vous aspire.");
         line("Rester juste devant la musique rapporte le plus de points de TEMPO.");
         break;
-    case 7:
+    case 8:
         p.title = "FANTÔME";
         p.hud = kHudTimer | kHudStandings;
         p.ghost = true;

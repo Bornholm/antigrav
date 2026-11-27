@@ -686,12 +686,11 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     if (paused()) {
         if (synth) synth->setEngine(0.0f, false, false);
     } else if (screen == Screen::Tutorial && !pending) {
-        // Scène du tutoriel : au ralenti s'il le faut, aux commandes du
-        // joueur sur les pages où il essaie, et en boucle.
+        // Scène du tutoriel : pilote automatique, au ralenti s'il le faut,
+        // et en boucle.
         const TutorialPage page = tutorialPage(tutorialIndex);
-        const bool countdown = race.world.countdown > 0.0f;
-        race.autopilot = !page.steer || (page.scene == TutorialScene::Countdown && !countdown);
-        race.update(dt * page.slow, race.autopilot ? Controls{} : controls);
+        race.autopilot = true;
+        race.update(dt * page.slow, Controls{});
         if (race.world.raceTime >= tutorialEnd || race.finished()) {
             race.world = tutorialSnap;
             race.previous = tutorialSnap;
@@ -877,13 +876,13 @@ void App::drawTutorial() {
         leave();
         return;
     }
-    // Les flèches tournent les pages, sauf là où elles pilotent.
-    if (!page.steer && ui.in.right) {
+    // Les flèches tournent les pages.
+    if (ui.in.right) {
         if (last) leave();
         else turn(tutorialIndex + 1);
         return;
     }
-    if (!page.steer && ui.in.left) {
+    if (ui.in.left) {
         turn(tutorialIndex - 1);
         return;
     }

@@ -1,7 +1,9 @@
 // Tests de la simulation. Aucun cadre de test : un échec affiche la ligne et
 // fait sortir le programme avec un code non nul.
 #include "core/update.h"
+#include "game/ghost.h"
 #include "game/score.h"
+#include "game/tips.h"
 #include "game/synth.h"
 #include "gfx/adaptive.h"
 #include "sim/track.h"
@@ -248,6 +250,73 @@ void testWall() {
 
 // Départ turbo : un appui net dans la fenêtre lance le turbo au signal, un
 // appui trop tôt ou répété le fait rater, un appui très en avance ne compte pas.
+// Fantôme : relevé à pas réguliers, relu au même endroit, et fichier qui
+// survit à l'aller-retour.
+void testGhost() {
+    sim::Track track = sim::Track::make(0);
+    sim::World world = makeGrid();
+    world.ownClock = false;
+    game::Ghost ghost;
+    ghost.record(world.vehicles[0], world.raceTime);
+    for (int s = 0; s < 60 * 20; s++) {
+        run(world, track, 1);
+        ghost.record(world.vehicles[0], world.raceTime);
+    }
+    // Vingt secondes à vingt relevés par seconde, plus celui du départ, à
+    // l'arrondi près du temps de course cumulé.
+    CHECK(ghost.samples.size() == 400 || ghost.samples.size() == 401);
+    ghost.finishTime = world.raceTime;
+    ghost.trackLength = track.length;
+    CHECK(ghost.valid());
+    // Relevé exact sur un pas, interpolé entre deux.
+    CHECK(ghost.at(0.0f).dist == ghost.samples[0].dist);
+    CHECK(std::abs(ghost.at(2.0f).dist - ghost.samples[40].dist) < 0.05f);
+    const float mid = ghost.at(2.025f).dist;
+    CHECK(mid > ghost.samples[40].dist && mid < ghost.samples[41].dist);
+    // Au-delà du dernier relevé, il reste sur le dernier.
+    CHECK(ghost.at(999.0f).dist == ghost.samples.back().dist);
+    // L'instant retrouvé par la distance est celui du relevé.
+    for (float t : {0.5f, 3.33f, 12.0f, 19.9f}) CHECK(std::abs(ghost.timeAt(ghost.at(t).dist) - t) < 0.01f);
+    CHECK(ghost.timeAt(ghost.samples.back().dist + 10.0f) < 0.0f);
+    // Aller-retour du fichier, puis fichiers abîmés.
+    const std::vector<uint8_t> bytes = ghost.encode();
+    game::Ghost back;
+    CHECK(back.decode(bytes.data(), bytes.size()));
+    CHECK(back.samples.size() == ghost.samples.size() && back.finishTime == ghost.finishTime);
+    CHECK(back.samples[200].lateral == ghost.samples[200].lateral);
+    CHECK(!back.decode(bytes.data(), bytes.size() - 1));
+    CHECK(!back.valid());
+    std::vector<uint8_t> bad = bytes;
+    bad[0] ^= 1;
+    CHECK(!back.decode(bad.data(), bad.size()));
+}
+
+// Initiation : un conseil à la fois, chacun une seule fois, et ceux de
+// l'instant s'oublient s'ils ont trop attendu.
+void testTips() {
+    game::Tips tips;
+    tips.want(game::Tip::Steer, 30.0f);
+    tips.want(game::Tip::Barrier, 0.5f);
+    tips.want(game::Tip::Steer, 30.0f); // déjà en attente
+    CHECK(tips.queued == 2);
+    tips.update(0.1f);
+    CHECK(tips.current == static_cast<int>(game::Tip::Steer) && tips.has(game::Tip::Steer) && tips.dirty);
+    tips.update(0.1f);
+    CHECK(tips.level() > 0.0f && tips.level() < 1.0f);
+    tips.update(1.0f);
+    CHECK(tips.level() == 1.0f);
+    // La barrière a trop attendu : elle passe son tour, sans être marquée.
+    tips.update(game::Tips::kShow);
+    CHECK(tips.current == -1 && tips.queued == 0 && !tips.has(game::Tip::Barrier));
+    // Un conseil vu ne revient pas.
+    tips.want(game::Tip::Steer, 30.0f);
+    CHECK(tips.queued == 0);
+    tips.want(game::Tip::Barrier, 0.5f);
+    tips.update(0.1f);
+    CHECK(tips.current == static_cast<int>(game::Tip::Barrier));
+    CHECK(static_cast<int>(game::Tip::Count) <= 32);
+}
+
 void testStartBoost() {
     sim::Track track = sim::Track::make(0);
     // Appuis du vaisseau 0 aux instants donnés du compte à rebours, en secondes
@@ -840,6 +909,8 @@ int main() {
     testRanking();
     testCountdownAndFinish();
     testStartBoost();
+    testGhost();
+    testTips();
     testSynth();
     testItems();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");

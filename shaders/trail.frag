@@ -14,6 +14,19 @@ layout(location = 0) out vec4 outColor;
 void main() {
     float visible = exp(-length(worldPos - g.camPos.xyz) * g.fog.a);
 
+    if (pc.colorC.a < -0.5) {
+        // Fantôme : la coque d'un vaisseau en hologramme. Contour lumineux,
+        // liserés et réacteurs plus vifs, balayé de lignes qui défilent.
+        // colorA porte teinte et intensité.
+        vec3 n = normalize(normal);
+        vec3 v = normalize(g.camPos.xyz - worldPos);
+        float rim = pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 1.5);
+        float scan = 0.55 + 0.45 * smoothstep(0.3, 0.5, abs(fract(worldPos.y * 2.2 - g.camPos.w * 1.5) - 0.5));
+        float edge = kind > 0.5 ? 0.9 : 0.0;
+        vec3 c = pc.colorA.rgb * pc.colorA.a * (0.05 + 0.55 * rim + edge) * scan;
+        outColor = vec4(safe(c * visible), 1.0);
+        return;
+    }
     if (kind > 1.5) {
         // Orbe d'effet : cœur diffus, contour vif. colorB porte teinte et intensité.
         vec3 n = normalize(normal);

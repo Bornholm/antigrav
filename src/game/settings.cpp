@@ -55,6 +55,8 @@ void Settings::load() {
         else if (key == "auto_cap60") autoCap60 = value == "1";
         else if (key == "ship") ship = std::atoi(value.c_str());
         else if (key == "check_updates") checkUpdates = value != "0";
+        else if (key == "ghost") ghost = value != "0";
+        else if (key == "tips") tips = static_cast<uint32_t>(std::strtoul(value.c_str(), nullptr, 10));
         else if (key == "key_left") keys[0] = std::atoi(value.c_str());
         else if (key == "key_right") keys[1] = std::atoi(value.c_str());
         else if (key == "key_use") keys[2] = std::atoi(value.c_str());
@@ -74,6 +76,8 @@ void Settings::save() const {
     text += std::string("auto_cap60=") + (autoCap60 ? "1" : "0") + "\n";
     text += "ship=" + std::to_string(ship) + "\n";
     text += std::string("check_updates=") + (checkUpdates ? "1" : "0") + "\n";
+    text += std::string("ghost=") + (ghost ? "1" : "0") + "\n";
+    text += "tips=" + std::to_string(tips) + "\n";
     static const char* const kKeyNames[] = {"key_left", "key_right", "key_use"};
     for (int i = 0; i < 3; i++)
         if (keys[i] > 0) text += std::string(kKeyNames[i]) + "=" + std::to_string(keys[i]) + "\n";

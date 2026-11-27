@@ -6,7 +6,7 @@ Soundwave ne collecte, ne stocke sur un serveur et ne transmet à personne aucun
 
 ## Ce qui reste sur l'appareil
 
-Le jeu enregistre dans son dossier privé vos réglages, vos meilleurs scores, votre pseudo et les morceaux que vous avez ajoutés. Ces fichiers ne quittent pas l'appareil, sauf par la sauvegarde d'Android si vous l'avez activée. Désinstaller le jeu les supprime.
+Le jeu enregistre dans son dossier privé vos réglages, vos meilleurs scores, la trajectoire de vos meilleurs temps pour le fantôme, votre pseudo et les morceaux que vous avez ajoutés. Ces fichiers ne quittent pas l'appareil, sauf par la sauvegarde d'Android si vous l'avez activée. Désinstaller le jeu les supprime.
 
 ## Multijoueur en Wi-Fi local
 
@@ -34,7 +34,7 @@ Soundwave does not collect, store on a server or share any personal data. The ga
 
 ## What stays on the device
 
-The game saves your settings, your best scores, your nickname and the songs you added in its private folder. These files never leave the device, except through Android's own backup if you turned it on. Uninstalling the game deletes them.
+The game saves your settings, your best scores, the path of your best times for the ghost, your nickname and the songs you added in its private folder. These files never leave the device, except through Android's own backup if you turned it on. Uninstalling the game deletes them.
 
 ## Local Wi-Fi multiplayer
 

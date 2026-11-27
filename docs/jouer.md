@@ -85,13 +85,27 @@ La part de place dépend de la difficulté : elle est multipliée par 0,5 en fac
 
 En solo, le jeu garde le meilleur score de chaque morceau. Sa note s'affiche dans la liste des morceaux, et l'écran de fin dit si le record est battu.
 
+## Fantôme
+
+En solo, le jeu garde aussi le meilleur temps de chaque morceau, avec la trajectoire qui l'a donné. Aux courses suivantes sur ce morceau, cette trajectoire est rejouée par un fantôme : un vaisseau en hologramme bleu pâle, sur le modèle de vaisseau de ce jour-là. Il ne touche personne et rien ne le touche, ni bonus, ni barrière, ni concurrent. Une étiquette FANTÔME le signale quand il est loin devant ou derrière. Il s'efface quand il se confond avec le vaisseau du joueur, comme sur la grille de départ.
+
+Sous le chrono, la ligne FANTÔME donne l'écart avec lui : le temps de course moins celui qu'il avait au même endroit. Elle est verte quand le joueur est en avance, rose quand il est en retard. À l'arrivée, l'écran de fin donne le temps de la course et le meilleur temps précédent, ou MEILLEUR TEMPS s'il vient d'être battu. Le fantôme est alors remplacé par la nouvelle trajectoire.
+
+Le fantôme ne tient compte que du temps, pas du score : un meilleur score sur une course plus lente ne le remplace pas. Les coupes en solo ont aussi leurs fantômes, ceux de chacun de leurs morceaux. Il n'y a pas de fantôme en multijoueur. Le réglage FANTÔME des options le masque, sans arrêter l'enregistrement des meilleurs temps.
+
+## Initiation
+
+Pendant les premières courses, des conseils s'affichent en haut de l'écran, au moment où ils servent : le départ turbo pendant le compte à rebours, la direction juste après le départ, le rythme de la musique après une douzaine de secondes, chaque sorte de bonus la première fois qu'on la ramasse, la première barrière et le premier tremplin un peu avant d'y arriver, et le fantôme quand il y en a un. Le jeu continue pendant ce temps : chaque conseil reste quatre secondes et demie, un seul à la fois. Tant que le joueur n'a jamais déclenché de bonus, le conseil d'un bonus rappelle la commande. Les textes nomment les touches réellement choisies au clavier.
+
+Chaque conseil ne s'affiche qu'une fois. Un conseil qui n'a pas pu passer à temps, parce qu'un autre occupait l'écran, revient à une course suivante. La ligne INITIATION des options les fait tous revenir.
+
 ## Difficulté
 
 Le réglage DIFFICULTÉ, en solo et dans le salon de l'hôte, a trois niveaux. En difficile, les IA lisent la piste de loin et ne ratent pas une occasion d'utiliser un bonus. En normale, elles anticipent un peu moins, ont des moments d'inattention et laissent passer un tiers des occasions. En facile, elles voient les barrières tard, décrochent près d'une seconde sur trois et n'utilisent leurs bonus qu'une fois sur trois.
 
 ## Menus et commandes
 
-L'écran **Options** du menu principal règle la langue de l'interface (français, anglais ou espagnol) et le pseudo vu par les autres joueurs, 16 caractères au plus. Par défaut, sur Android comme sur Linux, le jeu suit la langue du système : le choix « Auto » du réglage LANGUE. Une langue non traduite donne l'anglais. Sur un écran tactile, le réglage DIRECTION place les boutons de direction à gauche ou à droite, le bouton de bonus passant de l'autre côté. Le pseudo se change aussi dans **Multijoueur**. Ces réglages sont gardés d'un lancement à l'autre.
+L'écran **Options** du menu principal règle la langue de l'interface (français, anglais ou espagnol) et le pseudo vu par les autres joueurs, 16 caractères au plus. Par défaut, sur Android comme sur Linux, le jeu suit la langue du système : le choix « Auto » du réglage LANGUE. Une langue non traduite donne l'anglais. Sur un écran tactile, le réglage DIRECTION place les boutons de direction à gauche ou à droite, le bouton de bonus passant de l'autre côté. Les réglages FANTÔME et INITIATION sont décrits plus haut. Le pseudo se change aussi dans **Multijoueur**. Ces réglages sont gardés d'un lancement à l'autre.
 
 Le réglage QUALITÉ vaut « Auto » par défaut, avec entre parenthèses le niveau retenu. Au premier lancement, le jeu estime ce niveau d'après l'appareil : haute avec une carte graphique dédiée, moyenne avec un GPU intégré de PC, et sur téléphone selon la mémoire, haute à partir de 7 Go, moyenne à partir de 4,5 Go, basse en dessous. Pendant le jeu, il mesure la charge : si la résolution doit descendre à 60 % ou moins pendant trois secondes, le niveau baisse d'un cran ; si le GPU reste sous 40 % de son temps disponible pendant vingt secondes à pleine résolution, il monte d'un cran. Une montée qui ne tient pas est annulée et le jeu ne réessaie plus de monter jusqu'au lancement suivant. Le niveau retenu est gardé pour les lancements suivants. Choisir Basse, Moyenne ou Haute fixe le niveau et coupe ce réglage automatique.
 

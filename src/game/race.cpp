@@ -1,5 +1,6 @@
 #include "game/race.h"
 
+#include "game/i18n.h"
 #include "game/music.h"
 #include "gfx/theme.h"
 #include "game/songs.h"
@@ -72,6 +73,11 @@ void Race::initBlank() {
     camLateral = world.vehicles[localIndex].lateral;
     for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
     minimap.clear();
+    ghost.clear();
+    showGhost = false;
+    recording.clear();
+    recordGhost = false;
+    tips = nullptr;
     autopilot = true;
     orbit = true;
     showHud = false;
@@ -90,6 +96,13 @@ void Race::init(const RaceConfig& cfg, int local) {
     scored = false;
     bestScore = 0;
     newRecord = false;
+    ghost.clear();
+    showGhost = false;
+    recording.clear();
+    recordGhost = false;
+    bestTime = 0.0f;
+    newBestTime = false;
+    tips = nullptr;
     accumulator = 0.0f;
     camLateral = world.vehicles[localIndex].lateral;
     for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
@@ -228,6 +241,17 @@ void Race::update(float dt, const Controls& input) {
         else tick(local);
         accumulator -= sim::kFixedDt;
         react(previous);
+        if (recordGhost && !previous.vehicles[localIndex].finished) {
+            // Relevé du fantôme, du départ jusqu'à la ligne d'arrivée comprise.
+            const sim::Vehicle& me = world.vehicles[localIndex];
+            recording.record(me, world.raceTime);
+            if (me.finished) {
+                recording.finishTime = me.finishTime;
+                recording.ship = me.ship;
+                recording.trackLength = track.length;
+            }
+        }
+        if (tips) wantTips(previous);
         {
             const sim::Vehicle& me = world.vehicles[localIndex];
             if (world.countdown <= 0.0f && !me.finished)
@@ -261,7 +285,34 @@ void Race::update(float dt, const Controls& input) {
                 synth->beep(0);
         }
     }
+    if (tips) tips->update(std::min(dt, 0.1f));
     updatePresentation(dt);
+}
+
+void Race::wantTips(const sim::World& before) {
+    const sim::Vehicle& was = before.vehicles[localIndex];
+    const sim::Vehicle& now = world.vehicles[localIndex];
+    if (now.finished || autopilot) return;
+    if (world.countdown > 0.0f) {
+        if (config.gridStart) tips->want(Tip::StartTurbo, 0.5f);
+        return;
+    }
+    // Les conseils de fond attendent leur tour, ceux de l'instant passent
+    // vite ou pas du tout.
+    if (world.raceTime > 0.6f) tips->want(Tip::Steer, 30.0f);
+    if (showGhost && ghost.valid() && world.raceTime > 5.0f) tips->want(Tip::Ghost, 30.0f);
+    if (!world.ownClock && world.raceTime > 12.0f) tips->want(Tip::Tempo, 30.0f);
+    if (was.item == sim::Item::None && now.item != sim::Item::None)
+        tips->want(static_cast<Tip>(static_cast<int>(Tip::Shot) + static_cast<int>(now.item) - 1), 1.5f);
+    if (was.item != sim::Item::None && now.item == sim::Item::None) tips->mark(Tip::Used);
+    // Élément de piste dans les deux secondes et demie à venir.
+    const float ahead = now.dist + std::max(now.speed, 100.0f) * 2.5f;
+    auto next = std::lower_bound(track.features.begin(), track.features.end(), now.dist,
+                                 [](const sim::Feature& f, float d) { return f.dist < d; });
+    for (; next != track.features.end() && next->dist < ahead; ++next) {
+        if (next->type == sim::FeatureType::Barrier) tips->want(Tip::Barrier, 0.6f);
+        if (next->type == sim::FeatureType::Jump) tips->want(Tip::Jump, 0.6f);
+    }
 }
 
 void Race::updatePresentation(float dt) {
@@ -357,6 +408,47 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
             tag.name = config.racers[i].name;
             tag.rank = sim::rankOf(world, i);
             tag.color = glm::vec4(glm::mix(kSlotColors[i].engine, glm::vec3(1.0f), 0.25f), 1.0f);
+        }
+    }
+
+    // Fantôme : la trajectoire du meilleur temps, rejouée à l'heure de la course.
+    out.ghostLevel = 0.0f;
+    if (showGhost && ghost.valid()) {
+        const float t = mixf(previous.raceTime, world.raceTime, alpha);
+        // Arrivé, il s'efface en une demi-seconde.
+        const float fade = std::clamp(1.0f - (t - ghost.finishTime) / 0.5f, 0.0f, 1.0f);
+        const Ghost::Sample g = ghost.at(t);
+        auto smooth = [](float a, float b, float x) {
+            const float u = std::clamp((x - a) / (b - a), 0.0f, 1.0f);
+            return u * u * (3.0f - 2.0f * u);
+        };
+        // Il disparaît quand il se confond avec le vaisseau du joueur, comme
+        // sur la grille, et quand il passe sous la caméra, dix mètres derrière.
+        const sim::Vehicle& pa = previous.vehicles[localIndex];
+        const sim::Vehicle& pb = world.vehicles[localIndex];
+        const float d = g.dist - playerDist;
+        const float across = g.lateral - (mixf(pa.lateral, pb.lateral, alpha) + smoothLateral[localIndex]);
+        const float near = smooth(2.0f, 14.0f, std::sqrt(d * d + across * across));
+        const float camera = d < 0.0f ? smooth(3.0f, 8.0f, std::abs(d + 10.0f)) : 1.0f;
+        const float level = fade * near * camera;
+        if (level > 0.01f) {
+            const sim::TrackFrame f = track.at(g.dist);
+            const glm::vec3 up = glm::normalize(f.up * std::cos(g.roll) + f.right * std::sin(g.roll));
+            const glm::vec3 right = glm::cross(f.tangent, up);
+            const glm::vec3 pos = f.pos + f.right * g.lateral + f.up * (kHover + g.height);
+            out.ghost.model = glm::mat4(glm::vec4(right * kShipScale, 0.0f), glm::vec4(up * kShipScale, 0.0f),
+                                        glm::vec4(-f.tangent * kShipScale, 0.0f), glm::vec4(pos, 1.0f));
+            out.ghost.variant = ghost.ship;
+            out.ghost.trim = glm::vec4(0.55f, 0.85f, 1.0f, 1.0f);
+            out.ghostLevel = 3.0f * level;
+            // Loin devant ou derrière, une étiquette le signale.
+            if (std::abs(d) > 30.0f && state.tagCount < 8) {
+                NameTag& tag = state.tags[state.tagCount++];
+                tag.worldPos = pos + f.up * 3.4f;
+                tag.name = tr("FANTÔME");
+                tag.rank = 0;
+                tag.color = glm::vec4(0.55f, 0.85f, 1.0f, fade);
+            }
         }
     }
 
@@ -551,6 +643,28 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     state.score = score;
     state.bestScore = bestScore;
     state.newRecord = newRecord;
+    state.finishTime = player.finishTime;
+    state.bestTime = bestTime;
+    state.newBestTime = newBestTime;
+    // Écart avec le fantôme : le temps de course moins celui qu'il avait au
+    // même endroit. Négatif quand le joueur est en avance.
+    state.showGhostGap = false;
+    if (showGhost && ghost.valid() && world.countdown <= 0.0f && !player.finished) {
+        const float at = ghost.timeAt(player.dist);
+        if (at >= 0.0f) {
+            state.showGhostGap = true;
+            state.ghostGap = world.raceTime - at;
+        }
+    }
+    // Conseil de l'initiation en cours.
+    state.tipLevel = 0.0f;
+    if (tips && tips->current >= 0 && !player.finished) {
+        tipShown = tipText(static_cast<Tip>(tips->current), *tips);
+        state.tipTitle = tipShown.title;
+        state.tipBody = tipShown.body;
+        state.tipDetail = tipShown.detail;
+        state.tipLevel = tips->level();
+    }
     state.speedKmh = player.speed * 3.6f;
     // Radar : la piste à venir vue de dessus, dans le repère du vaisseau.
     {

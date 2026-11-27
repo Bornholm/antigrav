@@ -76,6 +76,8 @@ struct Options {
     bool sync = false; // tient le vaisseau du joueur sur le point de synchronisation
     bool stats = false;
     bool pause = false; // mode sans fenêtre : ouvre le menu de course, qui met le solo en pause
+    bool ghost = false; // mode sans fenêtre : un fantôme calculé sur-le-champ
+    int tip = -1;       // mode sans fenêtre : conseil de l'initiation affiché
     int difficulty = 1;   // niveau des IA : 0 facile, 1 normal, 2 difficile
     int autoCup = -1;     // essai réseau : l'hôte court cette coupe en entier, sans interface
     bool autoPlay = false; // essai réseau : enchaîne seul les écrans de fin
@@ -125,6 +127,8 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--touch")) game::forceTouchInterface();
         else if (!std::strcmp(a, "--swap")) o.swap = true;
         else if (!std::strcmp(a, "--pause")) o.pause = true;
+        else if (!std::strcmp(a, "--ghost")) o.ghost = true;
+        else if (!std::strcmp(a, "--tip")) o.tip = std::atoi(value());
         else if (!std::strcmp(a, "--loading")) o.loading = true;
         else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
@@ -289,11 +293,19 @@ int runHeadless(const Options& opt) {
         if (!opt.wav.empty()) app.synth = &synth;
         app.startQuickRace(config, true);
         race.pinToSync = opt.sync;
+        // Fantôme de la même course sur un autre vaisseau, pour les captures.
+        if (opt.ghost) app.demoGhost();
         // Avance jusqu'à l'instant demandé avant la première image.
         for (float t = 0.0f; t < opt.startTime; t += sim::kFixedDt)
             race.update(sim::kFixedDt, game::Controls{});
         // Menu de course ouvert, pour vérifier la pause.
         if (opt.pause) app.confirmQuit = true;
+        // Conseil de l'initiation affiché, pour les captures.
+        if (opt.tip >= 0 && opt.tip < static_cast<int>(game::Tip::Count)) {
+            race.tips = &app.tips;
+            app.tips.current = opt.tip;
+            app.tips.age = 1.0f;
+        }
     } else {
         if (opt.screen == "solo") app.screen = game::Screen::Solo;
         else if (opt.screen == "options") app.screen = game::Screen::Options;

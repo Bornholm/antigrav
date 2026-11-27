@@ -83,6 +83,10 @@ struct FrameParams {
     glm::vec3 planeNormal{0.0f, 1.0f, 0.0f};
     int shipCount = 0;
     ShipDraw ships[kMaxShips];
+    // Fantôme du meilleur temps, dessiné en hologramme de la couleur de
+    // ghost.trim, avec l'intensité ghostLevel : 0 pour ne pas le dessiner.
+    ShipDraw ghost;
+    float ghostLevel = 0.0f;
     int missileCount = 0;
     MissileDraw missiles[kMaxMissileDraws];
     // Orbes lumineux : explosions, ondes de choc, halos des projectiles.

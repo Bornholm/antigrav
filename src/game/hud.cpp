@@ -278,7 +278,8 @@ void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewPr
         vec2 p = (vec2(clip.x, clip.y) / clip.w * 0.5f + 0.5f) * hud.screen / hud.scale;
 
         float nameW = hud.textWidth(FontId::Medium, tag.name, 16.0f);
-        float w = rankW + nameW + 22.0f;
+        const float boxW = tag.rank > 0 ? rankW : 0.0f;
+        float w = boxW + nameW + 22.0f;
         float x0 = p.x - w * 0.5f, x1 = p.x + w * 0.5f;
         float y1 = p.y - 19.0f;
         for (int pass = 0; pass < 4; pass++)
@@ -292,14 +293,43 @@ void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewPr
         hud.tri(p + vec2(-8.0f, -13.0f), p + vec2(8.0f, -13.0f), p + vec2(0.0f, -2.0f), tag.color);
         hud.quad({x0 + skew, y0}, {x1 + skew, y0}, {x1, y1}, {x0, y1},
                  vec4(0.07f, 0.05f, 0.14f, 0.82f));
-        hud.quad({x0 + skew, y0}, {x0 + skew + rankW, y0}, {x0 + rankW, y1}, {x0, y1},
-                 vec4(0.30f, 0.10f, 0.36f, 0.95f));
-        char buf[8];
-        std::snprintf(buf, sizeof(buf), "%d", tag.rank);
-        hud.text(FontId::Bold, buf, {x0 + rankW * 0.5f + 3.0f, y1 - 7.0f}, 18.0f, kWhite,
-                 Align::Center);
-        hud.text(FontId::Medium, tag.name, {x0 + rankW + 11.0f, y1 - 8.0f}, 16.0f, kWhite);
+        // Sans rang, comme le fantôme : pas de case de place.
+        if (tag.rank > 0) {
+            hud.quad({x0 + skew, y0}, {x0 + skew + rankW, y0}, {x0 + rankW, y1}, {x0, y1},
+                     vec4(0.30f, 0.10f, 0.36f, 0.95f));
+            char buf[8];
+            std::snprintf(buf, sizeof(buf), "%d", tag.rank);
+            hud.text(FontId::Bold, buf, {x0 + rankW * 0.5f + 3.0f, y1 - 7.0f}, 18.0f, kWhite,
+                     Align::Center);
+        }
+        hud.text(FontId::Medium, tag.name, {x0 + boxW + 11.0f, y1 - 8.0f}, 16.0f, alpha(kWhite, tag.color.a));
     }
+}
+
+// Conseil de l'initiation, en haut au centre : sous la barre du morceau,
+// au-dessus du compte à rebours et du vaisseau.
+void drawTip(gfx::HudBatch& hud, const HudState& s) {
+    if (s.tipLevel <= 0.01f || s.finished) return;
+    hud.anchor = Anchor::Center;
+    hud.vAnchor = gfx::VAnchor::Top;
+    const float a = s.tipLevel;
+    const bool detail = s.tipDetail[0] != '\0';
+    const float width = std::max({hud.textWidth(FontId::Bold, s.tipTitle, 26.0f), hud.textWidth(FontId::Medium, s.tipBody, 25.0f),
+                                  detail ? hud.textWidth(FontId::Medium, s.tipDetail, 20.0f) : 0.0f});
+    const vec2 c{800.0f, detail ? 166.0f : 152.0f};
+    const vec2 half{std::min(540.0f, width * 0.5f + 36.0f), detail ? 64.0f : 50.0f};
+    hud.roundRect(c, half, 14.0f, vec4(0.03f, 0.04f, 0.10f, 0.72f * a), alpha(kCyan, 0.8f * a), 2.0f);
+    float y = c.y - half.y + 36.0f;
+    hud.text(FontId::Bold, s.tipTitle, {800.0f, y}, 26.0f, alpha(kCyan, a), Align::Center, 0.2f, alpha(kCyan, 0.4f * a));
+    y += 34.0f;
+    hud.text(FontId::Medium, s.tipBody, {800.0f, y}, 25.0f, alpha(kWhite, a), Align::Center);
+    if (detail) hud.text(FontId::Medium, s.tipDetail, {800.0f, y + 30.0f}, 20.0f, alpha(kWhite, 0.75f * a), Align::Center);
+}
+
+// Temps de course en minutes, secondes et centièmes.
+void formatTime(char* out, size_t size, float seconds) {
+    const int centis = static_cast<int>(seconds * 100.0f); // tronqué, comme le chrono
+    std::snprintf(out, size, "%d:%02d.%02d", centis / 6000, (centis / 100) % 60, centis % 100);
 }
 
 } // namespace
@@ -329,6 +359,16 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         hud.text(FontId::Medium, tr("ÉCART"), {34.0f, 244.0f}, 20.0f, alpha(kWhite, 0.75f));
         hud.text(FontId::Bold, buf, {146.0f, 245.0f}, 24.0f, s.gap >= 0.0f ? vec4(0.45f, 1.0f, 0.5f, 1.0f) : kMagenta);
     }
+    if (s.showGhostGap) {
+        // Écart avec le fantôme : vert en avance, rose en retard.
+        const float y = s.showGap ? 280.0f : 244.0f;
+        std::snprintf(buf, sizeof(buf), "%+.2f s", s.ghostGap);
+        // Le libellé tient avant la colonne des valeurs, quelle que soit la langue.
+        const float fit = std::min(20.0f, 20.0f * 104.0f / std::max(1.0f, hud.textWidth(FontId::Medium, tr("FANTÔME"), 20.0f)));
+        hud.text(FontId::Medium, tr("FANTÔME"), {34.0f, y}, fit, alpha(kWhite, 0.75f));
+        hud.text(FontId::Bold, buf, {146.0f, y + 1.0f}, 24.0f, s.ghostGap <= 0.0f ? vec4(0.45f, 1.0f, 0.5f, 1.0f) : kMagenta);
+    }
+    drawTip(hud, s);
 
     hud.anchor = Anchor::Center;
     hud.vAnchor = gfx::VAnchor::Middle;
@@ -374,6 +414,18 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         const float x = 700.0f;
         std::snprintf(buf, sizeof(buf), tr("POSITION %d / %d"), s.position, s.racers);
         hud.text(FontId::Medium, buf, {x, 362.0f}, 28.0f, kYellow, Align::Left);
+        // Temps de la course, et meilleur temps sur ce morceau.
+        char time[24];
+        formatTime(time, sizeof(time), s.finishTime);
+        std::snprintf(buf, sizeof(buf), tr("TEMPS %s"), time);
+        hud.text(FontId::Medium, buf, {1060.0f, 362.0f}, 28.0f, kWhite, Align::Left);
+        if (s.newBestTime) {
+            hud.text(FontId::Bold, tr("MEILLEUR TEMPS"), {1060.0f, 504.0f}, 24.0f, kYellow, Align::Left);
+        } else if (s.bestTime > 0.0f) {
+            formatTime(time, sizeof(time), s.bestTime);
+            std::snprintf(buf, sizeof(buf), tr("MEILLEUR %s"), time);
+            hud.text(FontId::Medium, buf, {1060.0f, 504.0f}, 22.0f, alpha(kWhite, 0.75f), Align::Left);
+        }
         std::snprintf(buf, sizeof(buf), tr("SCORE %d"), s.score.total);
         hud.text(FontId::Bold, buf, {x, 418.0f}, 48.0f, kWhite, Align::Left);
         char parts[160];

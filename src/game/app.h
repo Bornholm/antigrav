@@ -83,6 +83,7 @@ struct App {
     SongLibrary songs;
     Settings settings;
     Records records;
+    Tips tips; // conseils de l'initiation déjà vus, et celui affiché
     CupRun cupRun;
     RaceConfig cupConfig; // concurrents d'une coupe en solo
     int lobbyCup = -1;    // hôte : coupe choisie pour le salon, -1 pour une course simple
@@ -151,6 +152,9 @@ struct App {
     void publishSong();
     // Lance directement une course, sans passer par les menus.
     void startQuickRace(const RaceConfig& config, bool autopilot);
+    // Essais : un fantôme calculé sur-le-champ, celui de la même course
+    // pilotée par l'ordinateur sur un autre vaisseau.
+    void demoGhost();
     void update(double time, float dt, const Controls& controls, const UiInput& input,
                 glm::vec2 screenSize, const gfx::FontAtlas& fonts);
     void fill(const gfx::FontAtlas& fonts, glm::vec2 screenSize, gfx::FrameParams& out);

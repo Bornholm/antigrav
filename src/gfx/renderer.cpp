@@ -775,6 +775,19 @@ void Renderer::drawWorld(VkCommandBuffer cmd, const FrameParams& params, bool re
         pushScene(cmd, sceneLayout, shipPush(params.ships[i]));
         vkCmdDrawIndexed(cmd, mesh.indexCount, 1, 0, 0, 0);
     }
+    // Fantôme : la coque en additif, sans écrire la profondeur. Pas de reflet,
+    // il doit rester discret.
+    if (!reflection && params.ghostLevel > 0.0f) {
+        const Mesh& mesh = ships[variantOf(params.ghost)];
+        bindMesh(cmd, mesh);
+        ScenePush push;
+        push.model = params.ghost.model;
+        push.colorA = glm::vec4(glm::vec3(params.ghost.trim), params.ghostLevel);
+        push.colorB = glm::vec4(0.0f);
+        push.colorC = glm::vec4(0.0f, 0.0f, 0.0f, -1.0f);
+        pushScene(cmd, sceneLayout, push);
+        vkCmdDrawIndexed(cmd, mesh.indexCount, 1, 0, 0, 0);
+    }
     // Flamme des missiles : celle de la Flèche, réduite.
     const Mesh& trail = trails[0];
     bindMesh(cmd, trail);

@@ -6,6 +6,8 @@
 | `--track N`, `--ship N` | morceau de 0 à 8, trois par coupe, vaisseau de 0 à 3. Sans `--ship`, le jeu reprend le dernier vaisseau choisi |
 | `--check-update` | interroge GitHub sur la dernière version publiée, l'affiche et quitte. Windows et Linux seulement |
 | `--pause` | avec `--headless`, ouvre le menu de course, qui met la course en pause |
+| `--ghost` | avec `--headless`, ajoute un fantôme : la même course pilotée par l'ordinateur sur le vaisseau suivant |
+| `--tip N` | avec `--headless`, affiche le conseil d'initiation N, de 0 (départ turbo) à 11 (tremplin) |
 | `--autopilot` | l'ordinateur pilote aussi le vaisseau du joueur |
 | `--lang fr`, `--lang en`, `--lang es` | langue de l'interface pour ce lancement |
 | `--touch`, `--swap` | affiche les boutons tactiles comme sur un téléphone ; inverse leur disposition |

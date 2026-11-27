@@ -211,6 +211,8 @@ set(GAME_SOURCES
   src/gfx/pipeline.cpp
   src/gfx/renderer.cpp
   src/game/records.cpp
+  src/game/ghost.cpp
+  src/game/tips.cpp
   src/gfx/capture.cpp
   src/gfx/mesh.cpp
   src/gfx/geometry.cpp

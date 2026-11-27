@@ -1,6 +1,8 @@
 #pragma once
 
+#include "game/ghost.h"
 #include "game/score.h"
+#include "game/tips.h"
 #include "game/hud.h"
 #include "game/input.h"
 #include "game/synth.h"
@@ -55,6 +57,21 @@ struct Race : sim::Session {
     // sur ce morceau, 0 s'il n'y en avait pas, et s'il vient d'être battu.
     int bestScore = 0;
     bool newRecord = false;
+    // Fantôme du meilleur temps sur ce morceau, posé par le jeu après init,
+    // et relevé de la course en cours, quand le jeu veut l'enregistrer.
+    Ghost ghost;
+    bool showGhost = false;
+    Ghost recording;
+    bool recordGhost = false;
+    // Renseignés par le jeu à l'arrivée : meilleur temps précédent, 0 s'il
+    // n'y en avait pas, et s'il vient d'être battu.
+    float bestTime = 0.0f;
+    bool newBestTime = false;
+    // Conseils de l'initiation, tenus par le jeu. Nul : pas de conseils.
+    Tips* tips = nullptr;
+    TipText tipShown;
+    // Demande les conseils qu'appelle le dernier pas.
+    void wantTips(const sim::World& before);
     bool lightDecor = false; // qualité basse : moins d'objets volants
     float beatKick = 0.0f; // secousse de la caméra sur le temps, selon la hargne du morceau
     float bands[8] = {}; // niveaux de la musique, lissés pour l'affichage

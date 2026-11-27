@@ -12,6 +12,7 @@
 #include <mutex>
 #include <string>
 #include <cstdio>
+#include <cmath>
 #include <cstring>
 
 #ifdef __ANDROID__
@@ -226,6 +227,7 @@ void App::init(int startTrack) {
     songIndex = track < sim::kTrackCount ? track : sim::kTrackCount;
     settings.load();
     records.load();
+    tips.seen = settings.tips;
     setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
     setButtonsSwapped(settings.swapButtons);
 #if defined(SOUNDWAVE_UPDATE_CHECK) && defined(SOUNDWAVE_VERSION)
@@ -347,7 +349,40 @@ void App::startQuickRace(const RaceConfig& config, bool autopilot) {
     race.showHud = true;
     race.synth = synth;
     inRace = true;
+    // Initiation, pour un joueur aux commandes.
+    tips.reset();
+    if (!autopilot && !autoPlay) race.tips = &tips;
+    // Fantôme du meilleur temps, en solo seulement : en réseau les autres
+    // joueurs suffisent. Celui d'une autre piste du même nom est écarté.
+    if (net.role == net::Role::Off && !autopilot && !autoPlay) {
+        race.recordGhost = true;
+        if (race.ghost.load(raceSongKey()) &&
+            std::abs(race.ghost.trackLength - race.track.length) > 0.01f * race.track.length)
+            race.ghost.clear();
+        race.showGhost = settings.ghost;
+    }
     go(Screen::Race);
+}
+
+void App::demoGhost() {
+    RaceConfig config = race.config;
+    config.racers[race.localIndex].ship = (config.racers[race.localIndex].ship + 1) % sim::kShipCount;
+    sim::Session run;
+    run.useFeatures = true;
+    run.givenFeatures = race.track.features;
+    run.start(config, race.localIndex);
+    run.autopilot = true;
+    Ghost ghost;
+    const sim::Vehicle& v = run.world.vehicles[race.localIndex];
+    while (!v.finished && run.world.raceTime < 3600.0f) {
+        run.tick({});
+        ghost.record(v, run.world.raceTime);
+    }
+    ghost.finishTime = v.finishTime;
+    ghost.ship = v.ship;
+    ghost.trackLength = run.track.length;
+    race.ghost = ghost;
+    race.showGhost = true;
 }
 
 void App::startSolo() {
@@ -506,6 +541,12 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
             music->play(Music::kTheme);
         }
     }
+    // Conseils vus : enregistrés hors course, pour ne pas écrire en plein pilotage.
+    if (tips.dirty && (screen != Screen::Race || race.finished() || paused())) {
+        tips.dirty = false;
+        settings.tips = tips.seen;
+        settings.save();
+    }
     // La démonstration derrière les menus repart quand son morceau est fini.
     if (screen != Screen::Race && !inRace && race.finished() && !busy) startAttract();
 
@@ -530,6 +571,8 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 race.showHud = true;
                 race.synth = synth;
                 inRace = true;
+                tips.reset();
+                race.tips = &tips;
                 go(Screen::Race);
             });
         }
@@ -604,6 +647,15 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 const std::string key = raceSongKey();
                 race.bestScore = records.get(key);
                 race.newRecord = records.submit(key, race.score.total);
+                // Meilleur temps : le relevé de la course devient le fantôme.
+                if (race.recordGhost && race.recording.valid()) {
+                    const bool had = race.ghost.valid();
+                    race.bestTime = had ? race.ghost.finishTime : 0.0f;
+                    if (!had || race.recording.finishTime < race.ghost.finishTime) {
+                        race.newBestTime = had;
+                        race.recording.save(key);
+                    }
+                }
             }
             // Coupe : le score du joueur entre dans sa note finale. Un client
             // tient ce compte lui-même, le classement lui vient de l'hôte.
@@ -781,12 +833,14 @@ void App::drawMenus(glm::vec2) {
 
     if (screen == Screen::Options) {
         ui.title({800.0f, 96.0f}, "OPTIONS", 64.0f);
-        float y = touchInterface() ? 208.0f : 250.0f;
+        // Deux colonnes : le joueur à gauche, l'affichage et le système à droite.
+        const float kHalf = 360.0f, left = 420.0f, right = 1180.0f, top = 250.0f;
+        float y = top;
         // Premier choix : suivre la langue du système, affichée entre parenthèses.
         const bool autoLang = settings.lang == Lang::Count;
         char langLabel[48];
         std::snprintf(langLabel, sizeof(langLabel), "Auto (%s)", langName(lang()));
-        if (int d = ui.selector({800.0f, y}, 400.0f, "LANGUE", autoLang ? langLabel : langName(lang())); d != 0) {
+        if (int d = ui.selector({left, y}, kHalf, "LANGUE", autoLang ? langLabel : langName(lang())); d != 0) {
             // Ordre du sélecteur : automatique, puis chaque langue.
             const int count = static_cast<int>(Lang::Count) + 1;
             const int at = autoLang ? 0 : static_cast<int>(settings.lang) + 1;
@@ -796,27 +850,45 @@ void App::drawMenus(glm::vec2) {
             settings.save();
         }
         y += kRow;
-        if (ui.link({800.0f, y}, 400.0f, "PSEUDO", playerName)) {
+        if (ui.link({left, y}, kHalf, "PSEUDO", playerName)) {
             editName(Screen::Options);
             return;
         }
         y += kRow;
-        // Côté des boutons de direction, pour qui joue au doigt.
+        // Côté des boutons de direction, pour qui joue au doigt. Touches du
+        // clavier, pour les autres.
         if (touchInterface()) {
-            if (ui.selector({800.0f, y}, 400.0f, "DIRECTION", buttonsSwapped() ? "À droite" : "À gauche") != 0) {
+            if (ui.selector({left, y}, kHalf, "DIRECTION", buttonsSwapped() ? "À droite" : "À gauche") != 0) {
                 setButtonsSwapped(!buttonsSwapped());
                 settings.swapButtons = buttonsSwapped();
                 settings.save();
             }
-            y += kRow;
+        } else {
+            char keys[64];
+            std::snprintf(keys, sizeof(keys), "%s  %s  %s", keyBindingName(Button::Left),
+                          keyBindingName(Button::Right), keyBindingName(Button::Use));
+            if (ui.link({left, y}, kHalf, "CLAVIER", keys)) {
+                keyCapture = -1;
+                go(Screen::Keys);
+                return;
+            }
         }
+        y += kRow;
+        // Fantôme du meilleur temps, en course solo.
+        if (ui.selector({left, y}, kHalf, "FANTÔME", settings.ghost ? "Affiché" : "Masqué") != 0) {
+            settings.ghost = !settings.ghost;
+            settings.save();
+        }
+        float bottom = y + kRow;
+
+        y = top;
         // Charge du rendu, pour les appareils modestes.
         static const char* const kQualities[] = {"Basse", "Moyenne", "Haute"};
         // Premier choix : automatique, avec le niveau retenu entre parenthèses.
         char qualityLabel[48];
         std::snprintf(qualityLabel, sizeof(qualityLabel), "Auto (%s)", tr(kQualities[settings.effectiveQuality()]));
         const char* qualityValue = settings.quality < 0 ? qualityLabel : kQualities[std::clamp(settings.quality, 0, 2)];
-        if (int d = ui.selector({800.0f, y}, 400.0f, "QUALITÉ", qualityValue); d != 0) {
+        if (int d = ui.selector({right, y}, kHalf, "QUALITÉ", qualityValue); d != 0) {
             // Ordre du sélecteur : automatique, basse, moyenne, haute.
             settings.quality = (settings.quality + 1 + d + 4) % 4 - 1;
             settings.save();
@@ -826,7 +898,7 @@ void App::drawMenus(glm::vec2) {
         char cadenceLabel[48];
         std::snprintf(cadenceLabel, sizeof(cadenceLabel), "Auto (%s)", tr(settings.cap60() ? "60 images/s" : "Maximale"));
         const char* cadenceValue = settings.cadence < 0 ? cadenceLabel : settings.cadence == 1 ? "60 images/s" : "Maximale";
-        if (int d = ui.selector({800.0f, y}, 400.0f, "CADENCE", cadenceValue); d != 0) {
+        if (int d = ui.selector({right, y}, kHalf, "CADENCE", cadenceValue); d != 0) {
             // Ordre du sélecteur : automatique, maximale, 60 images/s.
             settings.cadence = (settings.cadence + 1 + d + 3) % 3 - 1;
             settings.save();
@@ -834,25 +906,21 @@ void App::drawMenus(glm::vec2) {
         y += kRow;
 #ifdef SOUNDWAVE_UPDATE_CHECK
         // Recherche de nouvelle version au démarrage, auprès de GitHub.
-        if (ui.selector({800.0f, y}, 400.0f, "MISES À JOUR", settings.checkUpdates ? "Vérifier" : "Ne pas vérifier") != 0) {
+        if (ui.selector({right, y}, kHalf, "MISES À JOUR", settings.checkUpdates ? "Vérifier" : "Ne pas vérifier") != 0) {
             settings.checkUpdates = !settings.checkUpdates;
             settings.save();
         }
         y += kRow;
 #endif
-        // Touches du clavier, pour qui ne joue pas au doigt.
-        if (!touchInterface()) {
-            char keys[64];
-            std::snprintf(keys, sizeof(keys), "%s  %s  %s", keyBindingName(Button::Left),
-                          keyBindingName(Button::Right), keyBindingName(Button::Use));
-            if (ui.link({800.0f, y}, 400.0f, "CLAVIER", keys)) {
-                keyCapture = -1;
-                go(Screen::Keys);
-                return;
-            }
-            y += kRow;
+        // Initiation : les conseils déjà vus peuvent revenir.
+        if (ui.link({right, y}, kHalf, "INITIATION", tips.seen ? "Revoir" : "Prête")) {
+            tips.seen = 0;
+            tips.dirty = false;
+            settings.tips = 0;
+            settings.save();
         }
-        if (ui.button({800.0f, y + 14.0f}, {400.0f, 40.0f}, "RETOUR", true, kQuiet) || ui.in.back) go(Screen::Main);
+        bottom = std::max(bottom, y + kRow);
+        if (ui.button({800.0f, bottom + 14.0f}, {400.0f, 40.0f}, "RETOUR", true, kQuiet) || ui.in.back) go(Screen::Main);
         return;
     }
 

@@ -43,6 +43,16 @@ struct HudState {
     Score score;           // score de la course, affiché à l'arrivée
     int bestScore = 0;     // record précédent sur ce morceau, 0 s'il n'y en a pas
     bool newRecord = false;
+    float finishTime = 0.0f; // temps à l'arrivée
+    float bestTime = 0.0f;   // meilleur temps précédent sur ce morceau, 0 s'il n'y en a pas
+    bool newBestTime = false;
+    bool showGhostGap = false; // affiche l'écart avec le fantôme
+    float ghostGap = 0.0f;     // secondes de retard sur le fantôme, négatif en avance
+    // Conseil de l'initiation : titre, phrase, détail facultatif, et opacité.
+    const char* tipTitle = "";
+    const char* tipBody = "";
+    const char* tipDetail = "";
+    float tipLevel = 0.0f;
     // Ligne de mesures affichée en bas de l'écran, vide pour la masquer.
     const char* statsLine = "";
     glm::vec3 shipPos{0.0f}; // vaisseau du joueur, pour y accrocher les alertes

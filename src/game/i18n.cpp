@@ -180,7 +180,7 @@ const Entry kEntries[] = {
     {"Appuyez sur %s quand il s'allume : vous partez en turbo.", "Press %s when it lights up: you start with a turbo.", "Pulsa %s cuando se ilumine: sales con turbo."},
     {"Trop tôt, c'est raté pour cette course.", "Too early and it's lost for this race.", "Demasiado pronto y lo pierdes en esta carrera."},
     {"Passez sur les losanges jaunes pour ramasser un bonus.", "Drive over the yellow diamonds to pick up an item.", "Pasa por los rombos amarillos para recoger un objeto."},
-    {"Vous n'en portez qu'un à la fois, son nom s'affiche sur le bouton.", "You carry one at a time, its name shows on the button.", "Solo llevas uno a la vez, su nombre aparece en el botón."},
+    {"Vous n'en portez qu'un à la fois, son nom s'affiche au-dessus du bouton.", "You carry one at a time, its name shows above the button.", "Solo llevas uno a la vez, su nombre aparece encima del botón."},
     {"Vous n'en portez qu'un à la fois, son nom s'affiche en bas à droite.", "You carry one at a time, its name shows at the bottom right.", "Solo llevas uno a la vez, su nombre aparece abajo a la derecha."},
     {"Touchez le bouton pour le déclencher.", "Tap the button to use it.", "Toca el botón para usarlo."},
     {"Appuyez sur %s pour le déclencher.", "Press %s to use it.", "Pulsa %s para usarlo."},

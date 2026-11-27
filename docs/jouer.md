@@ -33,7 +33,7 @@ Un appui dans la dernière seconde mais trop tôt affiche « TROP TÔT » et fai
 
 ## Bonus
 
-Des boîtes à bonus, de grands losanges jaunes surmontés d'un faisceau, donnent un bonus à qui passe dessus les mains vides. On n'en porte qu'un à la fois. Le bouton de droite affiche son nom et le déclenche.
+Des boîtes à bonus, de grands losanges jaunes surmontés d'un faisceau, donnent un bonus à qui passe dessus les mains vides. On n'en porte qu'un à la fois. Le bouton de droite le déclenche et prend sa couleur. Son nom s'affiche au-dessus du bouton, là où le pouce ne le cache pas.
 
 | Bonus | Effet |
 |---|---|

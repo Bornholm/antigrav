@@ -66,7 +66,7 @@ TutorialPage tutorialPage(int index) {
         p.slow = 0.35f;
         p.loop = 3.5f;
         line("Passez sur les losanges jaunes pour ramasser un bonus.");
-        line(touch ? "Vous n'en portez qu'un à la fois, son nom s'affiche sur le bouton."
+        line(touch ? "Vous n'en portez qu'un à la fois, son nom s'affiche au-dessus du bouton."
                    : "Vous n'en portez qu'un à la fois, son nom s'affiche en bas à droite.");
         if (touch) line("Touchez le bouton pour le déclencher.");
         else keyLine("Appuyez sur %s pour le déclencher.", Button::Use);

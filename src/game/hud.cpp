@@ -213,8 +213,9 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
                  9.0f * k, kWhite);
     }
     {
-        // Bouton du bonus : il porte le nom de ce qu'on tient, et s'éteint
-        // quand on n'a rien.
+        // Bouton du bonus : il prend la couleur de ce qu'on tient, et
+        // s'éteint quand on n'a rien. Le nom s'affiche au-dessus, là où le
+        // pouce posé sur le bouton ne le cache pas.
         const bool down = shapeOf(Button::Use, c, r);
         const int item = std::clamp(s.item, 0, 6);
         const vec4 tint = item ? kItemColors[item] : alpha(kWhite, 0.35f);
@@ -222,7 +223,9 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
         hud.circle(c, r, down && item ? alpha(tint, 0.35f) : vec4(0.06f, 0.05f, 0.09f, 0.5f), tint, item ? (down ? 7.0f : 5.0f) : 2.5f);
         if (item) {
             hud.circle(c, r * 0.78f, vec4(0.0f), alpha(tint, 0.45f), 2.0f);
-            hud.text(FontId::Bold, tr(kItemNames[item]), c + vec2(0.0f, 12.0f), item >= 5 ? 26.0f : 34.0f, kWhite, Align::Center, 0.2f,
+            const vec2 label = c - vec2(0.0f, r + 56.0f);
+            hud.roundRect(label, {120.0f, 40.0f}, 14.0f, vec4(0.05f, 0.04f, 0.09f, 0.6f), tint, 3.0f);
+            hud.text(FontId::Bold, tr(kItemNames[item]), label + vec2(0.0f, 12.0f), 32.0f, kWhite, Align::Center, 0.2f,
                      alpha(tint, 0.6f));
         }
     }

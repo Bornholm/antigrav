@@ -14,7 +14,7 @@ struct Settings {
     int difficulty = 1;       // niveau des IA : 0 facile, 1 normal, 2 difficile
     int ship = 0;             // dernier vaisseau choisi
     bool ghost = true;        // fantôme du meilleur temps en course solo
-    uint32_t tips = 0;        // conseils de l'initiation déjà vus, voir Tips
+    bool tutorialSeen = false; // le tutoriel a déjà été ouvert
     bool checkUpdates = true; // Windows et Linux : chercher une nouvelle version au démarrage
     int quality = -1;         // -1 automatique, 0 basse, 1 moyenne, 2 haute
     int autoQuality = -1;     // niveau choisi par le mode automatique, -1 pas encore estimé

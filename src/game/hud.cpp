@@ -306,26 +306,6 @@ void drawNameTags(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewPr
     }
 }
 
-// Conseil de l'initiation, en haut au centre : sous la barre du morceau,
-// au-dessus du compte à rebours et du vaisseau.
-void drawTip(gfx::HudBatch& hud, const HudState& s) {
-    if (s.tipLevel <= 0.01f || s.finished) return;
-    hud.anchor = Anchor::Center;
-    hud.vAnchor = gfx::VAnchor::Top;
-    const float a = s.tipLevel;
-    const bool detail = s.tipDetail[0] != '\0';
-    const float width = std::max({hud.textWidth(FontId::Bold, s.tipTitle, 26.0f), hud.textWidth(FontId::Medium, s.tipBody, 25.0f),
-                                  detail ? hud.textWidth(FontId::Medium, s.tipDetail, 20.0f) : 0.0f});
-    const vec2 c{800.0f, detail ? 166.0f : 152.0f};
-    const vec2 half{std::min(540.0f, width * 0.5f + 36.0f), detail ? 64.0f : 50.0f};
-    hud.roundRect(c, half, 14.0f, vec4(0.03f, 0.04f, 0.10f, 0.72f * a), alpha(kCyan, 0.8f * a), 2.0f);
-    float y = c.y - half.y + 36.0f;
-    hud.text(FontId::Bold, s.tipTitle, {800.0f, y}, 26.0f, alpha(kCyan, a), Align::Center, 0.2f, alpha(kCyan, 0.4f * a));
-    y += 34.0f;
-    hud.text(FontId::Medium, s.tipBody, {800.0f, y}, 25.0f, alpha(kWhite, a), Align::Center);
-    if (detail) hud.text(FontId::Medium, s.tipDetail, {800.0f, y + 30.0f}, 20.0f, alpha(kWhite, 0.75f * a), Align::Center);
-}
-
 // Temps de course en minutes, secondes et centièmes.
 void formatTime(char* out, size_t size, float seconds) {
     const int centis = static_cast<int>(seconds * 100.0f); // tronqué, comme le chrono
@@ -346,6 +326,7 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
     }
 
     // Chrono sous le compteur de tours.
+    if (s.parts & kHudTimer) {
     hud.anchor = Anchor::Left;
     hud.vAnchor = gfx::VAnchor::Top;
     int centis = static_cast<int>(s.raceTime * 100.0f);
@@ -368,25 +349,27 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
         hud.text(FontId::Medium, tr("FANTÔME"), {34.0f, y}, fit, alpha(kWhite, 0.75f));
         hud.text(FontId::Bold, buf, {146.0f, y + 1.0f}, 24.0f, s.ghostGap <= 0.0f ? vec4(0.45f, 1.0f, 0.5f, 1.0f) : kMagenta);
     }
-    drawTip(hud, s);
+    }
 
     hud.anchor = Anchor::Center;
     hud.vAnchor = gfx::VAnchor::Middle;
-    if (s.countdown > 0.0f) {
+    const float cy = s.countdownY;
+    if (!(s.parts & kHudCountdown)) {
+    } else if (s.countdown > 0.0f) {
         std::snprintf(buf, sizeof(buf), "%d", static_cast<int>(std::ceil(s.countdown)));
         float pulse = 1.0f + 0.25f * (s.countdown - std::floor(s.countdown));
-        hud.text(FontId::Bold, buf, {800.0f, 400.0f}, 190.0f * pulse, kWhite, Align::Center,
+        hud.text(FontId::Bold, buf, {800.0f, cy}, 190.0f * pulse, kWhite, Align::Center,
                  0.2f, alpha(kCyan, 0.8f));
         // Appui trop tôt : le joueur le sait tout de suite. Un appui réussi
         // ne se révèle qu'au signal.
         if (s.startBoost == 2)
-            hud.text(FontId::Bold, tr("TROP TÔT"), {800.0f, 520.0f}, 44.0f, kWhite, Align::Center, 0.2f,
+            hud.text(FontId::Bold, tr("TROP TÔT"), {800.0f, cy + 120.0f}, 44.0f, kWhite, Align::Center, 0.2f,
                      alpha(kMagenta, 0.8f));
     } else if (s.gridStart && s.raceTime < 1.2f && !s.finished) {
-        hud.text(FontId::Bold, tr("GO !"), {800.0f, 400.0f}, 170.0f,
+        hud.text(FontId::Bold, tr("GO !"), {800.0f, cy}, 170.0f,
                  alpha(kYellow, 1.0f - s.raceTime / 1.2f), Align::Center, 0.2f);
         if (s.startBoost == 1)
-            hud.text(FontId::Bold, tr("DÉPART TURBO !"), {800.0f, 520.0f}, 48.0f,
+            hud.text(FontId::Bold, tr("DÉPART TURBO !"), {800.0f, cy + 120.0f}, 48.0f,
                      alpha(kWhite, 1.0f - s.raceTime / 1.2f), Align::Center, 0.2f,
                      alpha(kCyan, 0.8f * (1.0f - s.raceTime / 1.2f)));
     }
@@ -441,6 +424,9 @@ void drawRaceFlow(gfx::HudBatch& hud, const HudState& s) {
     }
 }
 
+const char* itemName(int item) { return kItemNames[std::clamp(item, 0, 6)]; }
+vec4 itemColor(int item) { return kItemColors[std::clamp(item, 0, 6)]; }
+
 vec4 gradeColor(char grade) {
     switch (grade) {
     case 'S': return kYellow;
@@ -452,13 +438,14 @@ vec4 gradeColor(char grade) {
 }
 
 void buildHud(gfx::HudBatch& hud, const HudState& state, const glm::mat4& viewProj) {
-    drawNameTags(hud, state, viewProj);
-    drawStandings(hud, state);
-    drawSpeed(hud, state);
-    drawMinimap(hud, state);
-    drawSongBar(hud, state);
-    drawButtons(hud, state);
-    drawAlerts(hud, state, viewProj);
+    const uint32_t p = state.parts;
+    if (p & kHudTags) drawNameTags(hud, state, viewProj);
+    if (p & kHudStandings) drawStandings(hud, state);
+    if (p & kHudSpeed) drawSpeed(hud, state);
+    if (p & kHudMinimap) drawMinimap(hud, state);
+    if (p & kHudSongBar) drawSongBar(hud, state);
+    if (p & kHudButtons) drawButtons(hud, state);
+    if (p & kHudAlerts) drawAlerts(hud, state, viewProj);
     drawRaceFlow(hud, state);
 }
 

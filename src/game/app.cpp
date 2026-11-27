@@ -30,6 +30,7 @@ using glm::vec4;
 
 const vec4 kWhite{1.0f, 1.0f, 1.0f, 1.0f};
 const vec4 kCyan{0.25f, 0.92f, 1.0f, 1.0f};
+const vec4 kQuiet{0.7f, 0.75f, 0.9f, 1.0f};
 const vec4 kMagenta{1.0f, 0.28f, 0.86f, 1.0f};
 const vec4 kYellow{1.0f, 0.80f, 0.25f, 1.0f};
 const vec4 kDim{0.75f, 0.82f, 1.0f, 0.75f};
@@ -227,7 +228,6 @@ void App::init(int startTrack) {
     songIndex = track < sim::kTrackCount ? track : sim::kTrackCount;
     settings.load();
     records.load();
-    tips.seen = settings.tips;
     setLang(settings.lang != Lang::Count ? settings.lang : systemLang());
     setButtonsSwapped(settings.swapButtons);
 #if defined(SOUNDWAVE_UPDATE_CHECK) && defined(SOUNDWAVE_VERSION)
@@ -349,9 +349,6 @@ void App::startQuickRace(const RaceConfig& config, bool autopilot) {
     race.showHud = true;
     race.synth = synth;
     inRace = true;
-    // Initiation, pour un joueur aux commandes.
-    tips.reset();
-    if (!autopilot && !autoPlay) race.tips = &tips;
     // Fantôme du meilleur temps, en solo seulement : en réseau les autres
     // joueurs suffisent. Celui d'une autre piste du même nom est écarté.
     if (net.role == net::Role::Off && !autopilot && !autoPlay) {
@@ -364,7 +361,90 @@ void App::startQuickRace(const RaceConfig& config, bool autopilot) {
     go(Screen::Race);
 }
 
-void App::demoGhost() {
+void App::openTutorial(int page) {
+    tutorialIndex = std::clamp(page, 0, kTutorialPages - 1);
+    setupTutorialScene();
+    go(Screen::Tutorial);
+}
+
+void App::setupTutorialScene() {
+    const TutorialPage page = tutorialPage(tutorialIndex);
+    RaceConfig config;
+    config.track = track;
+    config.gridStart = page.scene == TutorialScene::Countdown;
+    config.racerCount = 1;
+    std::snprintf(config.racers[0].name, sizeof(config.racers[0].name), "%s", playerName);
+    config.racers[0].ship = ship;
+    config.racers[0].profile = 2;
+    const int kept = personality;
+    personality = 0;
+    config = withOpponents(config, 3);
+    personality = kept;
+    config.difficulty = 2;
+    race.clientTick = nullptr;
+    race.init(config, 0);
+    race.autopilot = true;
+    race.orbit = false;
+    race.showHud = true;
+    race.hudParts = page.hud;
+    race.countdownY = 560.0f;
+    // Les bips du compte à rebours seulement : le reste du temps, le thème joue seul.
+    race.synth = page.scene == TutorialScene::Countdown ? synth : nullptr;
+    inRace = false;
+
+    // La scène commence au quart du morceau, ou un peu avant l'élément de piste
+    // qu'elle montre. On y arrive en jouant la course, l'ordinateur au volant.
+    const sim::Track& t = race.track;
+    float target = page.scene == TutorialScene::Countdown ? 0.0f : 0.22f * t.length;
+    const sim::Feature* feature = nullptr;
+    if (page.scene == TutorialScene::ItemBox || page.scene == TutorialScene::Barrier) {
+        const sim::FeatureType type = page.scene == TutorialScene::ItemBox ? sim::FeatureType::ItemBox : sim::FeatureType::Barrier;
+        for (const sim::Feature& f : t.features)
+            if (f.type == type && f.dist > 0.15f * t.length) {
+                feature = &f;
+                break;
+            }
+        if (feature) target = feature->dist - 450.0f;
+    }
+    sim::Vehicle& me = race.world.vehicles[0];
+    if (page.scene != TutorialScene::Countdown)
+        while (me.dist < target && race.world.raceTime < t.duration) race.tick({});
+    // Face à l'élément, pour qu'on le voie arriver droit devant.
+    if (feature) {
+        me.lateral = std::clamp(feature->lateral, -t.halfWidth + 4.0f, t.halfWidth - 4.0f);
+        me.lateralVel = 0.0f;
+        me.item = sim::Item::None;
+    }
+    race.previous = race.world;
+    race.accumulator = 0.0f;
+    if (page.ghost) {
+        // Fantôme de démonstration : la suite de la même course, rejouée
+        // un peu plus tôt et décalée sur le côté, pour qu'il reste en vue devant.
+        sim::Session run = race;
+        Ghost& g = race.ghost;
+        g.clear();
+        const float lead = 0.08f, until = race.world.raceTime + page.loop + 2.0f;
+        const sim::Vehicle& v = run.world.vehicles[0];
+        auto put = [&] {
+            Ghost::Sample sample{v.dist, v.lateral, v.roll, sim::airHeight(v)};
+            sample.lateral += sample.lateral > 0.0f ? -5.0f : 5.0f;
+            while (static_cast<float>(g.samples.size()) * Ghost::kStep <= run.world.raceTime - lead + 1e-4f) g.samples.push_back(sample);
+        };
+        put();
+        while (run.world.raceTime < until) {
+            run.tick({});
+            put();
+        }
+        g.ship = (ship + 1) % sim::kShipCount;
+        g.finishTime = until;
+        g.trackLength = t.length;
+        race.showGhost = true;
+    }
+    tutorialSnap = race.world;
+    tutorialEnd = race.world.raceTime + page.loop;
+}
+
+void App::demoGhost(float until) {
     RaceConfig config = race.config;
     config.racers[race.localIndex].ship = (config.racers[race.localIndex].ship + 1) % sim::kShipCount;
     sim::Session run;
@@ -374,11 +454,11 @@ void App::demoGhost() {
     run.autopilot = true;
     Ghost ghost;
     const sim::Vehicle& v = run.world.vehicles[race.localIndex];
-    while (!v.finished && run.world.raceTime < 3600.0f) {
+    while (!v.finished && run.world.raceTime < until) {
         run.tick({});
         ghost.record(v, run.world.raceTime);
     }
-    ghost.finishTime = v.finishTime;
+    ghost.finishTime = v.finished ? v.finishTime : run.world.raceTime;
     ghost.ship = v.ship;
     ghost.trackLength = run.track.length;
     race.ghost = ghost;
@@ -541,12 +621,6 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
             music->play(Music::kTheme);
         }
     }
-    // Conseils vus : enregistrés hors course, pour ne pas écrire en plein pilotage.
-    if (tips.dirty && (screen != Screen::Race || race.finished() || paused())) {
-        tips.dirty = false;
-        settings.tips = tips.seen;
-        settings.save();
-    }
     // La démonstration derrière les menus repart quand son morceau est fini.
     if (screen != Screen::Race && !inRace && race.finished() && !busy) startAttract();
 
@@ -571,8 +645,6 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
                 race.showHud = true;
                 race.synth = synth;
                 inRace = true;
-                tips.reset();
-                race.tips = &tips;
                 go(Screen::Race);
             });
         }
@@ -613,6 +685,20 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     // En pause, la course est figée : ni simulation, ni bruit de moteur.
     if (paused()) {
         if (synth) synth->setEngine(0.0f, false, false);
+    } else if (screen == Screen::Tutorial && !pending) {
+        // Scène du tutoriel : au ralenti s'il le faut, aux commandes du
+        // joueur sur les pages où il essaie, et en boucle.
+        const TutorialPage page = tutorialPage(tutorialIndex);
+        const bool countdown = race.world.countdown > 0.0f;
+        race.autopilot = !page.steer || (page.scene == TutorialScene::Countdown && !countdown);
+        race.update(dt * page.slow, race.autopilot ? Controls{} : controls);
+        if (race.world.raceTime >= tutorialEnd || race.finished()) {
+            race.world = tutorialSnap;
+            race.previous = tutorialSnap;
+            race.accumulator = 0.0f;
+            for (Race::Fx& f : race.fx) f.age = f.life;
+            race.flash = 0.0f;
+        }
     } else {
         race.update(dt, controls);
     }
@@ -736,6 +822,115 @@ void App::update(double time, float dt, const Controls& controls, const UiInput&
     ui.end();
 }
 
+void App::drawTutorial() {
+    const TutorialPage page = tutorialPage(tutorialIndex);
+    gfx::HudBatch& hud = menuHud;
+    const bool listing = page.items || page.scoreTable;
+    if (listing) ui.veil(0.55f);
+    hud.anchor = gfx::Anchor::Center;
+    hud.vAnchor = gfx::VAnchor::Top;
+
+    // Encart du haut : titre, texte et navigation.
+    float width = hud.textWidth(FontId::Bold, tr(page.title), 40.0f);
+    for (const char* line : page.lines) width = std::max(width, hud.textWidth(FontId::Medium, line, 23.0f));
+    const float hx = std::clamp(width * 0.5f + 50.0f, 440.0f, 740.0f);
+    const vec2 center{800.0f, 222.0f};
+    ui.panel(center, {hx, 128.0f});
+    ui.text({800.0f, 144.0f}, page.title, 40.0f, kYellow, Align::Center, FontId::Bold);
+    float y = 190.0f;
+    for (const char* line : page.lines) {
+        if (!line[0]) continue;
+        hud.text(FontId::Medium, line, {800.0f, y}, 23.0f, kWhite, Align::Center);
+        y += 34.0f;
+    }
+    // Points de page.
+    for (int i = 0; i < kTutorialPages; i++) {
+        const float x = 800.0f + (static_cast<float>(i) - (kTutorialPages - 1) * 0.5f) * 22.0f;
+        hud.circle({x, 312.0f}, i == tutorialIndex ? 6.0f : 4.0f, i == tutorialIndex ? kYellow : vec4(1.0f, 1.0f, 1.0f, 0.35f), vec4(0.0f), 0.0f);
+    }
+    auto turn = [&](int page) {
+        if (page < 0 || page >= kTutorialPages) return;
+        tutorialIndex = page;
+        setupTutorialScene();
+        ui.reset();
+    };
+    auto leave = [&] {
+        startAttract();
+        go(Screen::Main);
+    };
+    // Suivant d'abord : c'est le bouton choisi par défaut au clavier.
+    const bool last = tutorialIndex == kTutorialPages - 1;
+    if (ui.button({center.x + hx - 130.0f, 312.0f}, {110.0f, 26.0f}, last ? "TERMINER" : "SUIVANT", true, kYellow)) {
+        if (last) leave();
+        else turn(tutorialIndex + 1);
+        return;
+    }
+    if (ui.button({center.x - hx + 130.0f, 312.0f}, {110.0f, 26.0f}, "PRÉCÉDENT", tutorialIndex > 0, kQuiet)) {
+        turn(tutorialIndex - 1);
+        return;
+    }
+    // Fermer, en haut à gauche de l'écran, quelle que soit sa largeur.
+    hud.anchor = gfx::Anchor::Left;
+    const bool close = ui.button({110.0f, 40.0f}, {80.0f, 24.0f}, "FERMER", true, kQuiet);
+    hud.anchor = gfx::Anchor::Center;
+    if (close || ui.in.back) {
+        leave();
+        return;
+    }
+    // Les flèches tournent les pages, sauf là où elles pilotent.
+    if (!page.steer && ui.in.right) {
+        if (last) leave();
+        else turn(tutorialIndex + 1);
+        return;
+    }
+    if (!page.steer && ui.in.left) {
+        turn(tutorialIndex - 1);
+        return;
+    }
+
+    hud.vAnchor = gfx::VAnchor::Middle;
+    if (page.items) {
+        // Les six bonus, sur deux colonnes.
+        for (int item = 1; item <= 6; item++) {
+            const int k = item - 1;
+            const vec2 c{k % 2 ? 1180.0f : 420.0f, 440.0f + 116.0f * static_cast<float>(k / 2)};
+            const vec4 tint = itemColor(item);
+            ui.panel(c, {360.0f, 48.0f});
+            const vec2 chip = c + vec2(-250.0f, 0.0f);
+            hud.roundRect(chip, {90.0f, 30.0f}, 12.0f, vec4(0.05f, 0.04f, 0.09f, 0.8f), tint, 3.0f);
+            const char* name = tr(itemName(item));
+            const float nameSize = std::min(26.0f, 26.0f * 160.0f / std::max(1.0f, hud.textWidth(FontId::Bold, name, 26.0f)));
+            hud.text(FontId::Bold, name, chip + vec2(0.0f, 9.0f), nameSize, kWhite, Align::Center, 0.2f, vec4(glm::vec3(tint), 0.6f));
+            const char* text = tr(itemDescription(item));
+            const float size = std::min(20.0f, 20.0f * 470.0f / std::max(1.0f, hud.textWidth(FontId::Medium, text, 20.0f)));
+            hud.text(FontId::Medium, text, c + vec2(-140.0f, 7.0f), size, kWhite, Align::Left);
+        }
+    }
+    if (page.scoreTable) {
+        // Barème : ce que vaut chaque part, puis les seuils des notes.
+        static const char* const kParts[] = {"PLACE", "TEMPO", "PILOTAGE", "BONUS"};
+        static const int kPoints[] = {4000, 3000, 2000, 1000};
+        ui.panel({800.0f, 560.0f}, {440.0f, 190.0f});
+        for (int i = 0; i < 4; i++) {
+            const float ry = 430.0f + 46.0f * static_cast<float>(i);
+            char pts[16];
+            std::snprintf(pts, sizeof(pts), "%d %03d", kPoints[i] / 1000, kPoints[i] % 1000);
+            ui.text({560.0f, ry}, kParts[i], 26.0f, kDim, Align::Left);
+            ui.text({1040.0f, ry}, pts, 28.0f, kWhite, Align::Right, FontId::Bold);
+        }
+        static const char kGrades[] = {'S', 'A', 'B', 'C'};
+        static const int kSteps[] = {9000, 7500, 6000, 4000};
+        for (int i = 0; i < 4; i++) {
+            const float x = 530.0f + 180.0f * static_cast<float>(i);
+            const char letter[2] = {kGrades[i], '\0'};
+            char at[16];
+            std::snprintf(at, sizeof(at), "%d %03d", kSteps[i] / 1000, kSteps[i] % 1000);
+            hud.text(FontId::Bold, letter, {x, 662.0f}, 40.0f, gradeColor(kGrades[i]), Align::Right);
+            hud.text(FontId::Medium, at, {x + 12.0f, 656.0f}, 20.0f, kDim, Align::Left);
+        }
+    }
+}
+
 void App::drawShipCard(vec2 center) {
     const sim::ShipStats& stats = sim::shipStats(ship);
     ui.panel(center, {250.0f, 184.0f});
@@ -783,7 +978,6 @@ std::string clip(const char* text, int maxChars) {
     return std::string(text, static_cast<size_t>(p - text)) + "...";
 }
 
-const vec4 kQuiet{0.7f, 0.75f, 0.9f, 1.0f};
 // Les lignes d'un menu : hauteur d'un pouce, et de quoi ne pas en toucher deux.
 const float kRow = 96.0f;
 const float kColumn = 360.0f; // demi-largeur de la colonne de réglages
@@ -808,8 +1002,17 @@ void App::drawMenus(glm::vec2) {
             lastDiscover = -10.0;
             go(Screen::Multi);
         }
-        if (ui.button({655.0f, 726.0f}, {135.0f, 38.0f}, "OPTIONS", true, kQuiet)) go(Screen::Options);
-        if (ui.button({945.0f, 726.0f}, {135.0f, 38.0f}, "QUITTER", true, kQuiet)) quit = true;
+        // Tutoriel : mis en avant tant qu'il n'a jamais été ouvert.
+        if (ui.button({510.0f, 726.0f}, {135.0f, 38.0f}, "TUTORIEL", true, settings.tutorialSeen ? kQuiet : kCyan)) {
+            if (!settings.tutorialSeen) {
+                settings.tutorialSeen = true;
+                settings.save();
+            }
+            openTutorial(0);
+            return;
+        }
+        if (ui.button({800.0f, 726.0f}, {135.0f, 38.0f}, "OPTIONS", true, kQuiet)) go(Screen::Options);
+        if (ui.button({1090.0f, 726.0f}, {135.0f, 38.0f}, "QUITTER", true, kQuiet)) quit = true;
         if (ui.in.back) quit = true;
         // Nouvelle version trouvée au démarrage : un lien vers sa page.
         if (const std::string latest = updates.available(); !latest.empty()) {
@@ -830,6 +1033,11 @@ void App::drawMenus(glm::vec2) {
         nameReturn = from;
         go(Screen::Name);
     };
+
+    if (screen == Screen::Tutorial) {
+        drawTutorial();
+        return;
+    }
 
     if (screen == Screen::Options) {
         ui.title({800.0f, 96.0f}, "OPTIONS", 64.0f);
@@ -912,13 +1120,6 @@ void App::drawMenus(glm::vec2) {
         }
         y += kRow;
 #endif
-        // Initiation : les conseils déjà vus peuvent revenir.
-        if (ui.link({right, y}, kHalf, "INITIATION", tips.seen ? "Revoir" : "Prête")) {
-            tips.seen = 0;
-            tips.dirty = false;
-            settings.tips = 0;
-            settings.save();
-        }
         bottom = std::max(bottom, y + kRow);
         if (ui.button({800.0f, bottom + 14.0f}, {400.0f, 40.0f}, "RETOUR", true, kQuiet) || ui.in.back) go(Screen::Main);
         return;
@@ -1446,8 +1647,8 @@ void App::drawMenus(glm::vec2) {
 
 void App::fill(const gfx::FontAtlas& fonts, glm::vec2 screenSize, gfx::FrameParams& out) {
     race.fill(fonts, screenSize, out);
-    if (screen == Screen::Race) {
-        // Le bandeau de fin s'ajoute à l'interface de course.
+    if (screen == Screen::Race || screen == Screen::Tutorial) {
+        // Le bandeau de fin, ou l'encart du tutoriel, s'ajoute à l'interface de course.
         if (out.hud && !menuHud.verts.empty()) {
             race.hud.verts.insert(race.hud.verts.end(), menuHud.verts.begin(), menuHud.verts.end());
         }

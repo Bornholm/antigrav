@@ -212,7 +212,7 @@ set(GAME_SOURCES
   src/gfx/renderer.cpp
   src/game/records.cpp
   src/game/ghost.cpp
-  src/game/tips.cpp
+  src/game/tutorial.cpp
   src/gfx/capture.cpp
   src/gfx/mesh.cpp
   src/gfx/geometry.cpp

@@ -2,7 +2,6 @@
 
 #include "game/ghost.h"
 #include "game/score.h"
-#include "game/tips.h"
 #include "game/hud.h"
 #include "game/input.h"
 #include "game/synth.h"
@@ -67,11 +66,6 @@ struct Race : sim::Session {
     // n'y en avait pas, et s'il vient d'être battu.
     float bestTime = 0.0f;
     bool newBestTime = false;
-    // Conseils de l'initiation, tenus par le jeu. Nul : pas de conseils.
-    Tips* tips = nullptr;
-    TipText tipShown;
-    // Demande les conseils qu'appelle le dernier pas.
-    void wantTips(const sim::World& before);
     bool lightDecor = false; // qualité basse : moins d'objets volants
     float beatKick = 0.0f; // secousse de la caméra sur le temps, selon la hargne du morceau
     float bands[8] = {}; // niveaux de la musique, lissés pour l'affichage
@@ -80,6 +74,9 @@ struct Race : sim::Session {
     int songSerial = 0; // change quand la piste change : le rendu la reconstruit alors
     bool pinToSync = false; // tient le vaisseau local sur le point de synchronisation
     bool showHud = true;
+    // Éléments de l'interface affichés, voir HudPart, et hauteur du compte à rebours.
+    uint32_t hudParts = kHudAll;
+    float countdownY = 400.0f;
 
     // Caméra lissée.
     float camLateral = 0.0f;

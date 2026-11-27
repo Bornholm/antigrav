@@ -6,6 +6,7 @@
 #include "game/race.h"
 #include "game/settings.h"
 #include "game/songs.h"
+#include "game/tutorial.h"
 #include "game/ui.h"
 #include "net/net.h"
 
@@ -18,7 +19,7 @@ struct SDL_Window;
 
 namespace game {
 
-enum class Screen { Main, Options, Keys, Solo, Songs, Cups, CupTable, Multi, Address, Name, Lobby, Race };
+enum class Screen { Main, Options, Keys, Tutorial, Solo, Songs, Cups, CupTable, Multi, Address, Name, Lobby, Race };
 
 // Une coupe en cours : trois courses, des points selon la place, et le score
 // du joueur cumulé pour la note finale. Le classement est tenu par nom, ce qui
@@ -83,14 +84,17 @@ struct App {
     SongLibrary songs;
     Settings settings;
     Records records;
-    Tips tips; // conseils de l'initiation déjà vus, et celui affiché
     CupRun cupRun;
     RaceConfig cupConfig; // concurrents d'une coupe en solo
     int lobbyCup = -1;    // hôte : coupe choisie pour le salon, -1 pour une course simple
     int clientCupSeen = 0; // client : nombre de courses de coupe attendu au classement
     int cupChoice = 0;  // coupe choisie dans le menu des coupes
     core::UpdateCheck updates; // Windows et Linux : nouvelle version publiée
-    int keyCapture = -1; // commande qui attend sa touche dans l'écran Clavier, -1 sinon
+    int keyCapture = -1;
+    // Tutoriel : page affichée, et état de sa scène au début de la boucle.
+    int tutorialIndex = 0;
+    sim::World tutorialSnap;
+    float tutorialEnd = 0.0f; // temps de course où la scène reprend du début // commande qui attend sa touche dans l'écran Clavier, -1 sinon
     int songsCup = 0;   // coupe affichée dans la liste des morceaux
     bool scoreSaved = false; // le score de la course en cours est déjà enregistré
     // Clé d'un morceau dans les records : par son indice dans la liste, ou
@@ -154,7 +158,10 @@ struct App {
     void startQuickRace(const RaceConfig& config, bool autopilot);
     // Essais : un fantôme calculé sur-le-champ, celui de la même course
     // pilotée par l'ordinateur sur un autre vaisseau.
-    void demoGhost();
+    // Fantôme jusqu'à cet instant de course seulement : plus court à calculer.
+    void demoGhost(float until = 3600.0f);
+    // Ouvre le tutoriel à cette page.
+    void openTutorial(int page);
     void update(double time, float dt, const Controls& controls, const UiInput& input,
                 glm::vec2 screenSize, const gfx::FontAtlas& fonts);
     void fill(const gfx::FontAtlas& fonts, glm::vec2 screenSize, gfx::FrameParams& out);
@@ -163,6 +170,9 @@ struct App {
     void go(Screen next);
     void startAttract();
     void changeAttractShip();
+    // Prépare la scène de la page du tutoriel en cours.
+    void setupTutorialScene();
+    void drawTutorial();
     void selectSong(int index);
     void selectSongNow(int index);
     // Lance un travail long derrière un écran de chargement : il s'exécute à

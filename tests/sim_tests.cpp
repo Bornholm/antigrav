@@ -3,7 +3,6 @@
 #include "core/update.h"
 #include "game/ghost.h"
 #include "game/score.h"
-#include "game/tips.h"
 #include "game/synth.h"
 #include "gfx/adaptive.h"
 #include "sim/track.h"
@@ -289,32 +288,6 @@ void testGhost() {
     std::vector<uint8_t> bad = bytes;
     bad[0] ^= 1;
     CHECK(!back.decode(bad.data(), bad.size()));
-}
-
-// Initiation : un conseil à la fois, chacun une seule fois, et ceux de
-// l'instant s'oublient s'ils ont trop attendu.
-void testTips() {
-    game::Tips tips;
-    tips.want(game::Tip::Steer, 30.0f);
-    tips.want(game::Tip::Barrier, 0.5f);
-    tips.want(game::Tip::Steer, 30.0f); // déjà en attente
-    CHECK(tips.queued == 2);
-    tips.update(0.1f);
-    CHECK(tips.current == static_cast<int>(game::Tip::Steer) && tips.has(game::Tip::Steer) && tips.dirty);
-    tips.update(0.1f);
-    CHECK(tips.level() > 0.0f && tips.level() < 1.0f);
-    tips.update(1.0f);
-    CHECK(tips.level() == 1.0f);
-    // La barrière a trop attendu : elle passe son tour, sans être marquée.
-    tips.update(game::Tips::kShow);
-    CHECK(tips.current == -1 && tips.queued == 0 && !tips.has(game::Tip::Barrier));
-    // Un conseil vu ne revient pas.
-    tips.want(game::Tip::Steer, 30.0f);
-    CHECK(tips.queued == 0);
-    tips.want(game::Tip::Barrier, 0.5f);
-    tips.update(0.1f);
-    CHECK(tips.current == static_cast<int>(game::Tip::Barrier));
-    CHECK(static_cast<int>(game::Tip::Count) <= 32);
 }
 
 void testStartBoost() {
@@ -910,7 +883,6 @@ int main() {
     testCountdownAndFinish();
     testStartBoost();
     testGhost();
-    testTips();
     testSynth();
     testItems();
     if (failures == 0) std::printf("simulation: tous les tests passent\n");

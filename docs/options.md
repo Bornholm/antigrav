@@ -7,7 +7,7 @@
 | `--check-update` | interroge GitHub sur la dernière version publiée, l'affiche et quitte. Windows et Linux seulement |
 | `--pause` | avec `--headless`, ouvre le menu de course, qui met la course en pause |
 | `--ghost` | avec `--headless`, ajoute un fantôme : la même course pilotée par l'ordinateur sur le vaisseau suivant |
-| `--tip N` | avec `--headless`, affiche le conseil d'initiation N, de 0 (départ turbo) à 11 (tremplin) |
+| `--page N` | avec `--screen tutoriel`, page du tutoriel, de 0 à 8 |
 | `--autopilot` | l'ordinateur pilote aussi le vaisseau du joueur |
 | `--lang fr`, `--lang en`, `--lang es` | langue de l'interface pour ce lancement |
 | `--touch`, `--swap` | affiche les boutons tactiles comme sur un téléphone ; inverse leur disposition |
@@ -30,6 +30,6 @@
 | `--time S` | démarrer à S secondes, mode sans fenêtre |
 | `--out chemin.png` | écrire la dernière image ; avec `%04d` dans le chemin, toutes les images |
 | `--wav chemin.wav` | écrire le son de la course, mode sans fenêtre |
-| `--screen nom` | mode sans fenêtre : capturer un écran de menu, `main`, `options`, `solo`, `morceaux`, `coupes`, `tableau`, `podium`, `multi`, `adresse`, `pseudo` ou `salon` |
+| `--screen nom` | mode sans fenêtre : capturer un écran de menu, `main`, `options`, `tutoriel`, `solo`, `morceaux`, `coupes`, `tableau`, `podium`, `multi`, `adresse`, `pseudo` ou `salon` |
 | `--auto-cup N`, `--auto-play` | essai réseau d'une coupe entière : l'hôte court la coupe N, chaque instance enchaîne seule les écrans de fin |
 | `--host-auto N`, `--join-auto`, `--realtime` | essai réseau sans interface, voir [Développer](developper.md) |

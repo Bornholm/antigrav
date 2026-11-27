@@ -77,7 +77,7 @@ struct Options {
     bool stats = false;
     bool pause = false; // mode sans fenêtre : ouvre le menu de course, qui met le solo en pause
     bool ghost = false; // mode sans fenêtre : un fantôme calculé sur-le-champ
-    int tip = -1;       // mode sans fenêtre : conseil de l'initiation affiché
+    int page = 0;       // mode sans fenêtre : page du tutoriel, avec --screen tutoriel
     int difficulty = 1;   // niveau des IA : 0 facile, 1 normal, 2 difficile
     int autoCup = -1;     // essai réseau : l'hôte court cette coupe en entier, sans interface
     bool autoPlay = false; // essai réseau : enchaîne seul les écrans de fin
@@ -128,7 +128,7 @@ Options parseOptions(int argc, char** argv) {
         else if (!std::strcmp(a, "--swap")) o.swap = true;
         else if (!std::strcmp(a, "--pause")) o.pause = true;
         else if (!std::strcmp(a, "--ghost")) o.ghost = true;
-        else if (!std::strcmp(a, "--tip")) o.tip = std::atoi(value());
+        else if (!std::strcmp(a, "--page")) o.page = std::atoi(value());
         else if (!std::strcmp(a, "--loading")) o.loading = true;
         else if (!std::strcmp(a, "--import")) o.importSong = value();
         else if (!std::strcmp(a, "--stats")) o.stats = true;
@@ -300,15 +300,10 @@ int runHeadless(const Options& opt) {
             race.update(sim::kFixedDt, game::Controls{});
         // Menu de course ouvert, pour vérifier la pause.
         if (opt.pause) app.confirmQuit = true;
-        // Conseil de l'initiation affiché, pour les captures.
-        if (opt.tip >= 0 && opt.tip < static_cast<int>(game::Tip::Count)) {
-            race.tips = &app.tips;
-            app.tips.current = opt.tip;
-            app.tips.age = 1.0f;
-        }
     } else {
         if (opt.screen == "solo") app.screen = game::Screen::Solo;
         else if (opt.screen == "options") app.screen = game::Screen::Options;
+        else if (opt.screen == "tutoriel") app.openTutorial(opt.page);
         else if (opt.screen == "clavier") app.screen = game::Screen::Keys;
         else if (opt.screen == "morceaux") app.screen = game::Screen::Songs;
         else if (opt.screen == "coupes") app.screen = game::Screen::Cups;

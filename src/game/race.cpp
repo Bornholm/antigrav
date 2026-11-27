@@ -77,7 +77,6 @@ void Race::initBlank() {
     showGhost = false;
     recording.clear();
     recordGhost = false;
-    tips = nullptr;
     autopilot = true;
     orbit = true;
     showHud = false;
@@ -96,13 +95,14 @@ void Race::init(const RaceConfig& cfg, int local) {
     scored = false;
     bestScore = 0;
     newRecord = false;
+    hudParts = kHudAll;
+    countdownY = 400.0f;
     ghost.clear();
     showGhost = false;
     recording.clear();
     recordGhost = false;
     bestTime = 0.0f;
     newBestTime = false;
-    tips = nullptr;
     accumulator = 0.0f;
     camLateral = world.vehicles[localIndex].lateral;
     for (int i = 0; i < sim::kMaxVehicles; i++) smoothDist[i] = smoothLateral[i] = 0.0f;
@@ -251,7 +251,6 @@ void Race::update(float dt, const Controls& input) {
                 recording.trackLength = track.length;
             }
         }
-        if (tips) wantTips(previous);
         {
             const sim::Vehicle& me = world.vehicles[localIndex];
             if (world.countdown <= 0.0f && !me.finished)
@@ -285,34 +284,7 @@ void Race::update(float dt, const Controls& input) {
                 synth->beep(0);
         }
     }
-    if (tips) tips->update(std::min(dt, 0.1f));
     updatePresentation(dt);
-}
-
-void Race::wantTips(const sim::World& before) {
-    const sim::Vehicle& was = before.vehicles[localIndex];
-    const sim::Vehicle& now = world.vehicles[localIndex];
-    if (now.finished || autopilot) return;
-    if (world.countdown > 0.0f) {
-        if (config.gridStart) tips->want(Tip::StartTurbo, 0.5f);
-        return;
-    }
-    // Les conseils de fond attendent leur tour, ceux de l'instant passent
-    // vite ou pas du tout.
-    if (world.raceTime > 0.6f) tips->want(Tip::Steer, 30.0f);
-    if (showGhost && ghost.valid() && world.raceTime > 5.0f) tips->want(Tip::Ghost, 30.0f);
-    if (!world.ownClock && world.raceTime > 12.0f) tips->want(Tip::Tempo, 30.0f);
-    if (was.item == sim::Item::None && now.item != sim::Item::None)
-        tips->want(static_cast<Tip>(static_cast<int>(Tip::Shot) + static_cast<int>(now.item) - 1), 1.5f);
-    if (was.item != sim::Item::None && now.item == sim::Item::None) tips->mark(Tip::Used);
-    // Élément de piste dans les deux secondes et demie à venir.
-    const float ahead = now.dist + std::max(now.speed, 100.0f) * 2.5f;
-    auto next = std::lower_bound(track.features.begin(), track.features.end(), now.dist,
-                                 [](const sim::Feature& f, float d) { return f.dist < d; });
-    for (; next != track.features.end() && next->dist < ahead; ++next) {
-        if (next->type == sim::FeatureType::Barrier) tips->want(Tip::Barrier, 0.6f);
-        if (next->type == sim::FeatureType::Jump) tips->want(Tip::Jump, 0.6f);
-    }
 }
 
 void Race::updatePresentation(float dt) {
@@ -631,6 +603,8 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
     out.hud = nullptr;
     if (!showHud) return;
 
+    state.parts = hudParts;
+    state.countdownY = countdownY;
     state.position = sim::rankOf(world, localIndex);
     state.racers = world.count;
     state.remaining = std::max(0.0f, track.duration - sim::songTime(world, track, player));
@@ -655,15 +629,6 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
             state.showGhostGap = true;
             state.ghostGap = world.raceTime - at;
         }
-    }
-    // Conseil de l'initiation en cours.
-    state.tipLevel = 0.0f;
-    if (tips && tips->current >= 0 && !player.finished) {
-        tipShown = tipText(static_cast<Tip>(tips->current), *tips);
-        state.tipTitle = tipShown.title;
-        state.tipBody = tipShown.body;
-        state.tipDetail = tipShown.detail;
-        state.tipLevel = tips->level();
     }
     state.speedKmh = player.speed * 3.6f;
     // Radar : la piste à venir vue de dessus, dans le repère du vaisseau.

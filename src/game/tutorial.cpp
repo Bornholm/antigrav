@@ -40,7 +40,7 @@ TutorialPage tutorialPage(int index) {
                           keyBindingName(Button::Left), keyBindingName(Button::Right));
         }
         line("Le vaisseau accélère tout seul : vous ne gérez que la trajectoire.");
-        line("Les murets des bords vous freinent. À vous d'essayer !");
+        line("Les murets des bords vous freinent.");
         break;
     case 2:
         p.title = "DÉPART TURBO";
@@ -52,7 +52,7 @@ TutorialPage tutorialPage(int index) {
                    : "Pendant le compte à rebours, un anneau se resserre sur le cadre en bas à droite.");
         if (touch) line("Touchez le bouton quand il s'allume : vous partez en turbo.");
         else keyLine("Appuyez sur %s quand il s'allume : vous partez en turbo.", Button::Use);
-        line("Trop tôt, c'est raté pour cette course. À vous d'essayer !");
+        line("Trop tôt, c'est raté pour cette course.");
         break;
     case 3:
         p.title = "BONUS";

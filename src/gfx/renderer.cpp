@@ -77,6 +77,8 @@ struct Globals {
     glm::vec4 skyHaze;
     glm::vec4 bandsLow;
     glm::vec4 bandsHigh;
+    glm::vec4 mirrorClip{0.0f, 0.0f, 0.0f, 1.0f};
+    glm::vec4 mirrorFade{1.0f};
 };
 
 struct ScenePush {
@@ -938,6 +940,14 @@ void Renderer::draw(VkCommandBuffer cmd, const FrameTarget& target, const FrameP
     mirror.camRight = glm::vec4(mirrorVector(right, n) * tanX, -1.0f);
     mirror.camUp = glm::vec4(mirrorVector(up, n) * tanY, 0.0f);
     mirror.camForward = glm::vec4(mirrorVector(forward, n), 0.0f);
+    // Le décor passe par le miroir en entier : sans cette coupe, ce qui est
+    // sous la piste remonte dans le reflet. Dans une vrille, c'est la moitié
+    // de la ville qui viendrait se peindre sur la piste.
+    mirror.mirrorClip = glm::vec4(-n, glm::dot(n, params.planePoint));
+    // Piste couchée dans une vrille : le miroir regarde la ville et non plus
+    // le ciel, et les tours viendraient se peindre sur la piste. Le reflet du
+    // décor s'éteint au-delà du dévers des virages.
+    mirror.mirrorFade = glm::vec4(glm::smoothstep(0.72f, 0.88f, n.y));
 
     Buffer& ubo = globalsBuffer[params.slot];
     std::memcpy(ubo.mapped, &scene, sizeof(scene));

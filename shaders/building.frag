@@ -13,6 +13,7 @@ layout(location = 4) flat in float kind;
 layout(location = 0) out vec4 outColor;
 
 void main() {
+    if (dot(g.mirrorClip.xyz, worldPos) + g.mirrorClip.w < 0.0) discard;
     vec3 c;
     if (kind >= 1000.0) {
         // Roche : aplats sombres éclairés par le soleil, strates incandescentes.
@@ -46,5 +47,5 @@ void main() {
         c += color.rgb * crown * 3.0;
         c += color.rgb * step(uv.x, 0.9) * 1.6 * step(0.5, hash11(kind * 7.0));
     }
-    outColor = vec4(safe(applyFog(c, worldPos)), 1.0);
+    outColor = vec4(safe(applyFog(c, worldPos)) * g.mirrorFade.x, 1.0);
 }

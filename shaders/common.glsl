@@ -15,6 +15,12 @@ layout(set = 0, binding = 0) uniform Globals {
     vec4 skyHaze;    // a style de ciel : 0 anneau, 1 soleil, 2 planète, 3 fournaise, 4 fonds marins
     vec4 bandsLow;   // niveaux de la musique par bande, du grave à l'aigu, de 0 à 1
     vec4 bandsHigh;
+    // Reflet : xyz et w d'un plan, ce qui passe du côté négatif est écarté.
+    // Garde dans le reflet ce qui était au-dessus de la piste. (0, 0, 0, 1)
+    // hors du reflet.
+    vec4 mirrorClip;
+    // x : part du décor gardée dans le reflet, 1 hors du reflet.
+    vec4 mirrorFade;
 } g;
 
 layout(push_constant) uniform Push {

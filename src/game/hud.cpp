@@ -89,8 +89,6 @@ void drawMinimap(gfx::HudBatch& hud, const HudState& s) {
 
     // Ligne à hauteur du joueur : au-dessous, c'est derrière.
     const float selfY = center.y + s.radarSelf.y * scale;
-    hud.roundRect({center.x, selfY + 0.5f * (center.y + scale - selfY)}, {edgeX, 0.5f * (center.y + scale - selfY)},
-                  0.0f, alpha(kMagenta, 0.07f), vec4(0.0f), 0.0f);
     hud.line({center.x - edgeX, selfY}, {center.x + edgeX, selfY}, 1.5f, alpha(kWhite, 0.18f));
 
     const std::vector<vec2>& pts = *s.minimap;

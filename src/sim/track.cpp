@@ -443,9 +443,12 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     }
     finishFrames(track);
     placeFeatures(track, p, beats, seed);
-    // Tremplin sur chaque grand moment : tout le monde décolle au sommet. Rien
-    // ne traîne sur l'aire d'envol ni à l'atterrissage.
+    // Tremplin sur chaque grand moment, sur un seul couloir : qui le prend
+    // décolle au sommet et repart en turbo. Rien ne traîne sur l'aire d'envol
+    // ni à l'atterrissage, pour que le rater ne coûte rien de plus.
+    int dropIndex = 0;
     for (const Drop& d : drops) {
+        const int lane = std::min(2, static_cast<int>(featureRoll(seed, dropIndex++, 51u) * 3.0f));
         const float at = track.distAt(d.time);
         if (at < 400.0f || at > track.length - 800.0f) continue;
         const float clear = track.at(at).pace * 1.6f;
@@ -453,7 +456,8 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
         for (const Feature& f : track.features)
             if (f.dist + f.length < at - 60.0f || f.dist > at + clear) kept.push_back(f);
         track.features.swap(kept);
-        track.features.push_back({FeatureType::Jump, at, 12.0f, 0.0f, track.halfWidth});
+        const float third = track.halfWidth / 3.0f;
+        track.features.push_back({FeatureType::Jump, at, 12.0f, static_cast<float>(lane - 1) * 2.0f * third, third});
     }
     std::sort(track.features.begin(), track.features.end(), [](const Feature& a, const Feature& b) { return a.dist < b.dist; });
     for (size_t i = 0; i < beats.size(); i++) {

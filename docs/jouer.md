@@ -4,7 +4,7 @@ Chaque piste est générée à partir d'un morceau de musique. La course va de s
 
 - **Tempo.** Un trait barre la piste sur chaque temps, plus épais sur le premier temps de la mesure. Les boîtes à bonus tombent sur les temps forts, les barrières sur les temps accentués.
 - **Intensité.** La piste plonge dans les passages intenses et remonte dans les passages calmes, avec des descentes plus raides que les montées. Sa couleur suit : froide quand le morceau est calme, elle vire à l'orange quand il chauffe. Les virages se resserrent avec l'intensité.
-- **Grands moments.** Avant chaque montée brutale du morceau, la piste grimpe pendant sept secondes et bascule au sommet pile sur le drop. Un tremplin y attend : tous les vaisseaux décollent, survolent barrières et mines pendant un peu plus d'une seconde, puis retombent dans la descente.
+- **Grands moments.** Avant chaque montée brutale du morceau, la piste grimpe pendant sept secondes et bascule au sommet pile sur le drop. Un tremplin y attend, sur un seul couloir : à gauche, au centre ou à droite. Qui le prend décolle, survole barrières et mines pendant un peu plus d'une seconde et file en turbo jusqu'à une seconde après l'atterrissage. Qui le rate reste au sol, sur une piste dégagée.
 - **Vrilles.** Dans un morceau qui cogne, la piste fait par moments un tour complet sur elle-même, sur huit temps.
 - **Hargne.** Un morceau saturé et dense, du metal par exemple, donne une piste plus rapide, des virages deux fois plus fréquents, des boîtes à bonus plus nombreuses, et une caméra qui encaisse chaque temps. Deux barrières ne se suivent jamais à moins de deux secondes. Une barrière ne suit jamais une boîte à bonus : après une boîte, son couloir reste libre une seconde et demie.
 - **Décor.** Les bâtiments s'étirent avec les bandes de fréquences du morceau, comme un égaliseur, et les néons battent sur les temps.
@@ -147,7 +147,7 @@ L'hôte peut choisir n'importe quel morceau, y compris un de ses fichiers. Le je
 
 Les lettres A, D et W désignent une position sur le clavier, celle d'un clavier américain. Sur un clavier français, ce sont les touches Q, D et Z. L'écran **Options**, ligne CLAVIER, affiche le nom réel des touches et permet d'en choisir d'autres : toucher une commande, puis appuyer sur la touche voulue. Échap annule, PAR DÉFAUT rétablit les touches d'origine. Les flèches et la barre d'espace restent actives dans tous les cas.
 
-En haut de l'écran, la barre montre où en est chaque vaisseau dans le morceau. Le cadre de droite montre les virages à venir.
+En haut de l'écran, la barre montre où en est chaque vaisseau dans le morceau. Le radar, en haut à droite, montre la piste vue de dessus, 400 m derrière et 900 m devant, avec un point de couleur pour chaque vaisseau. Le triangle jaune est le vôtre, et la bande rosée sous lui est ce qui se passe dans votre dos. Quand un rival arrive à moins de 120 m derrière, des chevrons de sa couleur s'affichent sous votre vaisseau, du côté où il arrive : un de loin, trois quand il est sur vous.
 
 La souris agit comme un doigt. Pendant une course, le bouton MENU, Échap ou le geste retour d'Android proposent de quitter la course. En solo, ce menu met la course en pause : les vaisseaux et la musique s'arrêtent, et REPRENDRE les relance au même instant. En multijoueur la course continue derrière le menu, puisqu'elle ne peut pas s'arrêter pour les autres joueurs.
 

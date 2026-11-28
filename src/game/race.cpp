@@ -686,21 +686,40 @@ void Race::fill(const gfx::FontAtlas& fonts, glm::vec2 screen, gfx::FrameParams&
         }
     }
     state.speedKmh = player.speed * 3.6f;
-    // Radar : la piste à venir vue de dessus, dans le repère du vaisseau.
+    // Radar : la piste autour du joueur vue de dessus, dans le repère du
+    // vaisseau, avec les autres vaisseaux. On y voit qui arrive dans le dos.
     {
         const sim::TrackFrame here = track.at(playerDist);
         const glm::vec3 forward = glm::normalize(glm::vec3(here.tangent.x, 0.0f, here.tangent.z));
         const glm::vec3 side{-forward.z, 0.0f, forward.x};
-        const float behind = 250.0f, range = 2600.0f;
+        const glm::vec3 origin = here.pos + here.right * player.lateral;
+        const float half = 0.5f * (kRadarBehind + kRadarAhead);
+        // L'avant du vaisseau pointe vers le haut du cadre.
+        auto place = [&](const glm::vec3& p) {
+            const glm::vec3 rel = p - origin;
+            return glm::vec2(glm::dot(rel, side) / half, 1.0f - (glm::dot(rel, forward) + kRadarBehind) / half);
+        };
         minimap.clear();
-        for (float d = -behind; d <= range; d += 60.0f) {
-            const glm::vec3 rel = track.at(playerDist + d).pos - here.pos;
-            // L'avant du vaisseau pointe vers le haut du cadre.
-            minimap.push_back({glm::dot(rel, side) / (range * 0.5f),
-                               0.8f - 1.7f * (glm::dot(rel, forward) + behind) / (range + behind)});
-        }
+        for (float d = -kRadarBehind - 200.0f; d <= kRadarAhead + 200.0f; d += 25.0f)
+            minimap.push_back(place(track.at(playerDist + d).pos));
         state.minimap = &minimap;
-        state.progress = behind / (range + behind);
+        state.radarSelf = place(origin);
+        state.radarCount = 0;
+        state.chaseDist = -1.0f;
+        for (int i = 0; i < world.count; i++) {
+            if (i == localIndex) continue;
+            const sim::Vehicle& v = world.vehicles[i];
+            const sim::TrackFrame f = track.at(v.dist);
+            state.radar[state.radarCount] = place(f.pos + f.right * v.lateral);
+            state.radarColors[state.radarCount++] = glm::vec4(glm::mix(kSlotColors[i].engine, glm::vec3(1.0f), 0.25f), 1.0f);
+            const float behind = player.dist - v.dist;
+            if (behind > 0.0f && behind < kChaseRange && !player.finished &&
+                (state.chaseDist < 0.0f || behind < state.chaseDist)) {
+                state.chaseDist = behind;
+                state.chaseLateral = v.lateral - player.lateral;
+                state.chaseColor = glm::vec4(glm::mix(kSlotColors[i].engine, glm::vec3(1.0f), 0.25f), 1.0f);
+            }
+        }
     }
     // Avancement de chaque vaisseau dans le morceau.
     state.markCount = world.count;

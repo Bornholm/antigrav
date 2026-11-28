@@ -38,6 +38,14 @@ enum HudPart : uint32_t {
 constexpr float kAlertLead = 2.5f;
 constexpr float kDodgeLead = 0.4f;
 
+// Radar : mètres de piste montrés derrière et devant le joueur, et
+// demi-largeur du cadre rapportée à sa demi-hauteur.
+constexpr float kRadarBehind = 400.0f;
+constexpr float kRadarAhead = 900.0f;
+constexpr float kRadarHalfX = 0.72f;
+// Un rival plus proche que ça dans le dos est signalé sous le vaisseau.
+constexpr float kChaseRange = 120.0f;
+
 // Ce que l'interface affiche pendant une course.
 struct HudState {
     uint32_t parts = kHudAll;
@@ -50,10 +58,19 @@ struct HudState {
     float speedKmh = 0.0f;
     int tagCount = 0;
     NameTag tags[8];
-    // Piste à venir vue de dessus, normalisée dans [-1, 1], du point le plus
-    // en arrière au plus lointain.
+    // Radar : la piste autour du joueur vue de dessus, dans le repère de son
+    // vaisseau, l'avant vers le haut. Les coordonnées suivent la même échelle
+    // sur les deux axes ; le cadre couvre [-kRadarHalfX, kRadarHalfX] × [-1, 1].
     const std::vector<glm::vec2>* minimap = nullptr;
-    float progress = 0.0f; // position du joueur le long de ce tracé, 0 à 1
+    glm::vec2 radarSelf{0.0f};    // place du joueur dans le radar
+    int radarCount = 0;           // autres vaisseaux dans le radar
+    glm::vec2 radar[8];
+    glm::vec4 radarColors[8];
+    // Rival le plus proche dans le dos, à moins de kChaseRange mètres :
+    // distance et écart latéral, en mètres. chaseDist négatif s'il n'y en a pas.
+    float chaseDist = -1.0f;
+    float chaseLateral = 0.0f;
+    glm::vec4 chaseColor{1.0f};
     // Avancement des vaisseaux dans le morceau, 0 à 1.
     int markCount = 0;
     float marks[8] = {};

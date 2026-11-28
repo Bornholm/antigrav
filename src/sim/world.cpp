@@ -40,7 +40,10 @@ void applyFeatures(Vehicle& v, const Track& track, float before) {
     const bool flying = v.airTime > 0.0f;
     for (const Feature& f : track.features) {
         if (f.type == FeatureType::Jump) {
-            if (before < f.dist && v.dist >= f.dist) v.airTime = kAirTime;
+            if (before >= f.dist || v.dist < f.dist) continue;
+            if (std::abs(v.lateral - f.lateral) > f.halfWidth + kShipHalfWidth * 0.5f) continue;
+            v.airTime = kAirTime;
+            v.turboTime = std::max(v.turboTime, kAirTime + kJumpTurbo);
             continue;
         }
         if (flying) continue; // en l'air, on survole tout
@@ -463,6 +466,16 @@ Input autopilot(const World& world, int index, const Track& track, const AiProfi
         if (f.type != FeatureType::ItemBox || v.item != Item::None) continue;
         float ahead = track.ahead(v.dist, f.dist);
         if (ahead >= padAhead) continue;
+        float reach = steerSpeed * 0.8f * ahead / std::max(v.speed, 1.0f) + f.halfWidth * 0.5f;
+        if (std::abs(f.lateral - v.lateral) > reach) continue;
+        padAhead = ahead;
+        line = f.lateral;
+    }
+    // Tremplin : viser son couloir, qu'on porte un bonus ou non.
+    for (const Feature& f : track.features) {
+        if (f.type != FeatureType::Jump) continue;
+        float ahead = track.ahead(v.dist, f.dist);
+        if (ahead <= 0.0f || ahead >= padAhead) continue;
         float reach = steerSpeed * 0.8f * ahead / std::max(v.speed, 1.0f) + f.halfWidth * 0.5f;
         if (std::abs(f.lateral - v.lateral) > reach) continue;
         padAhead = ahead;

@@ -34,7 +34,8 @@ constexpr float kPulseSplit = 0.6f;
 constexpr float kClearAfterPad = 1.5f;  // secondes
 constexpr float kClearHalfWidth = 5.0f; // mètres
 
-// Un tremplin occupe toute la largeur : tous les vaisseaux décollent.
+// Un tremplin n'occupe qu'un tiers de la largeur : seuls ceux qui le visent
+// décollent.
 // Élément posé sur la piste. Tous agissent selon la seule position du
 // vaisseau, sans état propre : la prédiction réseau les rejoue telle quelle.
 enum class FeatureType { ItemBox, Barrier, Jump };

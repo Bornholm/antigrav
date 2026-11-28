@@ -81,30 +81,43 @@ void drawSpeed(gfx::HudBatch& hud, const HudState& s) {
 void drawMinimap(gfx::HudBatch& hud, const HudState& s) {
     hud.anchor = Anchor::Right;
     hud.vAnchor = gfx::VAnchor::Top;
-    const vec2 center{1476.0f, 140.0f};
-    hud.roundRect(center, {92.0f, 76.0f}, 14.0f, kPanel, vec4(0.85f, 0.88f, 1.0f, 0.55f), 1.5f);
+    const float scale = 108.0f; // pixels par unité du radar
+    const vec2 center{1490.0f, 168.0f};
+    const float edgeX = kRadarHalfX * scale;
+    hud.roundRect(center, {edgeX + 10.0f, scale + 10.0f}, 14.0f, kPanel, vec4(0.85f, 0.88f, 1.0f, 0.55f), 1.5f);
     if (!s.minimap || s.minimap->size() < 2) return;
 
+    // Ligne à hauteur du joueur : au-dessous, c'est derrière.
+    const float selfY = center.y + s.radarSelf.y * scale;
+    hud.roundRect({center.x, selfY + 0.5f * (center.y + scale - selfY)}, {edgeX, 0.5f * (center.y + scale - selfY)},
+                  0.0f, alpha(kMagenta, 0.07f), vec4(0.0f), 0.0f);
+    hud.line({center.x - edgeX, selfY}, {center.x + edgeX, selfY}, 1.5f, alpha(kWhite, 0.18f));
+
     const std::vector<vec2>& pts = *s.minimap;
-    const vec2 half{70.0f, 54.0f};
     const size_t n = pts.size();
-    auto inside = [&](vec2 p) { return std::abs(p.x) <= 1.0f && std::abs(p.y) <= 1.0f; };
+    auto inside = [&](vec2 p) { return std::abs(p.x) <= kRadarHalfX && std::abs(p.y) <= 1.0f; };
     for (size_t i = 0; i + 1 < n; i++) {
         if (!inside(pts[i]) || !inside(pts[i + 1])) continue;
-        float t = static_cast<float>(i) / static_cast<float>(n);
-        vec4 color = glm::mix(kMagenta, kCyan, 0.35f + 0.65f * t);
-        hud.line(center + pts[i] * half, center + pts[i + 1] * half, 4.0f, color, 0.12f);
+        const float t = std::clamp(0.5f - 0.5f * pts[i].y, 0.0f, 1.0f);
+        const vec4 color = glm::mix(kMagenta, kCyan, 0.25f + 0.75f * t);
+        hud.line(center + pts[i] * scale, center + pts[i + 1] * scale, 5.0f, alpha(color, 0.75f), 0.12f);
     }
 
-    // Marqueur du joueur.
-    float f = std::clamp(s.progress, 0.0f, 0.9999f) * static_cast<float>(n - 1);
-    size_t i0 = std::min(static_cast<size_t>(f), n - 2);
-    vec2 p0 = pts[i0], p1 = pts[i0 + 1];
-    vec2 pos = center + glm::mix(p0, p1, f - std::floor(f)) * half;
-    vec2 dir = glm::normalize((p1 - p0) * half);
-    vec2 side{-dir.y, dir.x};
-    hud.tri(pos + dir * 9.0f, pos - dir * 6.0f + side * 6.0f, pos - dir * 6.0f - side * 6.0f,
-            kYellow);
+    // Les autres vaisseaux, puis le joueur par-dessus. Un vaisseau hors du
+    // cadre se colle au bord, en plus petit.
+    for (int i = 0; i < s.radarCount; i++) {
+        vec2 p = s.radar[i];
+        const bool out = !inside(p);
+        p = glm::clamp(p, vec2(-kRadarHalfX, -1.0f), vec2(kRadarHalfX, 1.0f));
+        const vec2 at = center + p * scale;
+        if (out) {
+            hud.circle(at, 3.5f, alpha(s.radarColors[i], 0.55f), vec4(0.0f), 0.0f);
+        } else {
+            hud.circle(at, 6.5f, s.radarColors[i], alpha(kWhite, 0.9f), 1.5f);
+        }
+    }
+    const vec2 pos = center + s.radarSelf * scale;
+    hud.tri(pos + vec2(0.0f, -11.0f), pos + vec2(-7.5f, 7.0f), pos + vec2(7.5f, 7.0f), kYellow);
 }
 
 // Barre du morceau : où en est chaque vaisseau entre la première note et la
@@ -255,12 +268,30 @@ void drawButtons(gfx::HudBatch& hud, const HudState& s) {
 
 // Alerte accrochée au vaisseau du joueur : c'est là qu'il regarde.
 void drawAlerts(gfx::HudBatch& hud, const HudState& s, const glm::mat4& viewProj) {
-    if (!s.incoming && !s.rolling) return;
     const glm::vec4 clip = viewProj * glm::vec4(s.shipPos, 1.0f);
     if (clip.w <= 0.5f) return;
     hud.anchor = Anchor::Left;
     hud.vAnchor = gfx::VAnchor::Top;
     const vec2 c = (vec2(clip.x, clip.y) / clip.w * 0.5f + 0.5f) * hud.screen / hud.scale;
+
+    // Rival dans le dos : des chevrons sous le vaisseau, du côté où il arrive,
+    // de plus en plus nombreux et vifs à mesure qu'il approche.
+    if (s.chaseDist >= 0.0f) {
+        const float near = 1.0f - std::clamp(s.chaseDist / kChaseRange, 0.0f, 1.0f);
+        const int count = 1 + static_cast<int>(near * 2.99f);
+        const vec2 base = c + vec2(std::clamp(s.chaseLateral * 9.0f, -130.0f, 130.0f), 112.0f);
+        for (int k = 0; k < count; k++) {
+            const vec2 p = base + vec2(0.0f, 20.0f * static_cast<float>(k));
+            const float a = (0.5f + 0.5f * near) * (1.0f - 0.2f * static_cast<float>(k));
+            const vec4 shade(0.02f, 0.0f, 0.06f, 0.6f * a);
+            hud.line(p + vec2(-24.0f, 13.0f), p, 10.0f, shade);
+            hud.line(p + vec2(24.0f, 13.0f), p, 10.0f, shade);
+            hud.line(p + vec2(-22.0f, 12.0f), p, 5.0f, alpha(s.chaseColor, a), 0.3f);
+            hud.line(p + vec2(22.0f, 12.0f), p, 5.0f, alpha(s.chaseColor, a), 0.3f);
+        }
+    }
+
+    if (!s.incoming && !s.rolling) return;
 
     // Anneau qui se resserre sur le vaisseau à mesure que le tir approche, et
     // le touche quand il est temps de vriller. Gris si la vrille n'est pas

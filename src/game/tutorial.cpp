@@ -26,7 +26,7 @@ TutorialPage tutorialPage(int index) {
         p.hud = kHudSongBar | kHudMinimap;
         line("Chaque morceau devient une piste, de sa première note à sa dernière.");
         line("Virages, montées et obstacles suivent son rythme et son intensité.");
-        line("En haut, la barre montre où chacun en est dans le morceau.");
+        line("La barre du haut suit le morceau, le radar à droite montre qui vous entoure.");
         break;
     case 1:
         p.title = "VOS MORCEAUX";
@@ -83,7 +83,7 @@ TutorialPage tutorialPage(int index) {
         p.loop = 3.5f;
         line("Les barrières cassent votre élan : passez par l'ouverture.");
         line("Seul le centre du vaisseau compte, une aile peut passer au travers.");
-        line("Sur un tremplin, vous survolez barrières et mines.");
+        line("Un tremplin ne couvre qu'un couloir : visez-le pour un saut en turbo.");
         break;
     case 7:
         p.title = "VRILLE";

@@ -47,9 +47,11 @@ constexpr float kMineLife = 30.0f;     // secondes
 constexpr float kPulseRange = 75.0f;   // portée de l'onde le long de la piste, en mètres
 constexpr float kPulseWidth = 16.0f;   // et en travers
 // Saut : un tremplin envoie le vaisseau en l'air. Il survole alors barrières,
-// mines et boîtes, et braque moins bien.
+// mines et boîtes, et braque moins bien. Il file en turbo jusqu'à un peu
+// après l'atterrissage.
 constexpr float kAirTime = 1.25f;      // secondes en l'air
 constexpr float kJumpHeight = 16.0f;   // hauteur au sommet du saut, en mètres
+constexpr float kJumpTurbo = 1.0f;     // secondes de turbo après l'atterrissage
 constexpr float kCometSpeed = 300.0f;  // vitesse de la comète en plus de celle du lanceur, en m/s
 constexpr float kCometLife = 14.0f;    // secondes
 constexpr float kCometChance = 0.22f;  // part des boîtes du dernier qui donnent une comète

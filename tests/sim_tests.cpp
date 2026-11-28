@@ -654,6 +654,14 @@ void testFeatures() {
         CHECK(flying.stunTime == 0.0f); // passé au-dessus de la barrière
         flying = driveTo(jumpTrack, start, 200.0f + sim::kCruiseSpeed * (sim::kAirTime + 0.3f));
         CHECK(flying.airTime == 0.0f && sim::airHeight(flying) == 0.0f);
+        // Le saut rapporte un turbo qui dure un peu après l'atterrissage.
+        CHECK(flying.turboTime > 0.0f && flying.speed > sim::kCruiseSpeed * 1.05f);
+        // Un tremplin sur un seul couloir : à côté, on reste au sol.
+        jumpTrack.features = {{sim::FeatureType::Jump, 200.0f, 12.0f, -10.0f, 5.0f}};
+        CHECK(driveTo(jumpTrack, start, 260.0f).airTime == 0.0f);
+        sim::Vehicle onLane = start;
+        onLane.lateral = -10.0f;
+        CHECK(driveTo(jumpTrack, onLane, 260.0f).airTime > 0.0f);
     }
 
     // Le bouclier encaisse la barrière et s'éteint.

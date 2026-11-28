@@ -383,12 +383,15 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
             heat = x * x * (3.0f - 2.0f * x) * (0.75f + 0.25f * smoothDrive(p, time, 1.0f));
         }
         pace += (fastPace - pace) * 0.02f;
-        // Vrille en cours : la piste fait un tour complet sur elle-même.
+        // Vrille en cours : la piste fait un tour complet sur elle-même. Les
+        // tours achevés restent comptés : l'angle ne retombe jamais de 2π à
+        // 0 d'un échantillon à l'autre, sinon l'interpolation entre les deux
+        // retournerait la piste à mi-chemin et la plierait à angle droit.
         float twist = 0.0f;
         for (const Twist& tw : twists) {
-            if (time < tw.start || time >= tw.end) continue;
-            const float u = (time - tw.start) / (tw.end - tw.start);
-            twist = tw.sign * 2.0f * kPi * u * u * (3.0f - 2.0f * u);
+            if (time < tw.start) continue;
+            const float u = std::min(1.0f, (time - tw.start) / (tw.end - tw.start));
+            twist += tw.sign * 2.0f * kPi * u * u * (3.0f - 2.0f * u);
         }
         dense.push_back({pos, time, pace, dist, heat, twist});
 
@@ -409,8 +412,9 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     }
     const float length = dist;
     const float endTime = duration;
+    const float endTwist = dense.empty() ? 0.0f : dense.back().twist;
     for (float d = 0.0f; d <= kTail; d += kStep) {
-        dense.push_back({pos, endTime + d / pace, pace, length + d, heat * std::max(0.0f, 1.0f - d / 400.0f), 0.0f});
+        dense.push_back({pos, endTime + d / pace, pace, length + d, heat * std::max(0.0f, 1.0f - d / 400.0f), endTwist});
         slope *= 0.9f;
         pos += glm::normalize(glm::vec3(std::sin(heading), slope, -std::cos(heading))) * kStep;
     }

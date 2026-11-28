@@ -141,6 +141,12 @@ void testTrackEnds() {
         }
         CHECK(most > 6.0f);
         CHECK(upsideDown);
+        // Jamais de saut d'angle d'un point de la piste au suivant : un saut
+        // de 2π à 0 retournerait la piste entre les deux et la plierait.
+        for (size_t i = 1; i < twisted.frames.size(); i++) {
+            CHECK(std::abs(twisted.frames[i].twist - twisted.frames[i - 1].twist) < 0.05f);
+            CHECK(glm::dot(twisted.frames[i].up, twisted.frames[i - 1].up) > 0.95f);
+        }
         CHECK(twisted.frames.back().up.y > 0.9f);
         // Un morceau doux n'en a pas.
         for (const sim::TrackFrame& f : track.frames) CHECK(f.twist == 0.0f);

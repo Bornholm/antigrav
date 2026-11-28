@@ -443,24 +443,6 @@ Track generateTrack(const music::Partition& p, float halfWidth, uint32_t seed) {
     }
     finishFrames(track);
     placeFeatures(track, p, beats, seed);
-    // Pas de boîte dans une vrille, ni juste après : vue d'un autre point de
-    // la vrille, elle paraîtrait couchée ou renversée, et son faisceau
-    // barrerait la piste comme un obstacle.
-    {
-        auto twisted = [&](float d) {
-            const float w = std::abs(track.at(d).twist);
-            return w > 0.02f && w < 2.0f * kPi - 0.02f;
-        };
-        auto seenTwisted = [&](const Feature& f) {
-            for (float d = f.dist - kTwistClear; d <= f.dist + f.length; d += 10.0f)
-                if (twisted(d)) return true;
-            return twisted(f.dist + f.length);
-        };
-        std::vector<Feature> kept;
-        for (const Feature& f : track.features)
-            if (f.type != FeatureType::ItemBox || !seenTwisted(f)) kept.push_back(f);
-        track.features.swap(kept);
-    }
     // Tremplin sur chaque grand moment, sur un seul couloir : qui le prend
     // décolle au sommet et repart en turbo. Rien ne traîne sur l'aire d'envol
     // ni à l'atterrissage, pour que le rater ne coûte rien de plus.

@@ -34,6 +34,10 @@ constexpr float kPulseSplit = 0.6f;
 constexpr float kClearAfterPad = 1.5f;  // secondes
 constexpr float kClearHalfWidth = 5.0f; // mètres
 
+// Après une vrille de la piste, aucune boîte sur cette distance : on la verrait
+// de travers depuis la vrille.
+constexpr float kTwistClear = 400.0f; // mètres
+
 // Un tremplin n'occupe qu'un tiers de la largeur : seuls ceux qui le visent
 // décollent.
 // Élément posé sur la piste. Tous agissent selon la seule position du

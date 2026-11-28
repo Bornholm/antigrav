@@ -142,6 +142,17 @@ void testTrackEnds() {
         CHECK(most > 6.0f);
         CHECK(upsideDown);
         CHECK(twisted.frames.back().up.y > 0.9f);
+        // Aucune boîte dans une vrille ni juste après : elle paraîtrait couchée en travers.
+        int boxes = 0;
+        for (const sim::Feature& f : twisted.features) {
+            if (f.type != sim::FeatureType::ItemBox) continue;
+            boxes++;
+            for (float d = f.dist - sim::kTwistClear; d <= f.dist + f.length; d += 10.0f) {
+                const float w = std::abs(twisted.at(d).twist);
+                CHECK(w < 0.03f || w > 6.25f);
+            }
+        }
+        CHECK(boxes >= 8);
         // Un morceau doux n'en a pas.
         for (const sim::TrackFrame& f : track.frames) CHECK(f.twist == 0.0f);
     }
